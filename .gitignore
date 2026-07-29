@@ -1,0 +1,44 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+
+# Firebase local and generated data
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+emulator-data/
+google-services.json
+**/google-services.json
+service-account*.json
+firebase-service-account*.json
+
+# Signing and local secrets
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+!.env.example
+secrets/
+local-secrets/
+
+# Node tooling
+node_modules/
+npm-debug.log*
+
+# Test and analysis output
+coverage/
+reports/
+*.sarif
+
