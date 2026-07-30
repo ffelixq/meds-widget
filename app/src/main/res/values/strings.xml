@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Meds Widget</string>
+    <string name="single_widget_name">Meds Widget — Single medicine</string>
+    <string name="all_widget_name">Meds Widget — All medicines</string>
+    <string name="widget_description_single">Track one medicine with afternoon and night check controls.</string>
+    <string name="widget_description_all">Track all active medicine doses in a scrollable list.</string>
+    <string name="widget_dose_taken_description">%1$s, %2$s, taken</string>
+    <string name="widget_dose_not_taken_description">%1$s, %2$s, not taken</string>
+    <string name="privacy_summary">Medicine information is associated with your signed-in Firebase account and stored in Cloud Firestore. Widget content is visible on your unlocked home screen. No ads or analytics are enabled, data is not sold, and Meds Widget is a tracking utility, not medical advice.</string>
+</resources>

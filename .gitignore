@@ -1,5 +1,6 @@
 # Android / Gradle
 .gradle/
+.kotlin/
 build/
 **/build/
 local.properties
@@ -22,16 +23,20 @@ google-services.json
 **/google-services.json
 service-account*.json
 firebase-service-account*.json
+gha-creds-*.json
 
 # Signing and local secrets
 *.jks
 *.keystore
+*.p12
+*.pkcs12
 keystore.properties
 .env
 .env.*
 !.env.example
 secrets/
 local-secrets/
+release-signing/
 
 # Node tooling
 node_modules/
@@ -40,5 +45,5 @@ npm-debug.log*
 # Test and analysis output
 coverage/
 reports/
+firebase-tests/rules-test-output.txt
 *.sarif
-

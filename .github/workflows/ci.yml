@@ -1,0 +1,642 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: meds-widget-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: "17"
+  FIREBASE_JAVA_VERSION: "21"
+  NODE_VERSION: "24"
+  FIREBASE_CLI_VERSION: "15.24.0"
+  ANDROID_COMPILE_SDK: "37.0"
+  ANDROID_BUILD_TOOLS: "36.0.0"
+  GRADLE_OPTS: >-
+    -Dorg.gradle.daemon=false
+    -Dorg.gradle.parallel=false
+    -Dorg.gradle.vfs.watch=false
+
+jobs:
+  wrapper-validation:
+    name: Gradle wrapper validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          min-wrapper-count: "1"
+          allow-snapshots: "false"
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Scan Git history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Review pull-request dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          vulnerability-check: true
+          license-check: false
+          comment-summary-in-pr: never
+
+      - name: Review main-push dependency changes
+        if: github.event_name == 'push'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ github.event.before }}
+          head-ref: ${{ github.sha }}
+          fail-on-severity: moderate
+          vulnerability-check: true
+          license-check: false
+          comment-summary-in-pr: never
+
+  android-validation:
+    name: Android validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Set up pinned Android SDK packages
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: "14742923"
+          log-accepted-android-sdk-licenses: "false"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Check forbidden tracked files
+        run: ./scripts/check-forbidden-files.sh
+
+      - name: Run formatting, static analysis, lint, unit tests, and debug build
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          formatCheck
+          detekt
+          lint
+          testDebugUnitTest
+          assembleDebug
+
+      - name: Upload debug APK and reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/
+            build/reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+  firestore-rules:
+    name: Firestore rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java for Firebase Emulator Suite
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.FIREBASE_JAVA_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: firebase-tests/package-lock.json
+
+      - name: Check rules for unsafe grants
+        run: ./scripts/check-firestore-rules.sh
+
+      - name: Install locked rules-test dependencies
+        run: npm ci --prefix firebase-tests
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global "firebase-tools@${FIREBASE_CLI_VERSION}"
+
+      - name: Run Firestore emulator tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test --prefix firebase-tests 2>&1 |
+            tee firebase-tests/rules-test-output.txt
+
+      - name: Upload rules-test output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firestore-rules-${{ github.run_id }}-${{ github.run_attempt }}
+          path: firebase-tests/rules-test-output.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  android-instrumentation:
+    name: Android instrumentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - name: Set up pinned Android SDK packages
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: "14742923"
+          log-accepted-android-sdk-licenses: "false"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Enable KVM for the disposable runner
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run instrumentation tests on an emulator
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: >-
+            -no-window
+            -gpu swiftshader_indirect
+            -no-snapshot
+            -noaudio
+            -no-boot-anim
+          script: ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest
+
+      - name: Upload instrumentation reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-instrumentation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+            app/build/outputs/connected_android_test_additional_output/
+          if-no-files-found: warn
+          retention-days: 14
+
+  codeql:
+    name: CodeQL (Java/Kotlin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-provider: basic
+          cache-read-only: true
+
+      - name: Set up pinned Android SDK packages
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: "14742923"
+          log-accepted-android-sdk-licenses: "false"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+          # Stable CodeQL 2.26.2 adds Kotlin 2.4.10 extraction support.
+          tools: >-
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
+
+      - name: Build for CodeQL
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          category: /language:java-kotlin
+
+  deploy:
+    name: Deploy Firebase and APK
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.wrapper-validation.result == 'success' &&
+      needs.gitleaks.result == 'success' &&
+      needs.dependency-review.result == 'success' &&
+      needs.android-validation.result == 'success' &&
+      needs.firestore-rules.result == 'success' &&
+      needs.android-instrumentation.result == 'success' &&
+      needs.codeql.result == 'success'
+    needs:
+      - wrapper-validation
+      - gitleaks
+      - dependency-review
+      - android-validation
+      - firestore-rules
+      - android-instrumentation
+      - codeql
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          cache-provider: basic
+
+      - name: Set up pinned Android SDK packages
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: "14742923"
+          log-accepted-android-sdk-licenses: "false"
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_COMPILE_SDK }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Validate deployment configuration
+        id: auth-mode
+        shell: bash
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_ANDROID_APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+          ANDROID_APPLICATION_ID: ${{ vars.ANDROID_APPLICATION_ID }}
+          HAS_WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+          HAS_WIF_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT != '' }}
+          HAS_FALLBACK_CREDENTIALS: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON != '' }}
+          HAS_GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 != '' }}
+          HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' }}
+          HAS_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD != '' }}
+          HAS_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS != '' }}
+          HAS_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD != '' }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${FIREBASE_PROJECT_ID}" ]]; then
+            echo "::error::Missing Actions variable: FIREBASE_PROJECT_ID"
+            exit 1
+          fi
+          if [[ -z "${FIREBASE_ANDROID_APP_ID}" ]]; then
+            echo "::error::Missing Actions variable: FIREBASE_ANDROID_APP_ID"
+            exit 1
+          fi
+          if [[ "${ANDROID_APPLICATION_ID}" != "io.github.ffelixq.medswidget" ]]; then
+            echo "::error::ANDROID_APPLICATION_ID must equal io.github.ffelixq.medswidget"
+            exit 1
+          fi
+          if [[ "${HAS_GOOGLE_SERVICES_JSON}" != "true" ]]; then
+            echo "::error::Missing Actions secret: GOOGLE_SERVICES_JSON_BASE64"
+            exit 1
+          fi
+          if [[ "${HAS_RELEASE_KEYSTORE}" != "true" ]]; then
+            echo "::error::Missing Actions secret: ANDROID_RELEASE_KEYSTORE_BASE64"
+            exit 1
+          fi
+          if [[ "${HAS_RELEASE_KEYSTORE_PASSWORD}" != "true" ]]; then
+            echo "::error::Missing Actions secret: ANDROID_RELEASE_KEYSTORE_PASSWORD"
+            exit 1
+          fi
+          if [[ "${HAS_RELEASE_KEY_ALIAS}" != "true" ]]; then
+            echo "::error::Missing Actions secret: ANDROID_RELEASE_KEY_ALIAS"
+            exit 1
+          fi
+          if [[ "${HAS_RELEASE_KEY_PASSWORD}" != "true" ]]; then
+            echo "::error::Missing Actions secret: ANDROID_RELEASE_KEY_PASSWORD"
+            exit 1
+          fi
+
+          if [[ "${HAS_WIF_PROVIDER}" == "true" &&
+            "${HAS_WIF_SERVICE_ACCOUNT}" == "true" &&
+            "${HAS_FALLBACK_CREDENTIALS}" == "false" ]]
+          then
+            echo "mode=wif" >> "${GITHUB_OUTPUT}"
+          elif [[ "${HAS_WIF_PROVIDER}" == "false" &&
+            "${HAS_WIF_SERVICE_ACCOUNT}" == "false" &&
+            "${HAS_FALLBACK_CREDENTIALS}" == "true" ]]
+          then
+            echo "::warning::Using the service-account JSON fallback; migrate to Workload Identity Federation."
+            echo "mode=service-account-json" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::Configure exactly both WIF secrets without a fallback key, or only the fallback key."
+            exit 1
+          fi
+
+      - name: Materialize ignored build credentials
+        shell: bash
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_ANDROID_APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+          ANDROID_APPLICATION_ID: ${{ vars.ANDROID_APPLICATION_ID }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          printf '%s' "${GOOGLE_SERVICES_JSON_BASE64}" |
+            base64 --decode > app/google-services.json
+          printf '%s' "${RELEASE_KEYSTORE_BASE64}" |
+            base64 --decode > "${RUNNER_TEMP}/meds-widget-release.p12"
+
+          jq -e \
+            --arg project_id "${FIREBASE_PROJECT_ID}" \
+            --arg firebase_app_id "${FIREBASE_ANDROID_APP_ID}" \
+            --arg package_name "${ANDROID_APPLICATION_ID}" \
+            '
+              .project_info.project_id == $project_id
+              and any(
+                .client[];
+                .client_info.mobilesdk_app_id == $firebase_app_id
+                and .client_info.android_client_info.package_name == $package_name
+                and any(
+                  .oauth_client[]?;
+                  .client_type == 3
+                  and (.client_id | type == "string")
+                  and (.client_id | length > 0)
+                )
+              )
+            ' \
+            app/google-services.json > /dev/null
+
+      - name: Validate release keystore
+        shell: bash
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+        run: |
+          keytool -list \
+            -keystore "${RUNNER_TEMP}/meds-widget-release.p12" \
+            -storepass "${RELEASE_KEYSTORE_PASSWORD}" \
+            -alias "${RELEASE_KEY_ALIAS}" > /dev/null
+
+      - name: Build signed release APK and AAB
+        env:
+          MEDS_VERSION_CODE: ${{ github.run_number }}
+          MEDS_KEYSTORE_PATH: ${{ runner.temp }}/meds-widget-release.p12
+          MEDS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          MEDS_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          MEDS_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: >-
+          ./gradlew --no-daemon --stacktrace
+          assembleRelease
+          bundleRelease
+
+      - name: Verify release signing and create checksums
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_apk="app/build/outputs/apk/release/app-release.apk"
+          release_aab="app/build/outputs/bundle/release/app-release.aab"
+          test -s "${release_apk}"
+          test -s "${release_aab}"
+
+          apksigner_path="$(
+            find "${ANDROID_HOME}/build-tools" -type f -name apksigner |
+              sort -V |
+              tail -n 1
+          )"
+          test -n "${apksigner_path}"
+          "${apksigner_path}" verify --verbose --print-certs "${release_apk}" |
+            tee app/build/outputs/release-signing-certificates.txt
+          keytool -printcert -jarfile "${release_aab}" |
+            tee app/build/outputs/release-aab-signing-certificate.txt
+          sha256sum "${release_apk}" "${release_aab}" |
+            tee app/build/outputs/release-sha256.txt
+
+      - name: Create release notes
+        env:
+          TEST_SUMMARY: >-
+            Formatting, Detekt, Android Lint, unit, widget, Compose,
+            Firestore rules, instrumentation, Gradle wrapper, dependency
+            review, Gitleaks, and CodeQL checks passed.
+        run: ./scripts/release-notes.sh "app/build/outputs/release-notes.txt"
+
+      - name: Upload signed release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: meds-widget-release-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/release-sha256.txt
+            app/build/outputs/release-signing-certificates.txt
+            app/build/outputs/release-aab-signing-certificate.txt
+            app/build/outputs/release-notes.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Install pinned Firebase CLI
+        run: npm install --global "firebase-tools@${FIREBASE_CLI_VERSION}"
+
+      - name: Authenticate to Google Cloud with Workload Identity Federation for Firestore
+        if: steps.auth-mode.outputs.mode == 'wif'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Authenticate with service-account JSON fallback for Firestore
+        if: steps.auth-mode.outputs.mode == 'service-account-json'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          credentials_json: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Verify Firestore deployment credentials
+        shell: bash
+        env:
+          AUTH_MODE: ${{ steps.auth-mode.outputs.mode }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          set -Eeuo pipefail
+          test -n "${GOOGLE_APPLICATION_CREDENTIALS:-}"
+          test -s "${GOOGLE_APPLICATION_CREDENTIALS}"
+          if [[ "${AUTH_MODE}" == "service-account-json" ]]; then
+            jq -e \
+              --arg project_id "${FIREBASE_PROJECT_ID}" \
+              '.project_id == $project_id' \
+              "${GOOGLE_APPLICATION_CREDENTIALS}" > /dev/null
+          fi
+
+      - name: Deploy Firestore rules and indexes
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: >-
+          firebase deploy
+          --project "${FIREBASE_PROJECT_ID}"
+          --only firestore
+          --non-interactive
+          --force
+          --message "CI ${GITHUB_SHA}"
+
+      - name: Refresh Workload Identity Federation credentials for App Distribution
+        if: steps.auth-mode.outputs.mode == 'wif'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Refresh service-account JSON credentials for App Distribution
+        if: steps.auth-mode.outputs.mode == 'service-account-json'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          credentials_json: ${{ secrets.FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Distribute signed APK to owners
+        shell: bash
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_ANDROID_APP_ID: ${{ vars.FIREBASE_ANDROID_APP_ID }}
+        run: |
+          set -Eeuo pipefail
+          distribution_log="${RUNNER_TEMP}/app-distribution-output.txt"
+          trap 'rm -f "${distribution_log}"' EXIT
+          redact_distribution_output() {
+            sed -E \
+              -e '/binary_download_uri/d' \
+              -e '/Download the release binary/d' \
+              -e 's#https?://[^[:space:]]+#<redacted-url>#g' \
+              "${distribution_log}"
+          }
+          if ! firebase appdistribution:distribute \
+            app/build/outputs/apk/release/app-release.apk \
+            --project "${FIREBASE_PROJECT_ID}" \
+            --app "${FIREBASE_ANDROID_APP_ID}" \
+            --groups owners \
+            --release-notes-file app/build/outputs/release-notes.txt \
+            > "${distribution_log}" 2>&1
+          then
+            redact_distribution_output >&2
+            exit 1
+          fi
+          redact_distribution_output
+
+      - name: Remove materialized credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f \
+            app/google-services.json \
+            "${RUNNER_TEMP}/meds-widget-release.p12"

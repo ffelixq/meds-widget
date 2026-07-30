@@ -1,0 +1,24 @@
+build:
+  maxIssues: 0
+
+config:
+  validation: true
+  warningsAsErrors: false
+
+complexity:
+  LongMethod:
+    threshold: 90
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+    excludeCommentStatements: true
+  MagicNumber:
+    active: false
+  ReturnCount:
+    max: 5
+  UnusedPrivateMember:
+    allowedNames: "_|ignored|preview.*"

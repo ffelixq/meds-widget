@@ -1,0 +1,3 @@
+-keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+-dontwarn org.conscrypt.**
