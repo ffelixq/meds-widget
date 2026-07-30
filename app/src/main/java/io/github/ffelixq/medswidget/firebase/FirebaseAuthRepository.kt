@@ -18,6 +18,9 @@ import kotlinx.coroutines.tasks.await
 class FirebaseAuthRepository(
     private val auth: FirebaseAuth,
 ) : AuthRepository {
+    val currentUid: String?
+        get() = auth.currentUser?.uid
+
     private val mutableSession = MutableStateFlow(auth.currentUser?.toSession())
     override val session: StateFlow<AuthSession?> = mutableSession.asStateFlow()
     override val isConfigured: Boolean = true

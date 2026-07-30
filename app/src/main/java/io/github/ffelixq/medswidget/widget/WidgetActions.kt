@@ -1,11 +1,14 @@
 package io.github.ffelixq.medswidget.widget
 
 import android.content.Context
+import android.util.Log
+import androidx.annotation.Keep
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.action.ActionCallback
 import io.github.ffelixq.medswidget.AppGraph
+import io.github.ffelixq.medswidget.BuildConfig
 import io.github.ffelixq.medswidget.MedsApplication
 import io.github.ffelixq.medswidget.data.DoseWriteOutcome
 import io.github.ffelixq.medswidget.domain.CheckSource
@@ -34,16 +37,68 @@ internal data class WidgetCheckRequest(
     val appWidgetId: Int?,
 )
 
+@Keep
 class CheckDoseAction : ActionCallback {
+    @Suppress("TooGenericExceptionCaught")
     override suspend fun onAction(
         context: Context,
         glanceId: GlanceId,
         parameters: ActionParameters,
     ) {
-        WidgetCheckHandler {
-            GraphWidgetCheckDependencies(MedsApplication.graph(context))
-        }.handle(parameters) {
-            GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
+        WidgetActionDiagnostics.record(WidgetActionDiagnostic.WIDGET_ACTION_RECEIVED)
+        try {
+            WidgetCheckHandler(
+                dependencies = {
+                    GraphWidgetCheckDependencies(MedsApplication.graph(context))
+                },
+                recordDiagnostic = WidgetActionDiagnostics::record,
+            ).handle(parameters) {
+                GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
+            }
+        } catch (cancellation: CancellationException) {
+            WidgetActionDiagnostics.record(WidgetActionDiagnostic.CANCELLED)
+            throw cancellation
+        } catch (failure: Exception) {
+            WidgetActionDiagnostics.recordFailure(failure)
+            throw failure
+        }
+    }
+}
+
+internal object WidgetActionDiagnostic {
+    const val WIDGET_ACTION_RECEIVED = "widget_action_received"
+    const val PARAMETERS_VALID = "parameters_valid"
+    const val WIDGET_ID_VALID = "widget_id_valid"
+    const val AUTH_AVAILABLE = "auth_available"
+    const val CONFIGURATION_VALID = "configuration_valid"
+    const val SNAPSHOT_ELIGIBLE = "snapshot_eligible"
+    const val OPTIMISTIC_UPDATE_APPLIED = "optimistic_update_applied"
+    const val WIDGET_RENDER_REQUESTED = "widget_render_requested"
+    const val REPOSITORY_WRITE_SUCCEEDED = "repository_write_succeeded"
+    const val INVALID_PARAMETERS = "invalid_parameters"
+    const val WIDGET_ID_MISMATCH = "widget_id_mismatch"
+    const val AUTH_UNAVAILABLE = "auth_unavailable"
+    const val CONFIGURATION_INVALID = "configuration_invalid"
+    const val SNAPSHOT_MISSING = "snapshot_missing"
+    const val MEDICINE_INELIGIBLE = "medicine_ineligible"
+    const val OPTIMISTIC_UPDATE_REJECTED = "optimistic_update_rejected"
+    const val REPOSITORY_WRITE_FAILED = "repository_write_failed"
+    const val CANCELLED = "cancelled"
+    const val CALLBACK_FAILED = "callback_failed"
+}
+
+private object WidgetActionDiagnostics {
+    private const val TAG = "MedsWidgetAction"
+
+    fun record(code: String) {
+        if (BuildConfig.DEBUG) {
+            Log.i(TAG, "stage=$code")
+        }
+    }
+
+    fun recordFailure(failure: Exception) {
+        if (BuildConfig.DEBUG) {
+            Log.e(TAG, "reason=${WidgetActionDiagnostic.CALLBACK_FAILED} type=${failure.javaClass.simpleName}")
         }
     }
 }
@@ -95,27 +150,52 @@ internal interface WidgetCheckDependencies {
 }
 
 internal class WidgetCheckHandler(
+    private val recordDiagnostic: (String) -> Unit = {},
     private val dependencies: () -> WidgetCheckDependencies,
 ) {
+    @Suppress("ReturnCount")
     suspend fun handle(
         parameters: ActionParameters,
         resolveAppWidgetId: suspend () -> Int?,
     ) {
-        val request = parameters.toWidgetCheckRequest() ?: return
-        if (
-            request.source == CheckSource.WIDGET_2X2 &&
-            request.appWidgetId != resolveAppWidgetId()
-        ) {
-            return
-        }
+        val parsedRequest =
+            parameters.toWidgetCheckRequest()
+                ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
+        recordDiagnostic(WidgetActionDiagnostic.PARAMETERS_VALID)
+        val request =
+            if (parsedRequest.source == CheckSource.WIDGET_2X2) {
+                val resolvedWidgetId = resolveAppWidgetId()
+                if (parsedRequest.appWidgetId != resolvedWidgetId) {
+                    return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
+                }
+                parsedRequest.copy(appWidgetId = resolvedWidgetId)
+            } else {
+                parsedRequest
+            }
+        recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_VALID)
 
         val dependencies = dependencies()
         dependencies.refreshTemporalState()
-        val uid = dependencies.currentUid ?: return
-        if (!request.hasValidConfiguration(dependencies, uid)) return
+        val uid =
+            dependencies.currentUid
+                ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
+        recordDiagnostic(WidgetActionDiagnostic.AUTH_AVAILABLE)
+        if (!request.hasValidConfiguration(dependencies, uid)) {
+            return recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_INVALID)
+        }
+        recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_VALID)
 
-        val snapshot = dependencies.readSnapshot()
-        val cachedMedicine = snapshot.eligibleMedicine(uid, request) ?: return
+        var snapshot = dependencies.readSnapshot()
+        if (!snapshot.belongsTo(uid)) {
+            recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+            dependencies.recoverFromRepositories()
+            snapshot = dependencies.readSnapshot()
+            if (!snapshot.belongsTo(uid)) return
+        }
+        val cachedMedicine =
+            snapshot.eligibleMedicine(request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_ELIGIBLE)
         val actionId = UUID.randomUUID().toString()
         val checkedAt = dependencies.checkedAt
         val changed =
@@ -127,22 +207,27 @@ internal class WidgetCheckHandler(
                 timezoneId = dependencies.timezoneId,
                 actionId = actionId,
             )
-        if (changed) {
-            dependencies.scheduleAndRenderOrRollback(uid, actionId, request)
-            val applied =
-                dependencies.submitCheckOrRollback(
-                    uid = uid,
-                    actionId = actionId,
-                    request = request,
-                    snapshot = snapshot,
-                    medicine = cachedMedicine,
-                    checkedAt = checkedAt,
-                )
-            if (applied) {
-                dependencies.markActionSubmitted(actionId)
-            } else {
-                dependencies.rejectAndRecover(uid, actionId, request)
-            }
+        if (!changed) {
+            return recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_REJECTED)
+        }
+        recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_APPLIED)
+        dependencies.scheduleAndRenderOrRollback(uid, actionId, request)
+        recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
+        val applied =
+            dependencies.submitCheckOrRollback(
+                uid = uid,
+                actionId = actionId,
+                request = request,
+                snapshot = snapshot,
+                medicine = cachedMedicine,
+                checkedAt = checkedAt,
+            )
+        if (applied) {
+            dependencies.markActionSubmitted(actionId)
+            recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_SUCCEEDED)
+        } else {
+            recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED)
+            dependencies.rejectAndRecover(uid, actionId, request)
         }
     }
 }
@@ -155,8 +240,7 @@ private class GraphWidgetCheckDependencies(
             if (graph.accountOperationGate.isDeletionInProgress) {
                 null
             } else {
-                graph.repositories.auth.session.value
-                    ?.uid
+                graph.currentAuthenticatedUid
             }
 
     override val checkedAt: Instant
@@ -348,11 +432,7 @@ private suspend fun WidgetCheckRequest.hasValidConfiguration(
     return configuration.ownerUid == uid && configuration.medicineId == medicineId
 }
 
-private fun WidgetSnapshot.eligibleMedicine(
-    uid: String,
-    request: WidgetCheckRequest,
-): WidgetMedicine? {
-    if (!signedIn || ownerUid != uid) return null
+private fun WidgetSnapshot.eligibleMedicine(request: WidgetCheckRequest): WidgetMedicine? {
     val medicine = medicine(request.medicineId) ?: return null
     val enabled =
         when (request.slot) {
@@ -361,6 +441,8 @@ private fun WidgetSnapshot.eligibleMedicine(
         }
     return medicine.takeIf { enabled }
 }
+
+private fun WidgetSnapshot.belongsTo(uid: String): Boolean = signedIn && ownerUid == uid
 
 private fun WidgetMedicine.toDomain(uid: String): Medicine =
     Medicine(

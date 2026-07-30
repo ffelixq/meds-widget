@@ -16,6 +16,103 @@ import java.util.ArrayDeque
 
 class WidgetActionsTest {
     @Test
+    fun `guarded exits emit safe diagnostic reason codes`() =
+        runTest {
+            assertEquals(
+                WidgetActionDiagnostic.INVALID_PARAMETERS,
+                diagnosticCodes(
+                    dependencies = FakeWidgetCheckDependencies(),
+                    parameters =
+                        actionParametersOf(
+                            WidgetActionParameters.SLOT to DoseSlot.NIGHT.wireValue,
+                            WidgetActionParameters.SOURCE to CheckSource.WIDGET_4X2.wireValue,
+                        ),
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.WIDGET_ID_MISMATCH,
+                diagnosticCodes(
+                    dependencies = FakeWidgetCheckDependencies(),
+                    parameters = twoByTwoParameters(),
+                    resolvedWidgetId = APP_WIDGET_ID + 1,
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.AUTH_UNAVAILABLE,
+                diagnosticCodes(FakeWidgetCheckDependencies(currentUid = null)).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.CONFIGURATION_INVALID,
+                diagnosticCodes(
+                    dependencies = FakeWidgetCheckDependencies(configuration = null),
+                    parameters = twoByTwoParameters(),
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.SNAPSHOT_MISSING,
+                diagnosticCodes(
+                    FakeWidgetCheckDependencies(snapshot = contentSnapshot().copy(signedIn = false)),
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.MEDICINE_INELIGIBLE,
+                diagnosticCodes(
+                    FakeWidgetCheckDependencies(snapshot = contentSnapshot().copy(medicines = emptyList())),
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.OPTIMISTIC_UPDATE_REJECTED,
+                diagnosticCodes(
+                    FakeWidgetCheckDependencies(
+                        optimisticResults = ArrayDeque(listOf(false)),
+                    ),
+                ).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED,
+                diagnosticCodes(FakeWidgetCheckDependencies(checkResult = false)).last(),
+            )
+            assertEquals(
+                WidgetActionDiagnostic.REPOSITORY_WRITE_SUCCEEDED,
+                diagnosticCodes(FakeWidgetCheckDependencies()).last(),
+            )
+        }
+
+    @Test
+    fun `missing cached snapshot recovers once and then applies the check`() =
+        runTest {
+            val dependencies =
+                FakeWidgetCheckDependencies(
+                    snapshot = contentSnapshot().copy(signedIn = false),
+                    recoverySnapshot = contentSnapshot(),
+                )
+
+            WidgetCheckHandler { dependencies }.handle(fourByTwoParameters()) {
+                error("The all-medicines action does not resolve a single-widget ID")
+            }
+
+            assertEquals(1, dependencies.recoveryCalls)
+            assertEquals(2, dependencies.snapshotReads)
+            assertEquals(1, dependencies.optimisticCalls)
+            assertEquals(1, dependencies.checkCalls.size)
+        }
+
+    @Test
+    fun `valid all-medicines action applies an optimistic widget check`() =
+        runTest {
+            val dependencies = FakeWidgetCheckDependencies()
+
+            WidgetCheckHandler { dependencies }.handle(fourByTwoParameters()) {
+                error("The all-medicines action does not resolve a single-widget ID")
+            }
+
+            assertEquals(1, dependencies.optimisticCalls)
+            assertEquals(1, dependencies.widgetUpdateCalls)
+            assertEquals(CheckSource.WIDGET_4X2, dependencies.checkCalls.single().source)
+            assertEquals(1, dependencies.submittedActionIds.size)
+        }
+
+    @Test
     fun `malformed and unsupported parameters stop before dependencies are created`() =
         runTest {
             val dependencies = FakeWidgetCheckDependencies()
@@ -88,7 +185,8 @@ class WidgetActionsTest {
                     error("The all-medicines action does not resolve a single-widget ID")
                 }
 
-                assertEquals(1, mismatched.snapshotReads)
+                assertEquals(2, mismatched.snapshotReads)
+                assertEquals(1, mismatched.recoveryCalls)
                 assertEquals(0, mismatched.optimisticCalls)
                 assertEquals(0, mismatched.checkCalls.size)
             }
@@ -286,6 +384,21 @@ class WidgetActionsTest {
             failure
         }
 
+    private suspend fun diagnosticCodes(
+        dependencies: FakeWidgetCheckDependencies,
+        parameters: ActionParameters = fourByTwoParameters(),
+        resolvedWidgetId: Int? = APP_WIDGET_ID,
+    ): List<String> {
+        val diagnostics = mutableListOf<String>()
+        WidgetCheckHandler(
+            dependencies = { dependencies },
+            recordDiagnostic = diagnostics::add,
+        ).handle(parameters) {
+            resolvedWidgetId
+        }
+        return diagnostics
+    }
+
     private fun FakeWidgetCheckDependencies.assertPreSubmissionFailure(expectedCallOrder: List<String>) {
         assertEquals(if ("check" in expectedCallOrder) 1 else 0, checkCalls.size)
         assertEquals(0, submittedActionIds.size)
@@ -322,7 +435,8 @@ class WidgetActionsTest {
 
     private class FakeWidgetCheckDependencies(
         override val currentUid: String? = "user-a",
-        private val snapshot: WidgetSnapshot = contentSnapshot(),
+        private var snapshot: WidgetSnapshot = contentSnapshot(),
+        private val recoverySnapshot: WidgetSnapshot? = null,
         private val configuration: SingleWidgetConfiguration? = null,
         private val optimisticResults: ArrayDeque<Boolean> = ArrayDeque(listOf(true)),
         private val checkResult: Boolean = true,
@@ -428,6 +542,7 @@ class WidgetActionsTest {
         override suspend fun recoverFromRepositories() {
             callOrder += "recover"
             recoveryCalls += 1
+            recoverySnapshot?.let { snapshot = it }
         }
     }
 
