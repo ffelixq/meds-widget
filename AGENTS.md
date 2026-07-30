@@ -1,76 +1,61 @@
-# AGENTS.md
+# Repository Guidelines
 
-## Scope
+## Project Structure & Module Organization
 
-Meds Widget is an Android-only Kotlin application. Do not add iOS, web,
-notifications, analytics, ads, medical advice, paid services, Cloud Functions,
-Cloud Storage, or Google Play publication.
+Production Kotlin lives under
+`app/src/main/java/io/github/ffelixq/medswidget/`, organized into `domain`,
+`data`, `firebase`, `sync`, `ui`, `widget`, and `util`. Android resources and
+widget metadata are in `app/src/main/res/`. JVM, Compose, and Glance tests are
+in `app/src/test/`; device tests are in `app/src/androidTest/`.
+`firebase-tests/` contains Firestore emulator tests, `scripts/` holds validation
+utilities, and `docs/` contains guides.
 
-## Architecture
+## Architecture & Scope
 
-Keep domain logic independent from Android UI. Use the `domain`, `data`,
-`firebase`, `sync`, `ui`, `widget`, and `util` packages. There is no standalone
-`settings` package: its repository contract is in `data`, Firestore/DataStore
-implementation is in `firebase`, and screen/ViewModel are in `ui`. Compose
-screens and Glance widgets consume state; repositories own persistence and
-synchronisation. Widget rendering must use a compact local snapshot and must
-not wait on the network. Keep Firestore snapshot listeners bound to the process
-foreground lifecycle so they are cancelled while the app is backgrounded.
-Route medicine, dose, settings, and widget mutations through the graph-owned
-`AccountOperationGate`; account deletion is exclusive and the successful gate
-remains closed until `AppGraph` is rebuilt. Keep widget snapshot read-modify-
-write transitions inside one atomic DataStore edit, and retain action IDs until
-their asynchronous Firestore outcomes resolve. Schedule durable widget-action
-reconciliation before rendering an optimistic row; mark accepted repository
-submissions, and preserve cancellation. Repository projections must preserve
-unresolved optimistic rows without resurrecting pending markers that a
-concurrent completion already removed. Account deletion must drain the
-UID-scoped outstanding Firestore tasks before deleting cloud data.
+Keep domain logic independent from Compose and Glance. Repositories own
+persistence; widgets render from the DataStore
+snapshot and must not wait for the network. Preserve account isolation,
+idempotent dose actions, immutable audit events, and app-only undo. This is an
+Android tracking utility—not medical advice. Do not add web/iOS clients,
+analytics, ads, paid services, Cloud Functions, or Play publishing.
 
-## Commands
+## Build, Test, and Development Commands
 
-- `./gradlew formatCheck` — formatting
-- `./gradlew detekt lint testDebugUnitTest` — static and unit validation
-- `./gradlew assembleDebug` — debug APK
-- `./gradlew connectedDebugAndroidTest` — emulator tests
-- `npm test --prefix firebase-tests` — Firestore rules tests
-- `./scripts/validate.sh` — practical local suite
+- `./gradlew formatCheck` / `./gradlew formatApply` — check or correct Kotlin formatting.
+- `./gradlew detekt lint testDebugUnitTest` — run static analysis, Android Lint, and JVM tests.
+- `./gradlew assembleDebug` — build the development APK.
+- `./gradlew connectedDebugAndroidTest` — run instrumentation tests on an emulator.
+- `npm test --prefix firebase-tests` — test Firestore rules with the emulator.
+- `./scripts/validate.sh` — run the practical local validation suite.
 
-## Conventions
+Android builds use Java 17; set `MEDS_GRADLE_JAVA_HOME` when auto-detection
+fails. Firebase emulator tests require Java 21 or newer.
 
-- Kotlin DSL and `gradle/libs.versions.toml`; pin versions.
-- Java 17 Android toolchain (`MEDS_GRADLE_JAVA_HOME` overrides auto-detection);
-  Firebase emulator tests require Java 21+ (set `FIREBASE_JAVA_HOME` for
-  `scripts/validate.sh`); coroutines and Flow; no
-  business logic in composables.
-- Deterministic dose-state IDs and immutable random-ID audit events.
-- Widgets may check but never undo. Undo requires confirmation in the app.
-- Recompute logical medication day at every app/widget/sync/time entry point.
-- Keep XML-declared app/widget labels in string resources. Compose screen copy
-  is currently mostly inline; preserve wording and accessibility semantics when
-  editing it, and avoid introducing duplicate variants of shared text.
+## Coding Style & Naming Conventions
 
-## Security and privacy
+Use Kotlin official style, four-space indentation, LF endings, and a 140-column
+limit. Ktlint and Detekt enforce style. Use `PascalCase` for types/composables,
+`camelCase` for functions and properties, and descriptive test names in
+backticks. Pin dependencies in `gradle/libs.versions.toml`; never use dynamic
+versions. Keep business logic out of composables and widget layout functions.
 
-- Never commit `google-services.json`, service-account files, keystores,
-  passwords, tester lists, tokens, local SDK paths, user data, or emulator data.
-- Never log medicine names, emails, dose history, or authentication material.
-- Firestore access is always scoped to `users/{uid}` and validates `ownerUid`.
-- Account deletion must attempt every app DataStore/widget clear, terminate
-  Firestore, call `clearPersistence()`, rebuild `AppGraph`, and restart the
-  activity task. Local cleanup after Authentication deletion is best effort and
-  must still reach the graph restart; keep authentication/account actions
-  blocked until then. Treat the SDK cache clear as logical deletion, not secure
-  physical overwrite.
-- Keep Firebase on Spark with no billing account. Do not enable paid APIs.
-- Widget content is visible on the unlocked home screen.
+## Testing Guidelines
 
-## CI expectations
+Add deterministic regression tests for behavior changes. Use JUnit/Robolectric
+for domain, ViewModel, Compose, and Glance behavior; use AndroidX Test for
+device flows and Node’s test runner for Firestore rules. Cover failure, offline,
+account-switch, and process-recreation paths where relevant.
 
-Pull requests must pass formatting, Detekt, Android Lint, tests, rules tests,
-secret scanning, dependency review, CodeQL, wrapper validation, debug build,
-and instrumentation tests. Deployment runs only after successful validation on
-`main`; forked pull requests never receive deployment secrets. Production uses
-the `meds-widget-github`/`meds-widget-main` WIF provider with a main-only
-immutable repository/owner-ID condition; the JSON service-account secret is an
-unprovisioned emergency fallback, not the normal path.
+## Commit & Pull Request Guidelines
+
+Follow Conventional Commits, for example `fix(widget): preserve Glance callback`.
+Target `main` through a pull request; direct pushes and force pushes are blocked.
+Describe the change, root cause, tests run, security impact, and remaining
+physical-device work. All seven required CI checks must pass before squash merge.
+
+## Security & Configuration
+
+Never commit `google-services.json`, service-account files, keystores, passwords,
+tokens, tester lists, local SDK paths, or user data. Never log medicine names,
+emails, dose history, or authentication material. Keep Firebase on Spark without
+billing, and retain restrictive `users/{uid}` Firestore rules.
