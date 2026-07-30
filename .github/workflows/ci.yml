@@ -298,6 +298,9 @@ jobs:
         with:
           languages: java-kotlin
           build-mode: manual
+          # Stable CodeQL 2.26.2 adds Kotlin 2.4.10 extraction support.
+          tools: >-
+            https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.26.2/codeql-bundle-linux64.tar.gz
 
       - name: Build for CodeQL
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug

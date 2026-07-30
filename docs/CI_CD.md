@@ -78,6 +78,10 @@ Do not rename one without updating the branch ruleset and this document.
 | `CodeQL (Java/Kotlin)` | manual Kotlin/Java build and analysis | 45 min |
 | `Deploy Firebase and APK` | main-only signed build/artifact, then rules/indexes and distribution | 45 min |
 
+CodeQL uses the stable `codeql-bundle-v2.26.2` release asset explicitly because
+that is the first stable bundle containing Kotlin 2.4.10 extractor support.
+The CodeQL action itself remains pinned to its reviewed full commit SHA.
+
 `Dependency review` runs for pull requests and main pushes. A push compares
 `github.event.before` with `github.sha`, so the deployment gate requires an
 observed successful dependency review rather than accepting a skipped job. It
