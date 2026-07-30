@@ -127,7 +127,7 @@ jobs:
       - name: Check forbidden tracked files
         run: ./scripts/check-forbidden-files.sh
 
-      - name: Run formatting, static analysis, lint, unit tests, and debug build
+      - name: Run formatting, static analysis, lint, tests, and app builds
         run: >-
           ./gradlew --no-daemon --stacktrace
           formatCheck
@@ -135,6 +135,13 @@ jobs:
           lint
           testDebugUnitTest
           assembleDebug
+          assembleRelease
+
+      - name: Verify minified widget callback
+        run: >-
+          ./scripts/verify-release-widget-callback.sh
+          app/build/outputs/apk/release/app-release-unsigned.apk
+          app/build/outputs/mapping/release/mapping.txt
 
       - name: Upload debug APK and reports
         if: always()
@@ -143,6 +150,7 @@ jobs:
           name: android-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             app/build/outputs/apk/debug/*.apk
+            app/build/outputs/mapping/release/mapping.txt
             app/build/reports/
             build/reports/
           if-no-files-found: warn
@@ -515,6 +523,12 @@ jobs:
             tee app/build/outputs/release-aab-signing-certificate.txt
           sha256sum "${release_apk}" "${release_aab}" |
             tee app/build/outputs/release-sha256.txt
+
+      - name: Verify minified widget callback
+        run: >-
+          ./scripts/verify-release-widget-callback.sh
+          app/build/outputs/apk/release/app-release.apk
+          app/build/outputs/mapping/release/mapping.txt
 
       - name: Create release notes
         env:

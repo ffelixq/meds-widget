@@ -177,6 +177,14 @@ class AllMedicinesWidgetGlanceTest {
                     ),
                 )
             onNode(hasContentDescriptionEqualTo(secondMedicineDescription)).assertExists()
+            onNode(hasContentDescriptionEqualTo(secondMedicineDescription))
+                .assertHasRunCallbackClickAction<CheckDoseAction>(
+                    actionParametersOf(
+                        WidgetActionParameters.MEDICINE_ID to "medicine-b",
+                        WidgetActionParameters.SLOT to DoseSlot.NIGHT.wireValue,
+                        WidgetActionParameters.SOURCE to "widget_4x2",
+                    ),
+                )
         }
 
     @Test

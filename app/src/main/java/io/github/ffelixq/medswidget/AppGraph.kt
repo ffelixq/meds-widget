@@ -55,6 +55,12 @@ data class AccountDaySnapshot(
     val doses: DataEnvelope<List<DoseState>>,
 )
 
+internal fun selectAuthenticatedUid(
+    authoritativeAuthAvailable: Boolean,
+    authoritativeUid: String?,
+    sessionUid: String?,
+): String? = if (authoritativeAuthAvailable) authoritativeUid else sessionUid
+
 @Suppress("TooManyFunctions")
 class AppGraph(
     context: Context,
@@ -76,6 +82,15 @@ class AppGraph(
     private val mutableInForeground = MutableStateFlow(false)
     private val firestore: FirebaseFirestore?
     private val firebaseAuthRepository: FirebaseAuthRepository?
+    internal val currentAuthenticatedUid: String?
+        get() =
+            selectAuthenticatedUid(
+                authoritativeAuthAvailable = firebaseAuthRepository != null,
+                authoritativeUid = firebaseAuthRepository?.currentUid,
+                sessionUid =
+                    repositories.auth.session.value
+                        ?.uid,
+            )
 
     init {
         val firebaseReady = FirebaseApp.getApps(context).isNotEmpty()
@@ -286,8 +301,8 @@ class AppGraph(
     }
 
     suspend fun prepareTemporalStateForWidgetRender() {
-        val session = repositories.auth.session.value
-        session?.let { repositories.settings.activateAccount(it.uid) }
+        val activeUid = currentAuthenticatedUid
+        activeUid?.let { repositories.settings.activateAccount(it) }
         val settings = repositories.settings.localSettings.value
         val logicalDay =
             LogicalDayCalculator.logicalDay(
@@ -295,7 +310,7 @@ class AppGraph(
                 ZoneId.systemDefault(),
                 settings.resetMinutesAfterMidnight,
             )
-        snapshotStore.secureForSession(session?.uid, logicalDay)
+        snapshotStore.secureForSession(activeUid, logicalDay)
         recomputeTemporalState(updateWidgets = false)
     }
 
@@ -319,7 +334,7 @@ class AppGraph(
     }
 
     suspend fun refreshFromRepositories() {
-        val session = repositories.auth.session.value ?: return
+        val activeUid = currentAuthenticatedUid ?: return
         recomputeTemporalState(updateWidgets = false)
         val settings = repositories.settings.localSettings.value
         val expectedDay =
@@ -331,7 +346,7 @@ class AppGraph(
         val current = accountDaySnapshot.value
         if (
             current != null &&
-            current.ownerUid == session.uid &&
+            current.ownerUid == activeUid &&
             current.logicalDay == expectedDay
         ) {
             writeWidgetSnapshot(current)
@@ -347,14 +362,14 @@ class AppGraph(
     @Suppress("ReturnCount")
     suspend fun reconcilePendingWidgetActions(): Boolean {
         if (accountOperationGate.isDeletionInProgress) return true
-        val session = repositories.auth.session.value
+        val activeUid = currentAuthenticatedUid
         prepareTemporalStateForWidgetRender()
         val cached = snapshotStore.read()
         if (cached.pendingActions.isEmpty()) {
             widgetUpdater.updateAll()
             return true
         }
-        if (session == null || cached.ownerUid != session.uid) {
+        if (activeUid == null || cached.ownerUid != activeUid) {
             snapshotStore.clearAccount()
             widgetUpdater.updateAll()
             return true
@@ -367,7 +382,7 @@ class AppGraph(
         val pending = snapshotStore.read().pendingActions
         if (pending.isEmpty() && !expired) return true
         if (pending.any { !it.submitted }) return false
-        repositories.settings.activateAccount(session.uid)
+        repositories.settings.activateAccount(activeUid)
         val logicalDay =
             LogicalDayCalculator.logicalDay(
                 clock.instant(),
@@ -377,8 +392,8 @@ class AppGraph(
         val reconciled =
             withTimeoutOrNull(PENDING_RECONCILIATION_TIMEOUT_MILLIS) {
                 combine(
-                    repositories.medicines.observeActive(session.uid),
-                    repositories.doses.observeDay(session.uid, logicalDay),
+                    repositories.medicines.observeActive(activeUid),
+                    repositories.doses.observeDay(activeUid, logicalDay),
                 ) { medicines, doses ->
                     medicines to doses
                 }.first { (medicines, doses) ->
@@ -390,7 +405,7 @@ class AppGraph(
             } ?: return false
         val accountSnapshot =
             AccountDaySnapshot(
-                ownerUid = session.uid,
+                ownerUid = activeUid,
                 logicalDay = logicalDay,
                 medicines = reconciled.first,
                 doses = reconciled.second,

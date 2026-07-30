@@ -131,6 +131,64 @@ class SingleMedicineWidgetGlanceTest {
         }
 
     @Test
+    fun `separate widget instances retain distinct configurations and action parameters`() {
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable {
+                SingleMedicineWidgetContent(
+                    twoMedicineSnapshot(),
+                    SingleWidgetConfiguration(41, "user-a", "medicine-a"),
+                    41,
+                )
+            }
+
+            onNode(
+                hasContentDescriptionEqualTo(
+                    context.getString(
+                        R.string.widget_dose_not_taken_description,
+                        "Medicine A",
+                        "After lunch",
+                    ),
+                ),
+            ).assertHasRunCallbackClickAction<CheckDoseAction>(
+                actionParametersOf(
+                    WidgetActionParameters.MEDICINE_ID to "medicine-a",
+                    WidgetActionParameters.SLOT to DoseSlot.AFTERNOON.wireValue,
+                    WidgetActionParameters.SOURCE to "widget_2x2",
+                    WidgetActionParameters.APP_WIDGET_ID to 41,
+                ),
+            )
+        }
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable {
+                SingleMedicineWidgetContent(
+                    twoMedicineSnapshot(),
+                    SingleWidgetConfiguration(52, "user-a", "medicine-b"),
+                    52,
+                )
+            }
+
+            onNode(
+                hasContentDescriptionEqualTo(
+                    context.getString(
+                        R.string.widget_dose_not_taken_description,
+                        "Medicine B",
+                        "Sleep",
+                    ),
+                ),
+            ).assertHasRunCallbackClickAction<CheckDoseAction>(
+                actionParametersOf(
+                    WidgetActionParameters.MEDICINE_ID to "medicine-b",
+                    WidgetActionParameters.SLOT to DoseSlot.NIGHT.wireValue,
+                    WidgetActionParameters.SOURCE to "widget_2x2",
+                    WidgetActionParameters.APP_WIDGET_ID to 52,
+                ),
+            )
+        }
+    }
+
+    @Test
     fun `afternoon-only medicine renders one actionable row`() =
         runGlanceAppWidgetUnitTest {
             setContext(context)
