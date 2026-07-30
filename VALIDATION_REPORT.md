@@ -4,8 +4,9 @@ Report date: 2026-07-30
 Local timezone: Asia/Singapore (UTC+08:00)
 Repository: <https://github.com/ffelixq/meds-widget>
 
-This report separates executed evidence from source inventories and pending
-remote or physical checks. `PENDING` is not a passing result.
+This report separates executed evidence from source inventories and physical
+checks that still require the owner's Samsung device. `PENDING` is never used
+as a passing result.
 
 ## Environment
 
@@ -77,6 +78,22 @@ settings restoration, widget configuration lifecycle, and process recreation.
 | `actionlint -shellcheck shellcheck .github/workflows/*.yml`; `shellcheck scripts/*.sh`; `bash -n scripts/*.sh`; `zsh -n scripts/*.sh` | PASS | Workflow expressions and embedded shell passed actionlint; repository scripts passed ShellCheck and Bash/zsh syntax parsing | This does not substitute for a hosted Actions run | 2026-07-30 12:04 SGT |
 | `npm audit --prefix firebase-tests --audit-level=moderate` | PASS | `found 0 vulnerabilities` | Registry results can change over time | 2026-07-30 12:04 SGT |
 
+### Post-deployment evidence-update validation
+
+The application source was unchanged after the successful production run. The
+final report/documentation update was nevertheless checked again on 2026-07-30
+from 13:10 to 13:11 SGT:
+
+| Command | Result | Evidence | Warnings |
+| --- | --- | --- | --- |
+| `./scripts/validate.sh` | PASS | Forbidden-file and permissive-rules guards passed; formatting, Detekt, Lint, the 150-test JVM task, and debug assembly were successful/up to date; all 27 rules cases executed and passed | Instrumentation was intentionally not repeated for documentation-only changes; the unchanged app already passed 39/39 in the full suite and hosted PR/main CI |
+| `actionlint -shellcheck shellcheck .github/workflows/*.yml` | PASS | No workflow or embedded-shell findings | Hosted Actions remains authoritative for runner behavior |
+| `shellcheck scripts/*.sh`; `bash -n scripts/*.sh`; `zsh -n scripts/*.sh` | PASS | No script findings | None |
+| `npm audit --prefix firebase-tests --audit-level=moderate` | PASS | `found 0 vulnerabilities` | Registry results can change over time |
+| `./scripts/check-forbidden-files.sh`; `./scripts/check-firestore-rules.sh`; `git diff --check` | PASS | Both guards passed; no whitespace errors | Repeated again after staging |
+| `gitleaks git --redact --no-banner --log-opts='--all' .` | PASS | Five commits scanned; no leaks | Hosted Gitleaks also passed |
+| `git diff --no-ext-diff \| gitleaks stdin --redact --no-banner` | PASS | Uncommitted evidence update scanned; no leaks | Repeated against the staged tree before commit |
+
 ### Final signed-build checks
 
 The signed APK and AAB were rebuilt after the final application-source change,
@@ -101,32 +118,44 @@ informational for this locally signed Android App Bundle.
 
 ## GitHub checks
 
-Current local V1 branch: `feature/meds-widget-v1`
+Initial V1 branch: `feature/meds-widget-v1`
 Bootstrap base commit: `933f6f8a1de1aa5b9ef8ff2826be214d4e9669b5`
-Final V1 commit SHA: **PENDING**
+Final feature head: `f44ba72f5c57311d4c4ba50549acdddfb2df75ef`
+Squash-merged V1 commit: `956a1f26c58adfeb19c46e1306536ba9fa68f46b`
 
-The public repository exists, but the V1 feature branch has not yet completed
-the required pull-request and main deployment sequence.
+The public repository is <https://github.com/ffelixq/meds-widget>. Pull request
+[#1](https://github.com/ffelixq/meds-widget/pull/1) was squash-merged at
+2026-07-30 12:36 SGT, and the remote feature branch was then deleted.
 
 | Required check or operation | URL | Commit | Conclusion |
 | --- | --- | --- | --- |
-| Initial V1 pull request | **PENDING** | **PENDING** | **PENDING** |
-| Gradle wrapper validation | **PENDING** | **PENDING** | **PENDING** |
-| Gitleaks | **PENDING** | **PENDING** | **PENDING** |
-| Dependency review | **PENDING** | **PENDING** | **PENDING** |
-| Android validation | **PENDING** | **PENDING** | **PENDING** |
-| Firestore rules | **PENDING** | **PENDING** | **PENDING** |
-| Android instrumentation | **PENDING** | **PENDING** | **PENDING** |
-| CodeQL (Java/Kotlin) | **PENDING** | **PENDING** | **PENDING** |
-| Feature-branch merge | **PENDING** | **PENDING** | **PENDING** |
-| Main validation/deployment run | **PENDING** | **PENDING** | **PENDING** |
-| Deploy Firebase and APK | **PENDING** | **PENDING** | **PENDING** |
-| Signed GitHub Actions APK artifact | **PENDING** | **PENDING** | **PENDING** |
-| Main branch protection verification | **PENDING** | **PENDING** | **PENDING** |
+| Initial V1 pull request | [PR #1](https://github.com/ffelixq/meds-widget/pull/1) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | MERGED |
+| Gradle wrapper validation | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS |
+| Gitleaks | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS |
+| Dependency review | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS |
+| Android validation | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS — 150 JVM tests |
+| Firestore rules | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS — 27 cases |
+| Android instrumentation | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS — 39 tests |
+| CodeQL (Java/Kotlin) | [PR run 30513941287](https://github.com/ffelixq/meds-widget/actions/runs/30513941287) | `f44ba72f5c57311d4c4ba50549acdddfb2df75ef` | SUCCESS |
+| Feature-branch merge | [PR #1](https://github.com/ffelixq/meds-widget/pull/1) | `956a1f26c58adfeb19c46e1306536ba9fa68f46b` | SQUASH-MERGED |
+| Main validation/deployment run | [Run 30514348334, attempt 2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334) | `956a1f26c58adfeb19c46e1306536ba9fa68f46b` | SUCCESS |
+| Deploy Firebase and APK | [Job 90783610897](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/job/90783610897) | `956a1f26c58adfeb19c46e1306536ba9fa68f46b` | SUCCESS |
+| Signed GitHub Actions APK artifact | [Main run artifacts](https://github.com/ffelixq/meds-widget/actions/runs/30514348334#artifacts) | `956a1f26c58adfeb19c46e1306536ba9fa68f46b` | SUCCESS — artifact `8748680821` |
+| Main branch protection verification | [Repository rules](https://github.com/ffelixq/meds-widget/settings/rules) | ruleset `20019671` | ACTIVE and verified |
 
-No CI or deployment success is claimed from workflow-file validation alone.
-The terminal workflow conclusions and exact URLs must replace the pending
-entries after the PR and main runs complete.
+Attempt 1 of main run `30514348334` failed only in the deployment job because
+`iam.googleapis.com`, `iamcredentials.googleapis.com`, and
+`sts.googleapis.com` were disabled. The failure was inspected rather than
+blindly retried. Those three identity APIs required by the official WIF
+deployment-pipeline guide were enabled while Cloud Billing remained disabled.
+Attempt 2 then passed the previously failing WIF exchange, rules/index
+deployment, App Distribution upload, and cleanup steps. The JSON credential
+fallback was skipped in both authentication phases.
+
+Ruleset `20019671` has no bypass actors and applies to `refs/heads/main`. It
+requires a squash pull request, the seven exact checks above, an up-to-date
+branch, resolved conversations, and linear history; deletion and non-fast-
+forward updates are blocked. Zero additional human approvals are required.
 
 ## Firebase
 
@@ -146,10 +175,13 @@ entries after the PR and main runs complete.
 | Firestore point-in-time recovery | Disabled |
 | Authentication providers | Google; Email/password |
 | App Distribution group | `owners` |
+| WIF identity APIs | IAM, Service Account Credentials, and Security Token Service enabled |
 
-The billing state was checked before enabling deployment resources. No billing
-role, Cloud Functions, Cloud Storage, Hosting, Realtime Database, SQL Connect,
-Analytics, AdMob, or paid API is part of the application deployment.
+The billing state was checked before and after enabling the three identity
+APIs and returned `False` both times. Google documents all IAM API use as free
+of charge. No billing role, Cloud Functions, Cloud Storage, Hosting, Realtime
+Database, SQL Connect, Analytics, AdMob, or paid API is part of the application
+deployment.
 
 ### CI identity
 
@@ -175,21 +207,24 @@ Verified provider constraints:
 
 The deployment account has no Firebase Viewer or Firestore document-data
 read/write role. The production environment contains both WIF configuration
-values and no `FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON` fallback secret.
-Provisioning is not evidence of a successful deployment.
+values and no `FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON` fallback secret. WIF
+authentication was exercised successfully twice in the production deployment.
+The temporary bootstrap service-account key was then deleted; a live follow-up
+query reported zero user-managed keys for the deployment account.
 
 ### Deployment evidence
 
 | Firebase operation | Result |
 | --- | --- |
 | Local Firestore rules tests | PASS — 27 cases across 4 suites |
-| Production Firestore rules deployment from final main commit | **PENDING** |
-| Production Firestore rules read-back/verification | **PENDING** |
-| Production Firestore index deployment from final main commit | **PENDING** |
-| Production Firestore index read-back/verification | **PENDING** |
-| Firebase App Distribution upload | **PENDING** |
-| App Distribution release identifier | **PENDING** |
-| Tester invitation/install verification | **PENDING** |
+| Production Firestore rules deployment from final V1 main commit | PASS — run `30514348334`, attempt 2 |
+| Production Firestore rules read-back/verification | PASS — ruleset `0a9020e8-3b25-4501-9944-da62fe2979ed`; local and remote SHA-256 both `1ca3ac9dd5b324c12accb519d2e6002ca9d4b360775fa9c8aa5fee6bddce798a` |
+| Production Firestore index deployment from final V1 main commit | PASS — one obsolete index removed |
+| Production Firestore index read-back/verification | PASS — only tracked `medicines` (`archived ASC`, `createdAt ASC`) index remains; state `READY` |
+| Firebase App Distribution upload | PASS — version `1.0.0 (4)` distributed to `owners` |
+| App Distribution release identifier | `projects/648847295725/apps/1:648847295725:android:15e7b95037f6ff897678e4/releases/29poloscta3co` |
+| App Distribution group verification | PASS — `owners`, tester count `1`; no private tester address recorded here |
+| Tester invitation/install verification | **PENDING — requires the tester's physical Samsung device** |
 
 ## APK
 
@@ -200,18 +235,21 @@ Provisioning is not evidence of a successful deployment.
 | Application ID | `io.github.ffelixq.medswidget` |
 | Version name | `1.0.0` |
 | Local version code | `1` |
-| Main-CI version code | **PENDING** — the workflow uses the successful GitHub run number |
+| Main-CI version code | `4` |
 | APK filename | `app-release.apk` |
-| Expected local path | `/Users/felixdasumo/Desktop/meds/app/build/outputs/apk/release/app-release.apk` |
-| Final APK SHA-256 | `c3bb2cbfe9ba5af1f0fb6278ac0fc20b2101ae63b36711e82ff48bec474c7e16` |
-| Final AAB SHA-256 | `ce2e31162402c2964eb225d168a37d56caf3800e07406960702214a1235264a0` |
+| Downloaded final CI APK path | `/Users/felixdasumo/Desktop/meds/build/ci-release-956a1f2/apk/release/app-release.apk` |
+| Final CI APK SHA-256 | `7040ac2438bffe4ee1640afc3e39a268f71115c42fb7d9ef45e07102b6fe6496` |
+| Final CI AAB SHA-256 | `37554ab6a5f38ed6603984669613dfe3f4ed76c112cb2a8277354202f63d0f28` |
 | Signing certificate SHA-256 | `03a8c044b5b59782ac812d173a041806c9fc0a0bcad02c0a22c94aee6be6eabc` |
-| GitHub Actions artifact | **PENDING** |
-| Firebase App Distribution release identifier | **PENDING** |
+| GitHub Actions artifact | ID `8748680821`; `meds-widget-release-956a1f26c58adfeb19c46e1306536ba9fa68f46b-2`; 11,363,183 bytes; expires 2026-08-29 |
+| Artifact archive digest | `sha256:d1bafd2d31d4a73d16cd3aa892750855ea128d1fd31c77cded26076a542017a0` |
+| Firebase App Distribution release identifier | `29poloscta3co` |
 
-The same ignored release keystore must sign every distributed update. Losing
-the release keystore prevents future builds from updating an installed APK
-under the same application/signing identity.
+The artifact was downloaded again from GitHub and its embedded checksum
+manifest matched both files. `apksigner` verified the APK and reported the
+expected RSA-4096 certificate. The same ignored release keystore must sign
+every distributed update. Losing it prevents future builds from updating an
+installed APK under the same application/signing identity.
 
 ## Manual validation
 
@@ -233,8 +271,9 @@ under the same application/signing identity.
 - Google authentication provider, Android OAuth configuration, and debug and
   release certificate fingerprints are configured. A real-device Google
   sign-in interaction remains pending.
-- The provisional release APK signature and AAB structure were validated, but
-  the final source state must be rebuilt and rechecked.
+- The final CI release APK was downloaded, checksum-compared to its artifact
+  manifest, signature-verified, and inspected as application
+  `io.github.ffelixq.medswidget`, version `1.0.0 (4)`.
 
 ### REQUIRES_PHYSICAL_SAMSUNG_VALIDATION
 
@@ -274,14 +313,14 @@ Status: **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION**
 - The final staged tree passed the forbidden-file guard, `git diff --check`,
   a credential-pattern review, and Gitleaks with no findings.
 
-### Pending hosted and final-tree checks
+### Hosted and final-tree checks
 
 | Check | Status |
 | --- | --- |
-| Gitleaks on complete final Git history | **PENDING — hosted CI** |
-| GitHub dependency review | **PENDING — hosted CI** |
-| CodeQL Java/Kotlin analysis | **PENDING — hosted CI** |
-| Gradle Wrapper validation action | **PENDING — hosted CI** |
+| Gitleaks on complete V1 Git history | PASS — PR and main CI |
+| GitHub dependency review | PASS — PR and main CI |
+| CodeQL Java/Kotlin analysis | PASS — PR and main CI |
+| Gradle Wrapper validation action | PASS — PR and main CI |
 | Final staged/tracked-file review | PASS — repeated immediately before commit |
 | Final post-source-change signed rebuild and hashes | PASS — hashes recorded in the APK section |
 
@@ -301,5 +340,5 @@ Status: **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION**
 - Spark quotas can be exhausted. The app does not attach billing or
   automatically upgrade.
 - Physical Samsung/One UI behavior and real Google sign-in remain unverified.
-- Production rules/index deployment, App Distribution, and the signed GitHub
-  artifact remain pending until the actual main workflow succeeds.
+- App Distribution invitation acceptance, installation, and Samsung One UI
+  behavior remain unverified until the physical-device checklist is performed.

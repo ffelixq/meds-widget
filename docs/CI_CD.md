@@ -12,6 +12,12 @@ The repository is public so standard GitHub-hosted runners are no-cost:
 uses only `ubuntu-latest`, not paid larger runners. Artifact retention is
 bounded to reduce storage.
 
+The verified V1 production baseline is commit
+`956a1f26c58adfeb19c46e1306536ba9fa68f46b`. [CI run 30514348334,
+attempt 2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/attempts/2)
+completed successfully, including the signed build, Firestore deployment, and
+App Distribution. It used WIF and skipped the JSON-key fallback.
+
 ## Triggers and concurrency
 
 Workflow name: `CI`
@@ -394,12 +400,39 @@ gh secret list \
 Firebase CLI detects Application Default Credentials, so the workflow does not
 use a personal `FIREBASE_TOKEN`:
 <https://firebase.google.com/docs/cli#use_the_cli_with_ci_systems>.
+The deployed workflow intentionally retains this official Firebase CLI ADC
+path; WIF changes how ADC is obtained, not the Firebase deploy/distribution
+commands that consume it.
 
 ### Active: Workload Identity Federation
 
 WIF exchanges GitHub's OIDC assertion for a short-lived service-account
 credential. Follow Google's official deployment-pipeline guide:
 <https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines>.
+
+That guide requires the relevant identity APIs. For this project, the missing
+WIF prerequisites were enabled before the successful run:
+
+```text
+iam.googleapis.com
+iamcredentials.googleapis.com
+sts.googleapis.com
+```
+
+Check the no-cost boundary before and after any API change. Billing remained
+disabled before and after these APIs were enabled, and Google documents IAM API
+use as free:
+<https://cloud.google.com/iam/pricing>.
+
+Verify rather than re-enable blindly:
+
+```bash
+gcloud services list \
+  --enabled \
+  --project meds-widget-ffelixq \
+  --filter='config.name:(iam.googleapis.com OR iamcredentials.googleapis.com OR sts.googleapis.com)' \
+  --format='value(config.name)'
+```
 
 The live provider is:
 
@@ -466,6 +499,12 @@ Use only as an emergency path if the active WIF configuration becomes
 unavailable. The current `production` environment has both WIF secrets and no
 dedicated JSON secret. A terminal `main` workflow run—not identity
 provisioning—remains the authority for deployment success.
+
+The verified V1 run used WIF and skipped this fallback. The temporary
+user-managed key used during initial provisioning was deleted after that run;
+the deployment service account now has zero user-managed keys. Creating a
+fallback key would intentionally change that state and must follow the
+least-privilege, inventory, rotation, and deletion steps below.
 
 - Create a dedicated deployment service account with the same least
   privileges.
@@ -619,21 +658,23 @@ policy.
 
 ## Branch ruleset
 
-Create protection only after the initial V1 PR has passed, been squash-merged,
-and the resulting `main` deployment has succeeded. This avoids a bootstrap
-deadlock before the required check contexts exist.
-
-The `main` ruleset must:
+The initial V1 PR has passed, been squash-merged, and deployed. Active branch
+ruleset `20019671`, named `Protect main`, now protects `main`. Its current
+contract is:
 
 - require a pull request;
 - require zero additional human approvals for the single developer;
+- allow squash merging only;
 - require all seven exact check names listed above;
 - require the branch to be up to date before merge;
 - require review conversations to be resolved;
 - block force pushes;
 - block deletion;
 - require linear history; and
-- have no routine bypass actor.
+- have no bypass actor.
+
+The settings below are the recovery/recreation instructions; do not create a
+second overlapping ruleset while `20019671` is active.
 
 In the repository:
 
@@ -651,18 +692,19 @@ Select **New ruleset → New branch ruleset**:
 - enable **Require linear history**
 - enable **Require a pull request before merging**
 - required approvals: `0`
+- allowed merge methods: **Squash**
 - enable **Require conversation resolution before merging**
 - enable **Require status checks to pass**
 - enable **Require branches to be up to date before merging**
 - add the seven exact checks.
 
-Squash merge remains compatible with linear history.
+Squash merge is compatible with the required linear history.
 
 Verify through CLI:
 
 ```bash
-gh api repos/ffelixq/meds-widget/rulesets \
-  --jq '.[] | {id, name, target, enforcement}'
+gh api repos/ffelixq/meds-widget/rulesets/20019671 \
+  --jq '{id, name, target, enforcement, bypass_actors, rules}'
 
 gh api repos/ffelixq/meds-widget/rules/branches/main
 ```
@@ -715,9 +757,12 @@ green; doing so breaks update identity.
 
 ### Firebase deploy is denied
 
-Read the complete denied permission. Add only the exact missing rules/index
-permission to the deployment principal. Do not grant Editor/Owner or a Firebase
-Admin role reflexively.
+First confirm the WIF prerequisite APIs listed above are enabled; a missing
+Security Token Service or Service Account Credentials API can surface as a
+generic Firebase CLI authentication failure even when the WIF action created an
+ADC file. Then read the complete denied permission and add only the exact
+missing rules/index permission to the deployment principal. Do not grant
+Editor/Owner or a Firebase Admin role reflexively, and do not attach billing.
 
 ### App Distribution is denied or group missing
 
