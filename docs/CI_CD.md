@@ -42,6 +42,7 @@ The workflow pins:
 Java             17
 Node             24
 Firebase CLI     15.24.0
+Android CLI      20.0 (build 14742923)
 Android platform 37.0
 Build Tools      36.0.0
 ```
@@ -571,6 +572,9 @@ the PR run.
 Each ecosystem is limited to five open update PRs. Major updates are not grouped
 with routine minor/patch maintenance. Every Dependabot PR still passes the same
 protected checks; updates are never auto-deployed before merge.
+The public repository's dependency graph, vulnerability alerts, and Dependabot
+security updates are enabled. This keeps the hosted dependency-review action
+available without a paid GitHub plan.
 
 ## App Distribution tester onboarding
 
