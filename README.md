@@ -23,6 +23,20 @@ External resource identifiers, deployment results, APK hashes, and links to
 completed CI runs belong in `VALIDATION_REPORT.md`; they must not be inferred
 from configuration templates or an unexecuted workflow.
 
+The initial production delivery is verified for commit
+`956a1f26c58adfeb19c46e1306536ba9fa68f46b`: [CI run 30514348334,
+attempt 2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/attempts/2)
+completed successfully, including Firestore rules/index deployment and Firebase
+App Distribution. The run used short-lived WIF credentials; its JSON-key
+fallback was skipped. Cloud Billing was disabled before and after enabling the
+identity APIs required by WIF. The temporary user-managed deployment key was
+then deleted, and the deployment service account has zero user-managed keys.
+
+`main` is protected by active ruleset `20019671` (`Protect main`). It has no
+bypass actors and requires a pull request, squash merging, the seven documented
+checks, resolved conversations, an up-to-date branch, and linear history; it
+also blocks deletion and force pushes.
+
 Physical Samsung validation is intentionally separate from automated testing.
 See [Samsung validation](docs/SAMSUNG_VALIDATION.md). It remains
 `REQUIRES_PHYSICAL_SAMSUNG_VALIDATION` until every step has been performed on a
@@ -82,6 +96,12 @@ no-cost, and gives a limited no-cost quota for Cloud Firestore on Spark:
 <https://firebase.google.com/docs/projects/billing/firebase-pricing-plans>.
 Firestore's current free quota and excluded billed features are documented at
 <https://firebase.google.com/docs/firestore/quotas>.
+
+Production WIF additionally uses the IAM, Service Account Credentials, and
+Security Token Service APIs described in Google's
+[deployment-pipeline WIF guide](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
+They were enabled without linking billing; Google documents IAM API use as
+free in [IAM pricing](https://cloud.google.com/iam/pricing).
 
 On Spark, exhausting a Firestore quota stops that product until the quota
 resets; it does not automatically upgrade the project. The app shows cached or
@@ -530,7 +550,10 @@ Federation through pool `meds-widget-github` and provider
 `meds-widget-main`. It contains both WIF secrets and no JSON fallback secret.
 The deployment service account has exactly the four project roles documented in
 [CI/CD](docs/CI_CD.md), with no Firebase Viewer or Firestore document-read role.
-Provisioning this identity is not evidence that a deployment succeeded.
+The successful production run linked above used this WIF path, skipped the JSON
+fallback, and deployed through Firebase CLI's supported Application Default
+Credentials flow. The temporary user-managed service-account key was deleted
+after that proof, leaving zero user-managed keys.
 
 Workflow and secret names, least-privilege permissions, branch-protection check
 names, tester onboarding, and rotation steps are documented in

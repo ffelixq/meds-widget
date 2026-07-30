@@ -23,6 +23,12 @@ billing state, provider configuration, database location, rules deployment, or
 App Distribution success. Verify those live properties and record the evidence
 in `VALIDATION_REPORT.md`.
 
+For the current V1 project, that live verification is complete. At commit
+`956a1f26c58adfeb19c46e1306536ba9fa68f46b`, [CI run 30514348334,
+attempt 2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/attempts/2)
+succeeded with Firestore deployment and App Distribution. It used WIF, skipped
+the JSON-key fallback, and left the project unlinked from Cloud Billing.
+
 Project IDs are globally unique. If this project ever has to be recreated, use
 a short non-sensitive suffix rather than an email address, account number,
 token, or personal identifier.
@@ -48,6 +54,10 @@ Official references:
   <https://firebase.google.com/docs/firestore/quotas>
 - Firebase App Distribution:
   <https://firebase.google.com/docs/app-distribution>
+- Workload Identity Federation for deployment pipelines:
+  <https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines>
+- IAM pricing:
+  <https://cloud.google.com/iam/pricing>
 
 Firebase currently documents App Distribution and most Authentication options
 as no-cost. Cloud Firestore has a limited free quota on Spark. If the free
@@ -62,6 +72,20 @@ https://console.cloud.google.com/billing/linkedaccount?project=meds-widget-ffeli
 
 It must report that the project has no linked billing account. Do not click a
 link/upgrade action.
+
+CI federation needs the IAM, Service Account Credentials, and Security Token
+Service APIs:
+
+```text
+iam.googleapis.com
+iamcredentials.googleapis.com
+sts.googleapis.com
+```
+
+These identity prerequisites were enabled only after confirming billing was
+disabled. Billing was checked again after enablement and remained disabled.
+Google documents IAM API use as free. This does not authorize enabling unrelated
+or paid APIs.
 
 ## Authenticate the Firebase CLI
 
@@ -473,8 +497,10 @@ The deployment service account has exactly
 is documented only as an emergency fallback—not a personal Firebase CLI
 token—and would have to use the same least privileges. See
 [CI/CD](CI_CD.md) for the complete variable/secret contract and rotation
-procedure. A successful `main` deployment must still be observed before the
-configuration is described as validated.
+procedure. The successful run linked above verified that Firebase CLI consumed
+WIF-provided Application Default Credentials and skipped its JSON fallback.
+The temporary user-managed service-account key was deleted afterward; zero
+user-managed keys remain.
 
 Never expose deployment secrets to pull requests from forks. Deployment is
 allowed only after all validation jobs succeed on `main`.
@@ -518,25 +544,26 @@ recursive delete.
 
 ## Final verification checklist
 
-Before calling Firebase setup complete, observe and record:
+Before calling a new or recovered Firebase setup complete, observe and record
+every item below. The current V1 environment has been verified for all of them:
 
-- [ ] exact Firebase project ID and project number;
-- [ ] Spark plan;
-- [ ] no linked Cloud Billing account;
-- [ ] one Standard `(default)` Firestore database;
-- [ ] location `asia-southeast1`;
-- [ ] exact Android app package and Firebase App ID;
-- [ ] Email/Password enabled;
-- [ ] Google enabled with support email;
-- [ ] debug SHA-1 and SHA-256 registered;
-- [ ] release SHA-1 and SHA-256 registered;
-- [ ] fresh ignored `google-services.json`;
-- [ ] rules deployment success;
-- [ ] index deployment success/readiness;
-- [ ] `owners` group and initial tester;
-- [ ] signed APK App Distribution release;
-- [ ] no prohibited Firebase product enabled; and
-- [ ] no Firebase secret/credential tracked by Git.
+- [x] exact Firebase project ID and project number;
+- [x] Spark plan;
+- [x] no linked Cloud Billing account;
+- [x] one Standard `(default)` Firestore database;
+- [x] location `asia-southeast1`;
+- [x] exact Android app package and Firebase App ID;
+- [x] Email/Password enabled;
+- [x] Google enabled with support email;
+- [x] debug SHA-1 and SHA-256 registered;
+- [x] release SHA-1 and SHA-256 registered;
+- [x] fresh ignored `google-services.json`;
+- [x] rules deployment success;
+- [x] index deployment success/readiness;
+- [x] `owners` group and initial tester;
+- [x] signed APK App Distribution release;
+- [x] no prohibited Firebase product enabled; and
+- [x] no Firebase secret/credential tracked by Git.
 
-Do not mark a box from planned configuration alone. Use live CLI/console output
-and put the evidence in `VALIDATION_REPORT.md`.
+Do not mark a box in a future setup from planned configuration alone. Use live
+CLI/console output and put the evidence in `VALIDATION_REPORT.md`.

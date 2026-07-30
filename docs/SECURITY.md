@@ -343,6 +343,12 @@ ID, and Android application ID are repository variables.
 All third-party actions are pinned to full commit SHAs with their release
 version in a comment. Dependabot tracks Gradle, npm, and GitHub Actions.
 
+Active ruleset `20019671` (`Protect main`) has no bypass actors. It requires a
+pull request with squash merging, all seven named CI checks, an up-to-date
+branch, resolved conversations, and linear history, and blocks deletion and
+force pushes. This keeps production credentials behind both the main-only
+environment and validated repository history.
+
 ## Google deployment identity
 
 Workload Identity Federation is active and exchanges a GitHub OIDC identity for
@@ -366,6 +372,20 @@ plus the exact `main` ref; repository names alone are not the trust boundary.
 The protected `production` environment contains both
 `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`, with no
 `FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON`.
+
+The WIF path depends on these enabled identity APIs:
+
+```text
+iam.googleapis.com
+iamcredentials.googleapis.com
+sts.googleapis.com
+```
+
+They are prerequisites in Google's
+[deployment-pipeline WIF guide](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
+Billing was disabled before and after they were enabled. Google documents IAM
+API use as free in [IAM pricing](https://cloud.google.com/iam/pricing); no
+billing role or linked billing account was introduced.
 
 The deployment service account has exactly these four project roles:
 
@@ -404,8 +424,14 @@ stored only as
 `FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON`, and be rotated after suspected exposure
 or at the project's maintenance interval. A personal Firebase CLI token is
 forbidden.
-Identity provisioning is not deployment evidence; the terminal `main` run must
-still be recorded separately.
+
+[Main CI run 30514348334, attempt
+2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/attempts/2)
+proved the WIF/Application Default Credentials path at commit
+`956a1f26c58adfeb19c46e1306536ba9fa68f46b`; the JSON fallback was skipped.
+Afterward, the temporary user-managed deployment key was deleted and the
+service account was verified to have zero user-managed keys. A future fallback
+key must be removed again after WIF recovery.
 
 ## Release signing
 
