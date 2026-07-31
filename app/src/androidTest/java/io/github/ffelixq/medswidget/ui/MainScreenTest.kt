@@ -1,5 +1,8 @@
 package io.github.ffelixq.medswidget.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -215,12 +218,13 @@ class MainScreenTest {
     @Test
     fun countdownStartIsSeparateFromCheckingAndRunningTimerHasManagementActions() {
         val base = testDoseRow().copy(countdownMinutes = 120)
+        var displayedRow by mutableStateOf(base)
         var starts = 0
         var checks = 0
         composeRule.setContent {
             UiTestTheme {
                 MainScreen(
-                    state = testMainState(rows = listOf(base)),
+                    state = testMainState(rows = listOf(displayedRow)),
                     onCheck = { _, _ -> checks += 1 },
                     onUndo = {},
                     onStartCountdown = { _, _ -> starts += 1 },
@@ -257,17 +261,7 @@ class MainScreenTest {
                         lastActionId = "action-a",
                     ),
             )
-        composeRule.setContent {
-            UiTestTheme {
-                DoseCheckRow(
-                    row = running,
-                    onClick = {},
-                    onCancelCountdown = {},
-                    onRestartCountdown = {},
-                    showCountdownManagement = true,
-                )
-            }
-        }
+        composeRule.runOnIdle { displayedRow = running }
         composeRule.onNodeWithText("Cancel").assertIsDisplayed()
         composeRule.onNodeWithText("Restart").assertIsDisplayed()
     }
