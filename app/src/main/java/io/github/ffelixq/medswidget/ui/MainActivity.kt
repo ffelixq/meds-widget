@@ -189,6 +189,9 @@ private fun AppNavigation(
                 state = mainState,
                 onCheck = mainViewModel::check,
                 onUndo = mainViewModel::undo,
+                onStartCountdown = mainViewModel::startCountdown,
+                onCancelCountdown = mainViewModel::cancelCountdown,
+                onRestartCountdown = mainViewModel::restartCountdown,
                 onAdd = { navigation.navigate(Routes.ADD) },
                 onEdit = { navigation.navigate("medicine/${it.id}") },
                 onHistory = { navigation.navigate(Routes.HISTORY) },
@@ -231,6 +234,10 @@ private fun AppNavigation(
                 onSave = mainViewModel::saveMedicine,
                 onArchive = mainViewModel::archiveMedicine,
                 onDelete = mainViewModel::deleteMedicine,
+                activeCountdowns =
+                    mainState.rows
+                        .filter { it.medicineId == medicine?.id }
+                        .mapNotNull { it.countdown },
             )
         }
     }

@@ -3,6 +3,8 @@ package io.github.ffelixq.medswidget.widget
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.testing.unit.assertHasRunCallbackClickAction
 import androidx.glance.appwidget.testing.unit.assertHasStartActivityClickAction
@@ -12,6 +14,9 @@ import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.ffelixq.medswidget.R
+import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownState
+import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DisplayTransform
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.ui.MainActivity
@@ -129,6 +134,95 @@ class SingleMedicineWidgetGlanceTest {
             onNode(hasTextEqualTo("Medicine B")).assertDoesNotExist()
             onNode(hasText("Sleep")).assertDoesNotExist()
         }
+
+    @Test
+    fun `compact standard and spacious sizes render configured content`() {
+        listOf(
+            DpSize(130.dp, 130.dp),
+            DpSize(190.dp, 145.dp),
+            DpSize(280.dp, 220.dp),
+        ).forEach { size ->
+            runGlanceAppWidgetUnitTest {
+                setContext(context)
+                provideComposable {
+                    SingleMedicineWidgetContent(
+                        contentSnapshot(),
+                        SingleWidgetConfiguration(41, "user-a", "medicine-a"),
+                        41,
+                        size,
+                    )
+                }
+                onNode(hasTextEqualTo("Medicine A")).assertExists()
+                onNode(hasText("After lunch")).assertExists()
+            }
+        }
+    }
+
+    @Test
+    fun `countdown start is distinct from dose check and running state opens app`() {
+        val base = contentSnapshot().rows.last().copy(countdownMinutes = 120)
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            provideComposable {
+                SingleMedicineWidgetContent(
+                    contentSnapshot().copy(rows = listOf(base)),
+                    SingleWidgetConfiguration(41, "user-a", "medicine-a"),
+                    41,
+                )
+            }
+            val parameters =
+                actionParametersOf(
+                    WidgetActionParameters.MEDICINE_ID to "medicine-a",
+                    WidgetActionParameters.SLOT to DoseSlot.NIGHT.wireValue,
+                    WidgetActionParameters.SOURCE to "widget_2x2",
+                    WidgetActionParameters.APP_WIDGET_ID to 41,
+                )
+            onNode(hasTextEqualTo("Start 2h"))
+                .assertHasRunCallbackClickAction<StartCountdownAction>(parameters)
+            onNode(
+                hasContentDescriptionEqualTo(
+                    context.getString(
+                        R.string.widget_dose_not_taken_description,
+                        "Medicine A",
+                        "Before bed",
+                    ),
+                ),
+            ).assertHasRunCallbackClickAction<CheckDoseAction>(parameters)
+        }
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            val running =
+                base.copy(
+                    countdown =
+                        CountdownState(
+                            id = "2026-07-29_medicine-a_night",
+                            ownerUid = "user-a",
+                            logicalDay = LocalDate.of(2026, 7, 29),
+                            medicineId = "medicine-a",
+                            slot = DoseSlot.NIGHT,
+                            durationMinutes = 120,
+                            startedAt = Instant.parse("2026-07-29T05:00:00Z"),
+                            targetAt = Instant.parse("2026-07-29T07:00:00Z"),
+                            startedTimezone = "Asia/Singapore",
+                            startedSource = CheckSource.WIDGET_2X2,
+                            status = CountdownStatus.RUNNING,
+                            cancelledAt = null,
+                            completedAt = null,
+                            lastActionId = "action-a",
+                        ),
+                )
+            provideComposable {
+                WidgetDoseRowContent(
+                    row = running,
+                    source = CheckSource.WIDGET_2X2,
+                    appWidgetId = 41,
+                    now = Instant.parse("2026-07-29T05:30:00Z"),
+                )
+            }
+            onNode(hasTextEqualTo("1h 30m"))
+                .assertHasStartActivityClickAction(Intent(context, MainActivity::class.java))
+        }
+    }
 
     @Test
     fun `separate widget instances retain distinct configurations and action parameters`() {
@@ -296,7 +390,7 @@ class SingleMedicineWidgetGlanceTest {
                 )
             }
 
-            onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 30))).assertExists()
+            onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 34))).assertExists()
             onNode(
                 hasTextEqualTo(
                     TimeFormatting.compact(

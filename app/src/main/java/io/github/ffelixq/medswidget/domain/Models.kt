@@ -5,9 +5,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 const val SCHEMA_VERSION = 1
+const val MEDICINE_SCHEMA_VERSION = 2
+const val COUNTDOWN_SCHEMA_VERSION = 1
 const val MEDICINE_NAME_MAX_LENGTH = 100
 const val SLOT_LABEL_MAX_LENGTH = 60
 const val DISPLAY_NAME_MAX_LENGTH = 80
+const val COUNTDOWN_MIN_MINUTES = 1
+const val COUNTDOWN_MAX_MINUTES = 24 * 60
 
 enum class DoseSlot(
     val wireValue: String,
@@ -47,6 +51,33 @@ enum class DoseAction(
     }
 }
 
+enum class CountdownAction(
+    val wireValue: String,
+) {
+    START("start"),
+    CANCEL("cancel"),
+    RESTART("restart"),
+    CLEAR_BY_CHECK("clear_by_check"),
+    ;
+
+    companion object {
+        fun fromWire(value: String): CountdownAction? = entries.firstOrNull { it.wireValue == value }
+    }
+}
+
+enum class CountdownStatus(
+    val wireValue: String,
+) {
+    RUNNING("running"),
+    CANCELLED("cancelled"),
+    CONSUMED("consumed"),
+    ;
+
+    companion object {
+        fun fromWire(value: String): CountdownStatus? = entries.firstOrNull { it.wireValue == value }
+    }
+}
+
 enum class ThemePreference(
     val wireValue: String,
 ) {
@@ -76,10 +107,12 @@ data class Medicine(
     val afternoonLabel: String = "Afternoon",
     val nightEnabled: Boolean,
     val nightLabel: String = "Night",
+    val afternoonCountdownMinutes: Int? = null,
+    val nightCountdownMinutes: Int? = null,
     val archived: Boolean = false,
     val createdAt: Instant = Instant.EPOCH,
     val updatedAt: Instant = Instant.EPOCH,
-    val schemaVersion: Int = SCHEMA_VERSION,
+    val schemaVersion: Int = MEDICINE_SCHEMA_VERSION,
 ) {
     fun isEnabled(slot: DoseSlot): Boolean =
         when (slot) {
@@ -91,6 +124,12 @@ data class Medicine(
         when (slot) {
             DoseSlot.AFTERNOON -> afternoonLabel
             DoseSlot.NIGHT -> nightLabel
+        }
+
+    fun countdownMinutes(slot: DoseSlot): Int? =
+        when (slot) {
+            DoseSlot.AFTERNOON -> afternoonCountdownMinutes
+            DoseSlot.NIGHT -> nightCountdownMinutes
         }
 }
 
@@ -139,6 +178,42 @@ data class DoseEvent(
     val schemaVersion: Int = SCHEMA_VERSION,
 )
 
+data class CountdownState(
+    val id: String,
+    val ownerUid: String,
+    val logicalDay: LocalDate,
+    val medicineId: String,
+    val slot: DoseSlot,
+    val durationMinutes: Int,
+    val startedAt: Instant,
+    val targetAt: Instant,
+    val startedTimezone: String,
+    val startedSource: CheckSource,
+    val status: CountdownStatus,
+    val cancelledAt: Instant?,
+    val completedAt: Instant?,
+    val lastActionId: String,
+    val updatedAt: Instant = Instant.EPOCH,
+    val schemaVersion: Int = COUNTDOWN_SCHEMA_VERSION,
+)
+
+data class CountdownEvent(
+    val eventId: String,
+    val ownerUid: String,
+    val action: CountdownAction,
+    val logicalDay: LocalDate,
+    val medicineId: String,
+    val slot: DoseSlot,
+    val durationMinutes: Int,
+    val occurredAt: Instant,
+    val timezoneId: String,
+    val source: CheckSource,
+    val relatedStateId: String,
+    val previousActionId: String?,
+    val syncedAt: Instant = Instant.EPOCH,
+    val schemaVersion: Int = COUNTDOWN_SCHEMA_VERSION,
+)
+
 data class DataEnvelope<T>(
     val value: T,
     val fromCache: Boolean = false,
@@ -163,6 +238,8 @@ data class DoseRow(
     val checkedAt: Instant?,
     val checkedTimezone: String? = null,
     val stateId: String,
+    val countdownMinutes: Int? = null,
+    val countdown: CountdownState? = null,
 )
 
 sealed interface ContentState<out T> {

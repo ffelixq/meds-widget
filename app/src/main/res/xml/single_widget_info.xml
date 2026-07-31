@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:configure="io.github.ffelixq.medswidget.widget.SingleWidgetConfigurationActivity"
     android:description="@string/widget_description_single"
     android:initialLayout="@layout/glance_default_loading_layout"
@@ -7,6 +8,11 @@
     android:minResizeHeight="90dp"
     android:minResizeWidth="100dp"
     android:minWidth="110dp"
+    android:maxResizeHeight="320dp"
+    android:maxResizeWidth="360dp"
     android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="2"
     android:updatePeriodMillis="0"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    tools:targetApi="s" />

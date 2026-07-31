@@ -3,6 +3,8 @@ package io.github.ffelixq.medswidget.widget
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.testing.unit.assertHasRunCallbackClickAction
 import androidx.glance.appwidget.testing.unit.assertHasStartActivityClickAction
@@ -108,6 +110,47 @@ class AllMedicinesWidgetGlanceTest {
         }
 
     @Test
+    fun `all widget renders compact standard and larger resized bounds`() {
+        listOf(
+            DpSize(250.dp, 110.dp),
+            DpSize(330.dp, 150.dp),
+            DpSize(500.dp, 220.dp),
+        ).forEach { size ->
+            runGlanceAppWidgetUnitTest {
+                setContext(context)
+                provideComposable { AllMedicinesWidgetContent(contentSnapshot(), size) }
+                onNode(hasTextEqualTo("Today’s medicines")).assertExists()
+                onNode(hasTextEqualTo("1/3")).assertExists()
+            }
+        }
+    }
+
+    @Test
+    fun `all widget exposes separate countdown start and dose check actions`() =
+        runGlanceAppWidgetUnitTest {
+            setContext(context)
+            val row = contentSnapshot().rows.last().copy(countdownMinutes = 90)
+            provideComposable { AllMedicinesWidgetContent(contentSnapshot().copy(rows = listOf(row))) }
+            val parameters =
+                actionParametersOf(
+                    WidgetActionParameters.MEDICINE_ID to row.medicineId,
+                    WidgetActionParameters.SLOT to row.slot.wireValue,
+                    WidgetActionParameters.SOURCE to "widget_4x2",
+                )
+            onNode(hasTextEqualTo("Start 1h 30m"))
+                .assertHasRunCallbackClickAction<StartCountdownAction>(parameters)
+            onNode(
+                hasContentDescriptionEqualTo(
+                    context.getString(
+                        R.string.widget_dose_not_taken_description,
+                        row.medicineName,
+                        row.label,
+                    ),
+                ),
+            ).assertHasRunCallbackClickAction<CheckDoseAction>(parameters)
+        }
+
+    @Test
     fun `all-medicines content uses a lazy column and retains every row`() =
         runGlanceAppWidgetUnitTest {
             setContext(context)
@@ -201,7 +244,7 @@ class AllMedicinesWidgetGlanceTest {
                 )
             provideComposable { AllMedicinesWidgetContent(snapshot) }
 
-            onNode(hasTextEqualTo(DisplayTransform.truncate(longName, 22))).assertExists()
+            onNode(hasTextEqualTo(DisplayTransform.truncate(longName, 26))).assertExists()
             onNode(hasTextEqualTo(longName)).assertDoesNotExist()
         }
 
@@ -217,7 +260,7 @@ class AllMedicinesWidgetGlanceTest {
                 AllMedicinesWidgetContent(contentSnapshot().copy(rows = listOf(checked)))
             }
 
-            onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 30))).assertExists()
+            onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 34))).assertExists()
             onNode(
                 hasTextEqualTo(
                     TimeFormatting.compact(

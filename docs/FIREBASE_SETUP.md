@@ -1,5 +1,14 @@
 # Firebase setup
 
+## V1.1 collections
+
+V1.1 adds only Firestore documents under the existing user hierarchy:
+`countdownStates` and immutable `countdownEvents`. It adds no Firebase project,
+database, API, billing, Storage, or Cloud Function. Deploy the updated
+`firestore.rules` and unchanged indexes through the existing short-lived CI
+identity. Existing schema-1 medicines remain accepted; new writes use medicine
+schema 2 with nullable, bounded per-slot countdown fields.
+
 ## Fixed application identity
 
 Register the Android app with the exact, case-sensitive package name:

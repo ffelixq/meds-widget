@@ -2,6 +2,8 @@ package io.github.ffelixq.medswidget.data
 
 import io.github.ffelixq.medswidget.domain.AuthSession
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownAction
+import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DataEnvelope
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseEvent
@@ -107,12 +109,60 @@ interface DoseRepository {
     ): Boolean
 }
 
+interface CountdownRepository {
+    /** Active timers include timers from an earlier logical day until explicitly resolved. */
+    fun observeActive(uid: String): Flow<DataEnvelope<List<CountdownState>>>
+
+    @Suppress("LongParameterList")
+    suspend fun start(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        source: CheckSource,
+        actionId: String,
+        startedAt: Instant,
+        durationMinutes: Int,
+    ): Boolean
+
+    suspend fun cancel(
+        uid: String,
+        state: CountdownState,
+        source: CheckSource = CheckSource.APP,
+    ): Boolean
+
+    suspend fun restart(
+        uid: String,
+        state: CountdownState,
+        durationMinutes: Int,
+        source: CheckSource = CheckSource.APP,
+    ): Boolean
+
+    suspend fun clearForDoseCheck(
+        uid: String,
+        medicineId: String,
+        slot: DoseSlot,
+        source: CheckSource,
+        state: CountdownState? = null,
+    ): Boolean
+}
+
 data class DoseWriteOutcome(
     val ownerUid: String,
     val actionId: String,
     val medicineId: String,
     val slot: DoseSlot,
     val action: DoseAction,
+    val successful: Boolean,
+    val errorMessage: String? = null,
+)
+
+data class CountdownWriteOutcome(
+    val ownerUid: String,
+    val actionId: String,
+    val medicineId: String,
+    val slot: DoseSlot,
+    val action: CountdownAction,
     val successful: Boolean,
     val errorMessage: String? = null,
 )
@@ -143,5 +193,6 @@ data class RepositoryBundle(
     val doses: DoseRepository,
     val settings: SettingsRepository,
     val accountData: AccountDataRepository,
+    val countdowns: CountdownRepository = UnavailableCountdownRepository(),
     val clock: Clock = Clock.systemDefaultZone(),
 )

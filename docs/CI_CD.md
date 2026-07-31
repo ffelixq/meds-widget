@@ -1,5 +1,22 @@
 # CI/CD
 
+## V1.1 release gate
+
+The existing quality and deployment topology is unchanged. Release validation
+must additionally prove both reflectively loaded Glance callbacks survive R8:
+
+```bash
+./scripts/verify-release-widget-callback.sh \
+  app/build/outputs/apk/release/app-release.apk \
+  app/build/outputs/mapping/release/mapping.txt
+```
+
+The script checks `CheckDoseAction` and `StartCountdownAction` for retained
+runtime names, public zero-argument constructors, and `onAction`. CI runs it
+against unsigned and signed minified APKs. Do not disable minification or
+replace this with a source-only assertion. Main deployment still gates rules,
+indexes, signed APK/AAB artifacts, and App Distribution to `owners`.
+
 ## Source of truth and evidence
 
 The workflow source is `.github/workflows/ci.yml`. Its existence is not proof

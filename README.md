@@ -11,7 +11,7 @@ reminders, treatment recommendations, or drug information.
 - Firebase Android App ID:
   `1:648847295725:android:15e7b95037f6ff897678e4`
 - Platform: Android 8.0 (API 26) and newer
-- V1 distribution: signed APK through Firebase App Distribution and GitHub
+- V1.1 distribution: signed APK through Firebase App Distribution and GitHub
   Actions artifacts; no Google Play publication
 - Licence: no open-source licence has been assigned
 
@@ -64,16 +64,22 @@ No fabricated UI images are included.
 - Independently enabled afternoon and night slots, with custom per-medicine
   labels. At least one slot is required. Blank labels are rejected for enabled
   slots; a blank disabled-slot label is normalized to that slot's default.
+- Optional 1–1,440 minute personal countdowns configured independently for
+  afternoon and night, with 30/60/90/120-minute presets and custom hours/minutes.
+- Countdown start from the app, previews, or either widget. Widget **Start** and
+  dose-check controls are separate; cancellation and restart are app-only.
 - A logical medication day with a configurable local reset time. The default is
   midnight.
 - Idempotent check intent, exact device occurrence time, device timezone, and
   source attribution.
 - App-only undo with confirmation and an immutable check/undo audit history.
 - A responsive 2×2 Glance widget configured to one active medicine per widget
-  instance.
+  instance. Exact launcher width and height select compact, standard, or
+  spacious typography and row spacing.
 - A responsive, vertically scrollable 4×2 Glance widget containing every
-  active dose.
-- Functional in-app previews for the single-medicine and all-medicines widgets.
+  active dose and using the same size categories.
+- Functional previews for compact/standard single-medicine and all-medicines
+  layouts, including not-started, running, ready, and checked states.
 - Immediate local widget snapshots and Firestore's Android offline queue.
 - Light, dark, and system themes.
 - Compact history grouped by logical medication day.
@@ -457,6 +463,19 @@ delay it, so correctness never depends only on that schedule.
 The calculation uses `java.time` with the current `ZoneId`, covering calendar
 boundaries, leap years, and daylight-saving transitions.
 
+Countdowns retain their originating logical day and use an absolute `targetAt`.
+They can cross midnight or reset without becoming the next day's timer.
+`READY` remains until check/cancel/restart and never checks a dose automatically.
+
+## Countdown refresh policy
+
+Remaining time is derived from timestamps and is never persisted each minute.
+Widgets schedule one-time WorkManager refreshes: every 10 minutes above 60
+minutes remaining, every 5 minutes from 15–60 minutes, approximately every
+minute below 15 minutes, and at the target. Every render/action recomputes from
+`targetAt`, so delayed work does not affect correctness. V1.1 uses no exact
+alarms, foreground services, notifications, or per-second refresh.
+
 ## Offline behaviour
 
 Cloud Firestore's persistent Android cache is enabled by default. Existing
@@ -470,6 +489,10 @@ widget types compact it to `Cached` or `Syncing`. Medicine data for a signed-out
 account is removed from the widget snapshot, and configuration is owner-scoped
 to prevent an account switch from displaying the previous account's widget
 rows.
+
+Offline countdown starts use the same account-bound optimistic snapshot as dose
+checks. Deterministic state and action IDs prevent duplicate timers under rapid
+taps; the batched state/audit write queues until connectivity returns.
 
 Important boundaries:
 

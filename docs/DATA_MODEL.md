@@ -9,15 +9,18 @@ users/{uid}
 ├── settings/preferences
 ├── medicines/{medicineId}
 ├── doseStates/{logicalDay}_{medicineId}_{slot}
-└── doseEvents/{eventId}
+├── doseEvents/{eventId}
+├── countdownStates/{logicalDay}_{medicineId}_{slot}
+└── countdownEvents/{eventId}
 ```
 
 There are no public profiles and no collection-group queries. Every stored
 document includes `ownerUid`, and the rules require it to equal both `{uid}` in
 the path and `request.auth.uid`.
 
-All documents use `schemaVersion = 1`. Rules reject unknown fields rather than
-silently accepting an expanded payload.
+Dose, settings, and countdown documents use `schemaVersion = 1`. Medicines
+written by V1.1 use schema 2; strict schema-1 medicine documents remain
+supported. Rules reject unknown fields.
 
 ## Wire conventions
 
@@ -27,6 +30,8 @@ silently accepting an expanded payload.
 | Slot | `afternoon`, `night` |
 | Check source | `app`, `app_preview`, `widget_2x2`, `widget_4x2` |
 | Dose action | `check`, `undo` |
+| Countdown action | `start`, `cancel`, `restart`, `clear_by_check` |
+| Countdown status | `running`, `cancelled`, `consumed`; `READY` is derived |
 | Theme | `system`, `light`, `dark` |
 | Medicine ID | random UUID string, maximum 128 identifier characters |
 | Dose state ID | `<logicalDay>_<medicineId>_<slot>` |
@@ -95,10 +100,12 @@ Path: `users/{uid}/medicines/{medicineId}`
 | `afternoonLabel` | string | 1–60 characters; default `Afternoon` |
 | `nightEnabled` | boolean | Enables the night row |
 | `nightLabel` | string | 1–60 characters; default `Night` |
+| `afternoonCountdownMinutes` | integer or null | 1–1,440; null disables starts |
+| `nightCountdownMinutes` | integer or null | 1–1,440; null disables starts |
 | `archived` | boolean | Archived medicines are omitted from current rows/widgets |
 | `createdAt` | timestamp | Server timestamp on create; immutable |
 | `updatedAt` | timestamp | Server timestamp |
-| `schemaVersion` | integer | Exactly `1` |
+| `schemaVersion` | integer | `1` legacy shape or `2` countdown-aware shape |
 
 At least one of `afternoonEnabled` and `nightEnabled` must be true. Both label
 fields remain bounded even when their slot is disabled so enabling a slot later
@@ -110,6 +117,22 @@ respectively before persistence.
 Archive changes visibility but keeps the medicine document. Delete removes the
 medicine document. Neither action removes dose states or audit events; those
 contain snapshots for history.
+
+## Countdown state and event
+
+State path:
+`users/{uid}/countdownStates/{logicalDay}_{medicineId}_{slot}`. Fields are
+`ownerUid`, `logicalDay`, `medicineId`, `slot`, `durationMinutes`, `startedAt`,
+`targetAt`, `startedTimezone`, `startedSource`, `status`, nullable
+`cancelledAt`/`completedAt`, `updatedAt`, `lastActionId`, and `schemaVersion`.
+`targetAt` must equal `startedAt + durationMinutes`; no remaining counter is
+stored. A stored `running` state renders as `READY` once time reaches target.
+
+Event path: `users/{uid}/countdownEvents/{eventId}`. Immutable events record
+start, cancel, restart, and check-consumption actions with occurrence metadata,
+the related state, duration/target, and prior action ID. Batched writes pair
+state and event. A timer remains attached to its originating logical day across
+midnight/reset and cannot silently overwrite an unresolved prior timer.
 
 ## Dose state
 

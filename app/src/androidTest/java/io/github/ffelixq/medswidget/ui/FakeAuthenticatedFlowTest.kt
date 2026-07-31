@@ -52,7 +52,7 @@ class FakeAuthenticatedFlowTest {
 
         val stateId = "2026-07-29_flow-medicine_afternoon"
         assertEquals(
-            3,
+            4,
             composeRule.onAllNodesWithText("Flow medicine").fetchSemanticsNodes().size,
         )
         composeRule.onNodeWithTag("app_dose_$stateId").assertIsDisplayed()

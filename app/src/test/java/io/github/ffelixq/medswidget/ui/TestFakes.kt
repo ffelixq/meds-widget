@@ -2,12 +2,17 @@ package io.github.ffelixq.medswidget.ui
 
 import io.github.ffelixq.medswidget.data.AccountDataRepository
 import io.github.ffelixq.medswidget.data.AuthRepository
+import io.github.ffelixq.medswidget.data.CountdownRepository
 import io.github.ffelixq.medswidget.data.DoseRepository
 import io.github.ffelixq.medswidget.data.MedicineRepository
 import io.github.ffelixq.medswidget.data.RepositoryBundle
 import io.github.ffelixq.medswidget.data.SettingsRepository
 import io.github.ffelixq.medswidget.domain.AuthSession
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownIds
+import io.github.ffelixq.medswidget.domain.CountdownLogic
+import io.github.ffelixq.medswidget.domain.CountdownState
+import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DataEnvelope
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseActionPolicy
@@ -163,8 +168,10 @@ internal class FakeMedicineRepository : MedicineRepository {
                 name = draft.name,
                 afternoonEnabled = draft.afternoonEnabled,
                 afternoonLabel = draft.afternoonLabel,
+                afternoonCountdownMinutes = draft.afternoonCountdownMinutes,
                 nightEnabled = draft.nightEnabled,
                 nightLabel = draft.nightLabel,
+                nightCountdownMinutes = draft.nightCountdownMinutes,
                 archived = existing?.archived ?: false,
                 createdAt = existing?.createdAt ?: Instant.parse("2026-07-01T00:00:00Z"),
                 updatedAt = Instant.parse("2026-07-29T00:00:00Z"),
@@ -426,6 +433,120 @@ internal class FakeSettingsRepository(
     }
 }
 
+internal class FakeCountdownRepository(
+    private val clock: Clock,
+) : CountdownRepository {
+    private val valuesByUser = mutableMapOf<String, MutableStateFlow<DataEnvelope<List<CountdownState>>>>()
+    val starts = mutableListOf<CountdownState>()
+    var cancelCount = 0
+    var restartCount = 0
+    var clearCount = 0
+
+    override fun observeActive(uid: String): Flow<DataEnvelope<List<CountdownState>>> = state(uid)
+
+    override suspend fun start(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        source: CheckSource,
+        actionId: String,
+        startedAt: Instant,
+        durationMinutes: Int,
+    ): Boolean {
+        if (state(uid).value.value.any { it.medicineId == medicine.id && it.slot == slot }) return false
+        val countdown =
+            CountdownState(
+                id = CountdownIds.stateId(logicalDay, medicine.id, slot),
+                ownerUid = uid,
+                logicalDay = logicalDay,
+                medicineId = medicine.id,
+                slot = slot,
+                durationMinutes = durationMinutes,
+                startedAt = startedAt,
+                targetAt = CountdownLogic.targetAt(startedAt, durationMinutes),
+                startedTimezone = clock.zone.id,
+                startedSource = source,
+                status = CountdownStatus.RUNNING,
+                cancelledAt = null,
+                completedAt = null,
+                lastActionId = actionId,
+            )
+        starts += countdown
+        state(uid).value = DataEnvelope(state(uid).value.value + countdown, hasPendingWrites = true)
+        return true
+    }
+
+    override suspend fun cancel(
+        uid: String,
+        state: CountdownState,
+        source: CheckSource,
+    ): Boolean {
+        cancelCount += 1
+        remove(uid, state)
+        return true
+    }
+
+    override suspend fun restart(
+        uid: String,
+        state: CountdownState,
+        durationMinutes: Int,
+        source: CheckSource,
+    ): Boolean {
+        restartCount += 1
+        val updated =
+            state.copy(
+                durationMinutes = durationMinutes,
+                startedAt = clock.instant(),
+                targetAt = CountdownLogic.targetAt(clock.instant(), durationMinutes),
+                lastActionId = "restart-$restartCount",
+            )
+        this.state(uid).value =
+            DataEnvelope(
+                this
+                    .state(uid)
+                    .value.value
+                    .filterNot { it.id == state.id } + updated,
+                hasPendingWrites = true,
+            )
+        return true
+    }
+
+    override suspend fun clearForDoseCheck(
+        uid: String,
+        medicineId: String,
+        slot: DoseSlot,
+        source: CheckSource,
+        state: CountdownState?,
+    ): Boolean {
+        val current =
+            this.state(uid).value.value.firstOrNull {
+                it.medicineId == medicineId && it.slot == slot
+            } ?: state ?: return false
+        clearCount += 1
+        remove(uid, current)
+        return true
+    }
+
+    fun emit(
+        uid: String,
+        envelope: DataEnvelope<List<CountdownState>>,
+    ) {
+        state(uid).value = envelope
+    }
+
+    fun envelope(uid: String): DataEnvelope<List<CountdownState>> = state(uid).value
+
+    private fun remove(
+        uid: String,
+        countdown: CountdownState,
+    ) {
+        state(uid).value = DataEnvelope(state(uid).value.value.filterNot { it.id == countdown.id })
+    }
+
+    private fun state(uid: String) = valuesByUser.getOrPut(uid) { MutableStateFlow(DataEnvelope(emptyList())) }
+}
+
 internal class FakeAccountDataRepository : AccountDataRepository {
     val deletedUids = mutableListOf<String>()
 
@@ -439,6 +560,7 @@ internal data class FakeRepositories(
     val auth: FakeAuthRepository,
     val medicines: FakeMedicineRepository,
     val doses: FakeDoseRepository,
+    val countdowns: FakeCountdownRepository,
     val settings: FakeSettingsRepository,
     val accountData: FakeAccountDataRepository,
 )
@@ -451,6 +573,7 @@ internal fun fakeRepositories(
     val auth = FakeAuthRepository(session)
     val medicines = FakeMedicineRepository()
     val doses = FakeDoseRepository(clock)
+    val countdowns = FakeCountdownRepository(clock)
     val settingsRepository = FakeSettingsRepository(settings)
     val accountData = FakeAccountDataRepository()
     return FakeRepositories(
@@ -459,6 +582,7 @@ internal fun fakeRepositories(
                 auth = auth,
                 medicines = medicines,
                 doses = doses,
+                countdowns = countdowns,
                 settings = settingsRepository,
                 accountData = accountData,
                 clock = clock,
@@ -466,6 +590,7 @@ internal fun fakeRepositories(
         auth = auth,
         medicines = medicines,
         doses = doses,
+        countdowns = countdowns,
         settings = settingsRepository,
         accountData = accountData,
     )

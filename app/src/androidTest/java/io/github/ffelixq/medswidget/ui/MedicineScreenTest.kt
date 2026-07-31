@@ -130,6 +130,35 @@ class MedicineScreenTest {
     }
 
     @Test
+    fun perSlotCountdownUsesPresetAndDisabledSlotDoesNotSubmitIt() {
+        var submitted: MedicineDraft? = null
+        composeRule.setContent {
+            UiTestTheme {
+                MedicineScreen(
+                    medicine = null,
+                    onBack = {},
+                    onSave = { draft ->
+                        submitted = draft
+                        MedicineValidator.validate(draft)
+                    },
+                    onArchive = {},
+                    onDelete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("medicine_name").performTextInput("Medicine A")
+        composeRule.onNodeWithTag("afternoon_countdown_toggle").performScrollTo().performClick()
+        composeRule.onNodeWithText("2h").performClick()
+        composeRule.onNodeWithTag("night_toggle").performClick()
+        composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
+
+        composeRule.waitForIdle()
+        assertEquals(120, submitted?.afternoonCountdownMinutes)
+        assertNull(submitted?.nightCountdownMinutes)
+    }
+
+    @Test
     fun editPrefillsMedicineAndOffersArchiveAndConfirmedDelete() {
         val medicine = testMedicine(name = "Existing medicine")
         var archivedId: String? = null

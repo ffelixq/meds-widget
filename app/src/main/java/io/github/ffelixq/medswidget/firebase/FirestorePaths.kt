@@ -11,6 +11,8 @@ object FirestorePaths {
     const val MEDICINES = "medicines"
     const val DOSE_STATES = "doseStates"
     const val DOSE_EVENTS = "doseEvents"
+    const val COUNTDOWN_STATES = "countdownStates"
+    const val COUNTDOWN_EVENTS = "countdownEvents"
 
     fun user(
         firestore: FirebaseFirestore,
@@ -36,4 +38,14 @@ object FirestorePaths {
         firestore: FirebaseFirestore,
         uid: String,
     ): CollectionReference = user(firestore, uid).collection(DOSE_EVENTS)
+
+    fun countdownStates(
+        firestore: FirebaseFirestore,
+        uid: String,
+    ): CollectionReference = user(firestore, uid).collection(COUNTDOWN_STATES)
+
+    fun countdownEvents(
+        firestore: FirebaseFirestore,
+        uid: String,
+    ): CollectionReference = user(firestore, uid).collection(COUNTDOWN_EVENTS)
 }

@@ -4,13 +4,16 @@ import android.content.Context
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import io.github.ffelixq.medswidget.data.CountdownWriteOutcome
 import io.github.ffelixq.medswidget.data.DoseWriteOutcome
 import io.github.ffelixq.medswidget.data.RepositoryBundle
 import io.github.ffelixq.medswidget.data.UnavailableAccountDataRepository
 import io.github.ffelixq.medswidget.data.UnavailableAuthRepository
+import io.github.ffelixq.medswidget.data.UnavailableCountdownRepository
 import io.github.ffelixq.medswidget.data.UnavailableDoseRepository
 import io.github.ffelixq.medswidget.data.UnavailableMedicineRepository
 import io.github.ffelixq.medswidget.data.UnavailableSettingsRepository
+import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DataEnvelope
 import io.github.ffelixq.medswidget.domain.DoseRows
 import io.github.ffelixq.medswidget.domain.DoseState
@@ -18,10 +21,12 @@ import io.github.ffelixq.medswidget.domain.LogicalDayCalculator
 import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.firebase.FirebaseAuthRepository
 import io.github.ffelixq.medswidget.firebase.FirestoreAccountDataRepository
+import io.github.ffelixq.medswidget.firebase.FirestoreCountdownRepository
 import io.github.ffelixq.medswidget.firebase.FirestoreDoseRepository
 import io.github.ffelixq.medswidget.firebase.FirestoreMedicineRepository
 import io.github.ffelixq.medswidget.firebase.FirestoreSettingsRepository
 import io.github.ffelixq.medswidget.sync.AccountOperationGate
+import io.github.ffelixq.medswidget.sync.CountdownRefreshScheduler
 import io.github.ffelixq.medswidget.sync.OutstandingWriteTracker
 import io.github.ffelixq.medswidget.sync.ResetBoundaryScheduler
 import io.github.ffelixq.medswidget.sync.WidgetPendingSyncScheduler
@@ -53,6 +58,7 @@ data class AccountDaySnapshot(
     val logicalDay: LocalDate,
     val medicines: DataEnvelope<List<Medicine>>,
     val doses: DataEnvelope<List<DoseState>>,
+    val countdowns: DataEnvelope<List<CountdownState>> = DataEnvelope(emptyList()),
 )
 
 internal fun selectAuthenticatedUid(
@@ -75,6 +81,7 @@ class AppGraph(
     private val outstandingWriteTracker = OutstandingWriteTracker()
     val repositories: RepositoryBundle
     val resetScheduler = ResetBoundaryScheduler(context, clock)
+    val countdownRefreshScheduler = CountdownRefreshScheduler(context, clock)
     private val mutableTemporalTick = MutableStateFlow(0)
     val temporalTick: StateFlow<Int> = mutableTemporalTick.asStateFlow()
     private val mutableAccountDaySnapshot = MutableStateFlow<AccountDaySnapshot?>(null)
@@ -107,6 +114,20 @@ class AppGraph(
                         scope = applicationScope,
                         outstandingWriteTracker = outstandingWriteTracker,
                     )
+                val doseRepository =
+                    FirestoreDoseRepository(
+                        firestore = activeFirestore,
+                        clock = clock,
+                        onWriteOutcome = ::handleDoseWriteOutcome,
+                        outstandingWriteTracker = outstandingWriteTracker,
+                    )
+                val countdownRepository =
+                    FirestoreCountdownRepository(
+                        firestore = activeFirestore,
+                        clock = clock,
+                        onWriteOutcome = ::handleCountdownWriteOutcome,
+                        outstandingWriteTracker = outstandingWriteTracker,
+                    )
                 RepositoryBundle(
                     auth = auth,
                     medicines =
@@ -114,13 +135,8 @@ class AppGraph(
                             firestore = activeFirestore,
                             outstandingWriteTracker = outstandingWriteTracker,
                         ),
-                    doses =
-                        FirestoreDoseRepository(
-                            firestore = activeFirestore,
-                            clock = clock,
-                            onWriteOutcome = ::handleDoseWriteOutcome,
-                            outstandingWriteTracker = outstandingWriteTracker,
-                        ),
+                    doses = doseRepository,
+                    countdowns = countdownRepository,
                     settings = settings,
                     accountData = FirestoreAccountDataRepository(activeFirestore),
                     clock = clock,
@@ -132,6 +148,7 @@ class AppGraph(
                     auth = UnavailableAuthRepository(),
                     medicines = UnavailableMedicineRepository(),
                     doses = UnavailableDoseRepository(),
+                    countdowns = UnavailableCountdownRepository(),
                     settings = UnavailableSettingsRepository(),
                     accountData = UnavailableAccountDataRepository(),
                     clock = clock,
@@ -139,6 +156,7 @@ class AppGraph(
             }
     }
 
+    @Suppress("LongMethod")
     fun start() {
         applicationScope.launch {
             combine(
@@ -193,28 +211,33 @@ class AppGraph(
                                 ZoneId.systemDefault(),
                                 settings.resetMinutesAfterMidnight,
                             )
-                        repositories.doses.observeDay(session.uid, logicalDay).collectLatest { dosesEnvelope ->
-                            val currentDay =
-                                LogicalDayCalculator.logicalDay(
-                                    clock.instant(),
-                                    ZoneId.systemDefault(),
-                                    repositories.settings.localSettings.value.resetMinutesAfterMidnight,
-                                )
-                            if (currentDay != logicalDay) {
-                                recomputeTemporalState(updateWidgets = true)
-                                return@collectLatest
+                        combine(
+                            repositories.doses.observeDay(session.uid, logicalDay),
+                            repositories.countdowns.observeActive(session.uid),
+                        ) { doses, countdowns -> doses to countdowns }
+                            .collectLatest { (dosesEnvelope, countdownsEnvelope) ->
+                                val currentDay =
+                                    LogicalDayCalculator.logicalDay(
+                                        clock.instant(),
+                                        ZoneId.systemDefault(),
+                                        repositories.settings.localSettings.value.resetMinutesAfterMidnight,
+                                    )
+                                if (currentDay != logicalDay) {
+                                    recomputeTemporalState(updateWidgets = true)
+                                    return@collectLatest
+                                }
+                                val accountSnapshot =
+                                    AccountDaySnapshot(
+                                        ownerUid = session.uid,
+                                        logicalDay = logicalDay,
+                                        medicines = medicinesEnvelope,
+                                        doses = dosesEnvelope,
+                                        countdowns = countdownsEnvelope,
+                                    )
+                                mutableAccountDaySnapshot.value = accountSnapshot
+                                writeWidgetSnapshot(accountSnapshot)
+                                widgetUpdater.updateAll()
                             }
-                            val accountSnapshot =
-                                AccountDaySnapshot(
-                                    ownerUid = session.uid,
-                                    logicalDay = logicalDay,
-                                    medicines = medicinesEnvelope,
-                                    doses = dosesEnvelope,
-                                )
-                            mutableAccountDaySnapshot.value = accountSnapshot
-                            writeWidgetSnapshot(accountSnapshot)
-                            widgetUpdater.updateAll()
-                        }
                     }
                 }
             }
@@ -230,7 +253,8 @@ class AppGraph(
         mutableInForeground.value = inForeground
         if (inForeground) {
             applicationScope.launch {
-                if (snapshotStore.read().pendingActions.isNotEmpty()) {
+                val snapshot = snapshotStore.read()
+                if (snapshot.pendingActions.isNotEmpty() || snapshot.pendingCountdownActions.isNotEmpty()) {
                     pendingWidgetSyncScheduler.schedule()
                 }
             }
@@ -264,10 +288,12 @@ class AppGraph(
                 accountSnapshot.medicines.value,
                 accountSnapshot.doses.value,
                 accountSnapshot.logicalDay,
+                accountSnapshot.countdowns.value,
             )
         val repositoryHasPendingWrites =
             accountSnapshot.medicines.hasPendingWrites ||
-                accountSnapshot.doses.hasPendingWrites
+                accountSnapshot.doses.hasPendingWrites ||
+                accountSnapshot.countdowns.hasPendingWrites
         snapshotStore.writeRepositorySnapshot(
             WidgetSnapshot(
                 ownerUid = accountSnapshot.ownerUid,
@@ -277,20 +303,33 @@ class AppGraph(
                 rows = rows.map(WidgetSnapshotStore::fromRow),
                 fromCache =
                     accountSnapshot.medicines.fromCache ||
-                        accountSnapshot.doses.fromCache,
+                        accountSnapshot.doses.fromCache ||
+                        accountSnapshot.countdowns.fromCache,
                 hasPendingWrites = repositoryHasPendingWrites,
                 repositoryHasPendingWrites = repositoryHasPendingWrites,
                 errorMessage =
                     accountSnapshot.doses.errorMessage
+                        ?: accountSnapshot.countdowns.errorMessage
                         ?: accountSnapshot.medicines.errorMessage,
             ),
             resolvePendingActions = resolvePendingActions,
         )
+        countdownRefreshScheduler.schedule(snapshotStore.read())
     }
 
     private fun handleDoseWriteOutcome(outcome: DoseWriteOutcome) {
         applicationScope.launch {
             if (snapshotStore.resolveWriteOutcome(outcome)) {
+                widgetUpdater.updateAll()
+            }
+        }
+    }
+
+    private fun handleCountdownWriteOutcome(outcome: CountdownWriteOutcome) {
+        applicationScope.launch {
+            if (snapshotStore.resolveCountdownWriteOutcome(outcome)) {
+                val snapshot = snapshotStore.read()
+                countdownRefreshScheduler.schedule(snapshot)
                 widgetUpdater.updateAll()
             }
         }
@@ -330,6 +369,7 @@ class AppGraph(
         if (updateWidgets) {
             widgetUpdater.updateAll()
         }
+        countdownRefreshScheduler.schedule(snapshotStore.read())
         resetScheduler.schedule(settings.resetMinutesAfterMidnight)
     }
 
@@ -359,13 +399,13 @@ class AppGraph(
      * calls this after connectivity returns, including after process death. Normal foreground
      * listeners remain lifecycle-scoped.
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "CyclomaticComplexMethod")
     suspend fun reconcilePendingWidgetActions(): Boolean {
         if (accountOperationGate.isDeletionInProgress) return true
         val activeUid = currentAuthenticatedUid
         prepareTemporalStateForWidgetRender()
         val cached = snapshotStore.read()
-        if (cached.pendingActions.isEmpty()) {
+        if (cached.pendingActions.isEmpty() && cached.pendingCountdownActions.isEmpty()) {
             widgetUpdater.updateAll()
             return true
         }
@@ -379,9 +419,11 @@ class AppGraph(
                 clock.instant().minusMillis(UNSUBMITTED_ACTION_GRACE_MILLIS),
             )
         if (expired) widgetUpdater.updateAll()
-        val pending = snapshotStore.read().pendingActions
-        if (pending.isEmpty() && !expired) return true
-        if (pending.any { !it.submitted }) return false
+        val pendingSnapshot = snapshotStore.read()
+        val pending = pendingSnapshot.pendingActions
+        val pendingCountdowns = pendingSnapshot.pendingCountdownActions
+        if (pending.isEmpty() && pendingCountdowns.isEmpty() && !expired) return true
+        if (pending.any { !it.submitted } || pendingCountdowns.any { !it.submitted }) return false
         repositories.settings.activateAccount(activeUid)
         val logicalDay =
             LogicalDayCalculator.logicalDay(
@@ -394,13 +436,16 @@ class AppGraph(
                 combine(
                     repositories.medicines.observeActive(activeUid),
                     repositories.doses.observeDay(activeUid, logicalDay),
-                ) { medicines, doses ->
-                    medicines to doses
-                }.first { (medicines, doses) ->
+                    repositories.countdowns.observeActive(activeUid),
+                ) { medicines, doses, countdowns ->
+                    Triple(medicines, doses, countdowns)
+                }.first { (medicines, doses, countdowns) ->
                     !medicines.fromCache &&
                         !doses.fromCache &&
+                        !countdowns.fromCache &&
                         !medicines.hasPendingWrites &&
-                        !doses.hasPendingWrites
+                        !doses.hasPendingWrites &&
+                        !countdowns.hasPendingWrites
                 }
             } ?: return false
         val accountSnapshot =
@@ -409,11 +454,21 @@ class AppGraph(
                 logicalDay = logicalDay,
                 medicines = reconciled.first,
                 doses = reconciled.second,
+                countdowns = reconciled.third,
             )
         mutableAccountDaySnapshot.value = accountSnapshot
         writeWidgetSnapshot(accountSnapshot, resolvePendingActions = true)
         widgetUpdater.updateAll()
-        return snapshotStore.read().pendingActions.isEmpty()
+        val finalSnapshot = snapshotStore.read()
+        return finalSnapshot.pendingActions.isEmpty() &&
+            finalSnapshot.pendingCountdownActions.isEmpty()
+    }
+
+    suspend fun refreshCountdownDisplay() {
+        prepareTemporalStateForWidgetRender()
+        val snapshot = snapshotStore.read()
+        widgetUpdater.updateAll()
+        countdownRefreshScheduler.schedule(snapshot)
     }
 
     private companion object {
