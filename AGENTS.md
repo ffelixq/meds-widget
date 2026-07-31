@@ -1,5 +1,13 @@
 # Repository Guidelines
 
+## Session Initialization
+
+Before changing files, run `git status --short --branch`, confirm the expected
+base commit, and read the relevant files under `docs/`. Fetch protected `main`,
+then create a focused branch such as `fix/widget-action` or
+`docs/update-testing`; never implement directly on `main`. Preserve unrelated
+working-tree changes and ignored local configuration.
+
 ## Project Structure
 
 `app/` is the native Android application. Kotlin sources are grouped under
@@ -13,11 +21,13 @@ root, with emulator tests in `firebase-tests/`. Operational documentation is in
 
 Use JDK 17 for Gradle and JDK 21+ for the Firebase emulator:
 
-- `./gradlew formatCheck detekt lint testDebugUnitTest assembleDebug` runs the
-  practical Android checks.
+- `./gradlew formatCheck detekt lint testDebugUnitTest assembleDebug` validates
+  formatting, static analysis, tests, lint, and the debug APK.
 - `./gradlew ktlintFormat` applies Kotlin formatting.
-- `npm test --prefix firebase-tests` runs restrictive Firestore rule tests.
-- `./scripts/validate.sh` runs the portable local validation suite.
+- `npm ci --prefix firebase-tests && npm test --prefix firebase-tests` runs the
+  locked Firestore emulator tests.
+- `MEDS_GRADLE_JAVA_HOME=<jdk17> FIREBASE_JAVA_HOME=<jdk21> ./scripts/validate.sh`
+  runs the practical local suite. Add `RUN_INSTRUMENTATION=1` with an emulator.
 - `./scripts/verify-release-widget-callback.sh <apk> <mapping.txt>` proves
   `CheckDoseAction` and `StartCountdownAction` remain reflectively instantiable
   after R8.
@@ -44,9 +54,9 @@ verification. Physical Samsung checks remain explicitly
 ## Commits, Pull Requests, and Security
 
 Use conventional commits (`feat:`, `fix:`, `test:`, `docs:`). Work on a feature
-branch, describe behavior and validation in the PR, and merge only after all
-required checks pass. Never commit `google-services.json`, keystores,
-`keystore.properties`, tester lists, tokens, or `local.properties`. Do not log
-medicine names, email addresses, UIDs, or dose/countdown history. Preserve the
-Spark/no-billing boundary and never weaken Firestore rules, R8, or protected
-branch checks.
+branch, describe behavior and validation in the PR, and squash-merge only after
+all seven required checks pass. Never commit `google-services.json`, keystores,
+`keystore.properties`, tester lists, tokens, `local.properties`, or build
+outputs. Do not log medicine names, emails, UIDs, or dose/countdown history.
+Preserve Spark/no-billing, account isolation, Firestore rules, R8, the signing
+identity, and protected branch checks.
