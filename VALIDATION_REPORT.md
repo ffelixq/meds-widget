@@ -1,12 +1,46 @@
-# Meds Widget V1 Validation Report
+# Meds Widget V1 and V1.1 Validation Report
 
-Report date: 2026-07-30
+Original V1 report date: 2026-07-30; V1.1 addendum: 2026-07-31
 Local timezone: Asia/Singapore (UTC+08:00)
 Repository: <https://github.com/ffelixq/meds-widget>
 
 This report separates executed evidence from source inventories and physical
 checks that still require the owner's Samsung device. `PENDING` is never used
 as a passing result.
+
+## V1.1 local validation addendum
+
+Addendum date: 2026-07-31, Asia/Singapore. Milestone:
+**Meds Widget V1.1 — Responsive widgets and meal countdowns**.
+
+The feature branch `feature/responsive-widgets-countdowns` started from
+physical-widget callback fix
+`408df47cf5723fd6c27635c300120a6570ced1fe`. Local evidence before PR:
+
+| Command | Result | Evidence / limitation | Run time |
+| --- | --- | --- | --- |
+| `MEDS_GRADLE_JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./scripts/validate.sh` | PASS | Formatting, Detekt, Lint, 186 JVM tests, debug APK, forbidden-file/rule guards, and 33 Firestore Emulator cases passed | 2026-07-31 11:02–11:04 SGT |
+| `actionlint -shellcheck shellcheck .github/workflows/*.yml`; YAML parse; ShellCheck and shell syntax checks | PASS | Workflow and scripts accepted locally | 2026-07-31 10:47 and 11:04 SGT |
+| `./gradlew :app:assembleDebugAndroidTest` | PASS | Instrumentation APK compiled; no local Android device/emulator was connected, so execution is delegated to required hosted CI | 2026-07-31 11:04 SGT |
+| `MEDS_VERSION_CODE=11 ./gradlew --no-build-cache clean :app:assembleRelease :app:bundleRelease` | PASS | Fresh R8/resource-shrunk `1.1.0 (11)` local release outputs | 2026-07-31 11:04–11:08 SGT |
+| `./scripts/verify-release-widget-callback.sh app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/mapping/release/mapping.txt` | PASS | Both `CheckDoseAction` and `StartCountdownAction` retain runtime class names, public zero-argument constructors, and `onAction` in minified DEX | 2026-07-31 11:08 SGT |
+
+Local unsigned APK SHA-256:
+`bdc23e1d4e40aad8c6a9e6358e9576a3a3852755acb0a7847d7872ecf17d5b38`.
+The production signed APK hash and version code are recorded from the main
+workflow artifact, not inferred from this local unsigned build.
+
+Responsive sizing uses Glance `SizeMode.Exact`/`LocalSize` with width-and-height
+compact, standard, and spacious categories. Countdown refresh uses one-time
+WorkManager work: 10-minute cadence above 60 minutes, 5 minutes from 15–60,
+approximately one minute below 15, and one final target refresh. READY timers
+schedule no further polling. No exact alarm, foreground service, notification,
+or per-minute Firestore counter write was added.
+
+Hosted PR checks, main deployment, signed artifact, Firestore deployment, and
+App Distribution evidence are reported in the final delivery summary after the
+protected workflow runs. Responsive sizing and countdown behavior on Samsung
+remain **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION**.
 
 ## Environment
 

@@ -1,5 +1,19 @@
 # Security and privacy
 
+## Countdown security
+
+Countdown state/events remain under `users/{uid}`. Rules require authenticated,
+path, and payload owners to match; accept only supported slots/sources/actions,
+1–1,440 minute durations, strict field sets, timestamp types, and exact
+`targetAt = startedAt + duration`. Events are immutable and state transitions
+must be paired with their event in one batch.
+
+Widget starts use an account-bound optimistic snapshot, then validate
+authoritative Firebase Auth, slot eligibility, configuration, and cached
+ownership before writing. Parameters contain identifiers, never credentials.
+Sign-out/account switch clears countdown widget content. Diagnostics expose
+safe reason codes only—not names, emails, full UIDs, history, or tokens.
+
 ## Security boundary
 
 Meds Widget is a mobile client that talks directly to Firebase Authentication

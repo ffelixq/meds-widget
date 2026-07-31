@@ -3,7 +3,10 @@ package io.github.ffelixq.medswidget.widget
 import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import io.github.ffelixq.medswidget.data.CountdownWriteOutcome
 import io.github.ffelixq.medswidget.data.DoseWriteOutcome
+import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownAction
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseIds
 import io.github.ffelixq.medswidget.domain.DoseSlot
@@ -152,6 +155,112 @@ class WidgetSnapshotTest {
             assertEquals("Asia/Singapore", night.checkedTimezone)
             assertTrue(stored.hasPendingWrites)
             assertEquals(listOf("action-a"), stored.pendingActions.map(WidgetPendingAction::actionId))
+        }
+
+    @Test
+    fun `optimistic countdown start is timestamp derived idempotent and cleared by dose check`() =
+        runTest {
+            val configured =
+                contentSnapshot().let { snapshot ->
+                    snapshot.copy(
+                        rows =
+                            snapshot.rows.map {
+                                if (it.slot == DoseSlot.NIGHT) it.copy(countdownMinutes = 120) else it
+                            },
+                    )
+                }
+            store.write(configured)
+            val startedAt = Instant.parse("2026-07-29T13:15:30Z")
+
+            assertTrue(
+                store.markCountdownStartedOptimistically(
+                    expectedUid = "user-a",
+                    medicineId = "medicine-a",
+                    slot = DoseSlot.NIGHT,
+                    logicalDay = day,
+                    durationMinutes = 120,
+                    startedAt = startedAt,
+                    timezoneId = "Asia/Singapore",
+                    source = CheckSource.WIDGET_2X2,
+                    actionId = "countdown-a",
+                ),
+            )
+            assertFalse(
+                store.markCountdownStartedOptimistically(
+                    "user-a",
+                    "medicine-a",
+                    DoseSlot.NIGHT,
+                    day,
+                    120,
+                    startedAt.plusSeconds(1),
+                    "Asia/Singapore",
+                    CheckSource.WIDGET_2X2,
+                    "countdown-b",
+                ),
+            )
+            val running = store.read().rows.single { it.slot == DoseSlot.NIGHT }
+            assertEquals(startedAt.plusSeconds(7_200), running.countdown?.targetAt)
+            assertEquals(listOf("countdown-a"), store.read().pendingCountdownActions.map { it.actionId })
+
+            assertTrue(
+                store.markTakenOptimistically(
+                    "user-a",
+                    "medicine-a",
+                    DoseSlot.NIGHT,
+                    startedAt.plusSeconds(10),
+                    "Asia/Singapore",
+                    "dose-a",
+                ),
+            )
+            assertNull(
+                store
+                    .read()
+                    .rows
+                    .single { it.slot == DoseSlot.NIGHT }
+                    .countdown,
+            )
+        }
+
+    @Test
+    fun `failed countdown write rolls back only its correlated timer`() =
+        runTest {
+            val base =
+                contentSnapshot().copy(
+                    rows =
+                        contentSnapshot().rows.map {
+                            if (it.slot == DoseSlot.NIGHT) it.copy(countdownMinutes = 90) else it
+                        },
+                )
+            store.write(base)
+            store.markCountdownStartedOptimistically(
+                "user-a",
+                "medicine-a",
+                DoseSlot.NIGHT,
+                day,
+                90,
+                Instant.parse("2026-07-29T13:00:00Z"),
+                "Asia/Singapore",
+                CheckSource.WIDGET_4X2,
+                "countdown-a",
+            )
+
+            assertTrue(
+                store.resolveCountdownWriteOutcome(
+                    CountdownWriteOutcome(
+                        ownerUid = "user-a",
+                        actionId = "countdown-a",
+                        medicineId = "medicine-a",
+                        slot = DoseSlot.NIGHT,
+                        action = CountdownAction.START,
+                        successful = false,
+                        errorMessage = "Could not sync countdown.",
+                    ),
+                ),
+            )
+            val stored = store.read()
+            assertNull(stored.rows.single { it.slot == DoseSlot.NIGHT }.countdown)
+            assertTrue(stored.pendingCountdownActions.isEmpty())
+            assertEquals("Could not sync countdown.", stored.errorMessage)
         }
 
     @Test
@@ -603,6 +712,7 @@ class WidgetSnapshotTest {
                         afternoonLabel = "After lunch",
                         nightEnabled = true,
                         nightLabel = "Before bed",
+                        nightCountdownMinutes = 120,
                     ),
                 ),
             rows =
@@ -623,6 +733,7 @@ class WidgetSnapshotTest {
                         label = "Before bed",
                         isTaken = false,
                         checkedAt = null,
+                        countdownMinutes = 120,
                     ),
                 ),
             fromCache = true,

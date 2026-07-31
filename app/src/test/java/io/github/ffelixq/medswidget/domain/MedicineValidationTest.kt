@@ -8,6 +8,49 @@ import org.junit.Test
 
 class MedicineValidationTest {
     @Test
+    fun `countdowns accept presets and bounded custom durations`() {
+        listOf(30, 60, 90, 120, 1, 1_440).forEach { duration ->
+            val result =
+                MedicineValidator.validate(
+                    MedicineDraft(
+                        name = "Medicine",
+                        afternoonEnabled = true,
+                        afternoonCountdownMinutes = duration,
+                        nightEnabled = false,
+                    ),
+                )
+            assertTrue(result.isValid)
+            assertEquals(duration, result.normalized.afternoonCountdownMinutes)
+        }
+    }
+
+    @Test
+    fun `invalid countdowns are rejected and disabled slots clear configuration`() {
+        listOf(0, 1_441).forEach { duration ->
+            val result =
+                MedicineValidator.validate(
+                    MedicineDraft(
+                        name = "Medicine",
+                        afternoonCountdownMinutes = duration,
+                    ),
+                )
+            assertFalse(result.isValid)
+            assertTrue("afternoonCountdownMinutes" in result.errors)
+        }
+        val disabled =
+            MedicineValidator.validate(
+                MedicineDraft(
+                    name = "Medicine",
+                    afternoonEnabled = false,
+                    afternoonCountdownMinutes = 120,
+                    nightEnabled = true,
+                ),
+            )
+        assertTrue(disabled.isValid)
+        assertEquals(null, disabled.normalized.afternoonCountdownMinutes)
+    }
+
+    @Test
     fun `valid medicine is trimmed and keeps enabled custom labels`() {
         val result =
             MedicineValidator.validate(

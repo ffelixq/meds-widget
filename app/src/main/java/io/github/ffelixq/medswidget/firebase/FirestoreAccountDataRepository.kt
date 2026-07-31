@@ -17,6 +17,8 @@ class FirestoreAccountDataRepository(
                 user.collection(FirestorePaths.MEDICINES),
                 user.collection(FirestorePaths.DOSE_STATES),
                 user.collection(FirestorePaths.DOSE_EVENTS),
+                user.collection(FirestorePaths.COUNTDOWN_STATES),
+                user.collection(FirestorePaths.COUNTDOWN_EVENTS),
             )
         collections.forEach { deleteCollection(it) }
         user.delete().await()

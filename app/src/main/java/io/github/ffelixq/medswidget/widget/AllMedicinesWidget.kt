@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -32,13 +33,7 @@ import io.github.ffelixq.medswidget.domain.CompletionProgress
 import io.github.ffelixq.medswidget.ui.MainActivity
 
 class AllMedicinesWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode =
-        SizeMode.Responsive(
-            setOf(
-                DpSize(250.dp, 110.dp),
-                DpSize(320.dp, 150.dp),
-            ),
-        )
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(
         context: Context,
@@ -48,7 +43,7 @@ class AllMedicinesWidget : GlanceAppWidget() {
         graph.prepareTemporalStateForWidgetRender()
         val snapshot = graph.snapshotStore.read()
         provideContent {
-            AllMedicinesWidgetContent(snapshot)
+            AllMedicinesWidgetContent(snapshot, LocalSize.current)
         }
     }
 }
@@ -56,15 +51,19 @@ class AllMedicinesWidget : GlanceAppWidget() {
 @Suppress("FunctionNaming")
 @Composable
 @androidx.glance.GlanceComposable
-internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
+internal fun AllMedicinesWidgetContent(
+    snapshot: WidgetSnapshot,
+    availableSize: DpSize = DpSize(320.dp, 150.dp),
+) {
     val context = LocalContext.current
+    val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.ALL)
     Column(
         modifier =
             GlanceModifier
                 .fillMaxSize()
                 .background(WidgetColors.background)
                 .cornerRadius(18.dp)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(spec.outerPaddingDp.dp),
     ) {
         val progress = CompletionProgress(snapshot.rows.count(WidgetDoseRow::isTaken), snapshot.rows.size)
         val status =
@@ -81,13 +80,13 @@ internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
         ) {
             Text(
                 text = "Today’s medicines",
-                style = WidgetTextStyles.title,
+                style = WidgetTextStyles.title(spec),
                 modifier = GlanceModifier.defaultWeight(),
                 maxLines = 1,
             )
             Text(
                 text = status,
-                style = WidgetTextStyles.supporting,
+                style = WidgetTextStyles.supporting(spec),
                 maxLines = 1,
             )
         }
@@ -96,7 +95,7 @@ internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
             snapshot.isLoading -> {
                 Text(
                     text = "Loading medicines…",
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
@@ -108,7 +107,7 @@ internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
                         GlanceModifier.clickable(
                             actionStartActivity(Intent(context, MainActivity::class.java)),
                         ),
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
@@ -120,7 +119,7 @@ internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
                         GlanceModifier.clickable(
                             actionStartActivity(Intent(context, MainActivity::class.java)),
                         ),
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
@@ -137,6 +136,7 @@ internal fun AllMedicinesWidgetContent(snapshot: WidgetSnapshot) {
                             row = it,
                             source = CheckSource.WIDGET_4X2,
                             showMedicineName = true,
+                            spec = spec,
                         )
                     }
                 }

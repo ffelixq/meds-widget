@@ -50,8 +50,14 @@ object DoseRows {
         medicines: List<Medicine>,
         states: List<DoseState>,
         logicalDay: LocalDate,
+        countdowns: List<CountdownState> = emptyList(),
     ): List<DoseRow> {
         val statesById = states.associateBy { it.id }
+        val countdownsBySlot =
+            countdowns
+                .filter { it.status == CountdownStatus.RUNNING }
+                .groupBy { it.medicineId to it.slot }
+                .mapValues { (_, values) -> values.maxBy(CountdownState::startedAt) }
         return medicines
             .asSequence()
             .filterNot(Medicine::archived)
@@ -71,6 +77,10 @@ object DoseRows {
                             checkedAt = state?.checkedAt?.takeIf { state.isTaken },
                             checkedTimezone = state?.checkedTimezone?.takeIf { state.isTaken },
                             stateId = stateId,
+                            countdownMinutes = medicine.countdownMinutes(slot),
+                            countdown =
+                                countdownsBySlot[medicine.id to slot]
+                                    ?.takeUnless { state?.isTaken == true },
                         )
                     }
             }.toList()

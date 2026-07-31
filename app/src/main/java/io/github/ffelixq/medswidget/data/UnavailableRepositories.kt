@@ -2,6 +2,7 @@ package io.github.ffelixq.medswidget.data
 
 import io.github.ffelixq.medswidget.domain.AuthSession
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DataEnvelope
 import io.github.ffelixq.medswidget.domain.DoseEvent
 import io.github.ffelixq.medswidget.domain.DoseSlot
@@ -12,6 +13,7 @@ import io.github.ffelixq.medswidget.domain.UserSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import java.time.Instant
 import java.time.LocalDate
 
 private const val CONFIGURATION_MESSAGE =
@@ -93,6 +95,43 @@ class UnavailableDoseRepository : DoseRepository {
         medicine: Medicine,
         slot: DoseSlot,
         source: CheckSource,
+    ): Boolean = unavailable()
+}
+
+class UnavailableCountdownRepository : CountdownRepository {
+    override fun observeActive(uid: String): Flow<DataEnvelope<List<CountdownState>>> =
+        flowOf(DataEnvelope(emptyList(), errorMessage = CONFIGURATION_MESSAGE))
+
+    override suspend fun start(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        source: CheckSource,
+        actionId: String,
+        startedAt: Instant,
+        durationMinutes: Int,
+    ): Boolean = unavailable()
+
+    override suspend fun cancel(
+        uid: String,
+        state: CountdownState,
+        source: CheckSource,
+    ): Boolean = unavailable()
+
+    override suspend fun restart(
+        uid: String,
+        state: CountdownState,
+        durationMinutes: Int,
+        source: CheckSource,
+    ): Boolean = unavailable()
+
+    override suspend fun clearForDoseCheck(
+        uid: String,
+        medicineId: String,
+        slot: DoseSlot,
+        source: CheckSource,
+        state: CountdownState?,
     ): Boolean = unavailable()
 }
 

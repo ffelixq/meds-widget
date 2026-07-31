@@ -7,8 +7,13 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.ffelixq.medswidget.data.CountdownWriteOutcome
 import io.github.ffelixq.medswidget.data.DoseWriteOutcome
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownAction
+import io.github.ffelixq.medswidget.domain.CountdownLogic
+import io.github.ffelixq.medswidget.domain.CountdownState
+import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.DoseSlot
@@ -28,6 +33,8 @@ data class WidgetMedicine(
     val afternoonLabel: String,
     val nightEnabled: Boolean,
     val nightLabel: String,
+    val afternoonCountdownMinutes: Int? = null,
+    val nightCountdownMinutes: Int? = null,
 )
 
 data class WidgetDoseRow(
@@ -38,6 +45,8 @@ data class WidgetDoseRow(
     val isTaken: Boolean,
     val checkedAt: Instant?,
     val checkedTimezone: String? = null,
+    val countdownMinutes: Int? = null,
+    val countdown: CountdownState? = null,
 ) {
     fun toDomain(logicalDay: LocalDate): DoseRow =
         DoseRow(
@@ -49,10 +58,20 @@ data class WidgetDoseRow(
             checkedAt = checkedAt,
             checkedTimezone = checkedTimezone,
             stateId = "${logicalDay}_${medicineId}_${slot.wireValue}",
+            countdownMinutes = countdownMinutes,
+            countdown = countdown,
         )
 }
 
 data class WidgetPendingAction(
+    val actionId: String,
+    val medicineId: String,
+    val slot: DoseSlot,
+    val createdAt: Instant,
+    val submitted: Boolean = false,
+)
+
+data class WidgetPendingCountdownAction(
     val actionId: String,
     val medicineId: String,
     val slot: DoseSlot,
@@ -68,6 +87,7 @@ data class WidgetSnapshot(
     val medicines: List<WidgetMedicine> = emptyList(),
     val rows: List<WidgetDoseRow> = emptyList(),
     val pendingActions: List<WidgetPendingAction> = emptyList(),
+    val pendingCountdownActions: List<WidgetPendingCountdownAction> = emptyList(),
     val fromCache: Boolean = false,
     val hasPendingWrites: Boolean = false,
     val repositoryHasPendingWrites: Boolean = false,
@@ -90,6 +110,7 @@ private val Context.widgetSnapshotDataStore by preferencesDataStore("widget_snap
 private val SNAPSHOT = stringPreferencesKey("snapshot_json")
 private val SIGNED_IN = booleanPreferencesKey("signed_in")
 
+@Suppress("TooManyFunctions")
 class WidgetSnapshotStore(
     private val context: Context,
 ) {
@@ -112,6 +133,7 @@ class WidgetSnapshotStore(
      * The DataStore transaction prevents a listener write from resurrecting an action that a
      * concurrent write callback has already resolved.
      */
+    @Suppress("CyclomaticComplexMethod")
     suspend fun writeRepositorySnapshot(
         snapshot: WidgetSnapshot,
         resolvePendingActions: Boolean = false,
@@ -133,22 +155,49 @@ class WidgetSnapshotStore(
                             !action.submitted
                     }
             val pendingKeys = pendingActions.map { it.medicineId to it.slot }.toSet()
+            val pendingCountdownActions =
+                current.pendingCountdownActions
+                    .takeIf { sameAccountAndDay || current.ownerUid == snapshot.ownerUid }
+                    .orEmpty()
+                    .filter { action ->
+                        !resolvePendingActions ||
+                            snapshot.fromCache ||
+                            repositoryPending ||
+                            !action.submitted
+                    }
+            val pendingCountdownKeys =
+                pendingCountdownActions.map { it.medicineId to it.slot }.toSet()
             val mergedRows =
                 snapshot.rows.map { repositoryRow ->
-                    if ((repositoryRow.medicineId to repositoryRow.slot) in pendingKeys) {
+                    val key = repositoryRow.medicineId to repositoryRow.slot
+                    val currentRow =
                         current.rows.firstOrNull {
                             it.medicineId == repositoryRow.medicineId &&
                                 it.slot == repositoryRow.slot
-                        } ?: repositoryRow
-                    } else {
-                        repositoryRow
-                    }
+                        }
+                    repositoryRow.copy(
+                        isTaken =
+                            if (key in pendingKeys) {
+                                currentRow?.isTaken ?: repositoryRow.isTaken
+                            } else {
+                                repositoryRow.isTaken
+                            },
+                        checkedAt = if (key in pendingKeys) currentRow?.checkedAt else repositoryRow.checkedAt,
+                        checkedTimezone =
+                            if (key in pendingKeys) currentRow?.checkedTimezone else repositoryRow.checkedTimezone,
+                        countdown =
+                            if (key in pendingCountdownKeys) currentRow?.countdown else repositoryRow.countdown,
+                    )
                 }
             preferences.store(
                 snapshot.copy(
                     rows = mergedRows,
                     pendingActions = pendingActions,
-                    hasPendingWrites = repositoryPending || pendingActions.isNotEmpty(),
+                    pendingCountdownActions = pendingCountdownActions,
+                    hasPendingWrites =
+                        repositoryPending ||
+                            pendingActions.isNotEmpty() ||
+                            pendingCountdownActions.isNotEmpty(),
                     repositoryHasPendingWrites = repositoryPending,
                 ),
             )
@@ -219,6 +268,7 @@ class WidgetSnapshotStore(
                                     isTaken = true,
                                     checkedAt = checkedAt,
                                     checkedTimezone = checkedTimezone,
+                                    countdown = null,
                                 )
                             } else {
                                 it
@@ -242,6 +292,72 @@ class WidgetSnapshotStore(
         return changed
     }
 
+    @Suppress("LongParameterList", "ComplexCondition")
+    suspend fun markCountdownStartedOptimistically(
+        expectedUid: String,
+        medicineId: String,
+        slot: DoseSlot,
+        logicalDay: LocalDate,
+        durationMinutes: Int,
+        startedAt: Instant,
+        timezoneId: String,
+        source: CheckSource,
+        actionId: String,
+    ): Boolean {
+        var changed = false
+        context.widgetSnapshotDataStore.edit { preferences ->
+            val current = preferences.snapshot()
+            val matching = current.rows.firstOrNull { it.medicineId == medicineId && it.slot == slot }
+            if (
+                current.ownerUid != expectedUid ||
+                !current.signedIn ||
+                matching == null ||
+                matching.isTaken ||
+                matching.countdownMinutes != durationMinutes ||
+                matching.countdown?.status == CountdownStatus.RUNNING
+            ) {
+                return@edit
+            }
+            val countdown =
+                CountdownState(
+                    id = "${logicalDay}_${medicineId}_${slot.wireValue}",
+                    ownerUid = expectedUid,
+                    logicalDay = logicalDay,
+                    medicineId = medicineId,
+                    slot = slot,
+                    durationMinutes = durationMinutes,
+                    startedAt = startedAt,
+                    targetAt = CountdownLogic.targetAt(startedAt, durationMinutes),
+                    startedTimezone = timezoneId,
+                    startedSource = source,
+                    status = CountdownStatus.RUNNING,
+                    cancelledAt = null,
+                    completedAt = null,
+                    lastActionId = actionId,
+                )
+            preferences.store(
+                current.copy(
+                    rows =
+                        current.rows.map {
+                            if (it.medicineId == medicineId && it.slot == slot) {
+                                it.copy(countdown = countdown)
+                            } else {
+                                it
+                            }
+                        },
+                    pendingCountdownActions =
+                        current.pendingCountdownActions
+                            .filterNot { it.medicineId == medicineId && it.slot == slot } +
+                            WidgetPendingCountdownAction(actionId, medicineId, slot, startedAt),
+                    hasPendingWrites = true,
+                    errorMessage = null,
+                ),
+            )
+            changed = true
+        }
+        return changed
+    }
+
     suspend fun markActionSubmitted(actionId: String): Boolean {
         var changed = false
         context.widgetSnapshotDataStore.edit { preferences ->
@@ -260,6 +376,24 @@ class WidgetSnapshotStore(
         return changed
     }
 
+    suspend fun markCountdownActionSubmitted(actionId: String): Boolean {
+        var changed = false
+        context.widgetSnapshotDataStore.edit { preferences ->
+            val current = preferences.snapshot()
+            if (current.pendingCountdownActions.none { it.actionId == actionId }) return@edit
+            preferences.store(
+                current.copy(
+                    pendingCountdownActions =
+                        current.pendingCountdownActions.map {
+                            if (it.actionId == actionId) it.copy(submitted = true) else it
+                        },
+                ),
+            )
+            changed = true
+        }
+        return changed
+    }
+
     suspend fun expireUnsubmittedActions(createdBefore: Instant): Boolean {
         var changed = false
         context.widgetSnapshotDataStore.edit { preferences ->
@@ -268,9 +402,15 @@ class WidgetSnapshotStore(
                 current.pendingActions.filter { action ->
                     !action.submitted && !action.createdAt.isAfter(createdBefore)
                 }
-            if (expired.isEmpty()) return@edit
+            val expiredCountdowns =
+                current.pendingCountdownActions.filter { action ->
+                    !action.submitted && !action.createdAt.isAfter(createdBefore)
+                }
+            if (expired.isEmpty() && expiredCountdowns.isEmpty()) return@edit
             val expiredKeys = expired.map { it.medicineId to it.slot }.toSet()
             val remaining = current.pendingActions - expired.toSet()
+            val expiredCountdownKeys = expiredCountdowns.map { it.medicineId to it.slot }.toSet()
+            val remainingCountdowns = current.pendingCountdownActions - expiredCountdowns.toSet()
             preferences.store(
                 current.copy(
                     rows =
@@ -281,14 +421,61 @@ class WidgetSnapshotStore(
                                     checkedAt = null,
                                     checkedTimezone = null,
                                 )
+                            } else if ((row.medicineId to row.slot) in expiredCountdownKeys) {
+                                row.copy(countdown = null)
                             } else {
                                 row
                             }
                         },
                     pendingActions = remaining,
+                    pendingCountdownActions = remainingCountdowns,
                     hasPendingWrites =
-                        current.repositoryHasPendingWrites || remaining.isNotEmpty(),
-                    errorMessage = "An interrupted widget check was not saved. Try again.",
+                        current.repositoryHasPendingWrites ||
+                            remaining.isNotEmpty() ||
+                            remainingCountdowns.isNotEmpty(),
+                    errorMessage =
+                        if (expiredCountdowns.isNotEmpty()) {
+                            "An interrupted widget countdown was not saved. Try again."
+                        } else {
+                            "An interrupted widget check was not saved. Try again."
+                        },
+                ),
+            )
+            changed = true
+        }
+        return changed
+    }
+
+    suspend fun resolveCountdownWriteOutcome(outcome: CountdownWriteOutcome): Boolean {
+        var changed = false
+        context.widgetSnapshotDataStore.edit { preferences ->
+            val current = preferences.snapshot()
+            if (current.ownerUid != outcome.ownerUid || !current.signedIn) return@edit
+            val pending =
+                current.pendingCountdownActions.firstOrNull { it.actionId == outcome.actionId }
+                    ?: return@edit
+            val remaining = current.pendingCountdownActions.filterNot { it.actionId == outcome.actionId }
+            val rows =
+                if (!outcome.successful && outcome.action == CountdownAction.START) {
+                    current.rows.map { row ->
+                        if (row.medicineId == pending.medicineId && row.slot == pending.slot) {
+                            row.copy(countdown = null)
+                        } else {
+                            row
+                        }
+                    }
+                } else {
+                    current.rows
+                }
+            preferences.store(
+                current.copy(
+                    rows = rows,
+                    pendingCountdownActions = remaining,
+                    hasPendingWrites =
+                        current.repositoryHasPendingWrites ||
+                            current.pendingActions.isNotEmpty() ||
+                            remaining.isNotEmpty(),
+                    errorMessage = if (outcome.successful) null else outcome.errorMessage,
                 ),
             )
             changed = true
@@ -324,7 +511,9 @@ class WidgetSnapshotStore(
                     rows = resolvedRows,
                     pendingActions = remaining,
                     hasPendingWrites =
-                        current.repositoryHasPendingWrites || remaining.isNotEmpty(),
+                        current.repositoryHasPendingWrites ||
+                            remaining.isNotEmpty() ||
+                            current.pendingCountdownActions.isNotEmpty(),
                     errorMessage = if (outcome.successful) null else outcome.errorMessage,
                 ),
             )
@@ -351,6 +540,11 @@ class WidgetSnapshotStore(
                                     false,
                                     null,
                                     null,
+                                    medicine.afternoonCountdownMinutes,
+                                    current.rows
+                                        .firstOrNull {
+                                            it.medicineId == medicine.id && it.slot == DoseSlot.AFTERNOON
+                                        }?.countdown,
                                 ),
                             )
                         }
@@ -364,17 +558,29 @@ class WidgetSnapshotStore(
                                     false,
                                     null,
                                     null,
+                                    medicine.nightCountdownMinutes,
+                                    current.rows
+                                        .firstOrNull {
+                                            it.medicineId == medicine.id && it.slot == DoseSlot.NIGHT
+                                        }?.countdown,
                                 ),
                             )
                         }
                     }
+                }
+            val pendingCountdownActions =
+                current.pendingCountdownActions.filter { pending ->
+                    rows.any { it.medicineId == pending.medicineId && it.slot == pending.slot }
                 }
             preferences.store(
                 current.copy(
                     logicalDay = logicalDay,
                     rows = rows,
                     pendingActions = emptyList(),
-                    hasPendingWrites = current.repositoryHasPendingWrites,
+                    pendingCountdownActions = pendingCountdownActions,
+                    hasPendingWrites =
+                        current.repositoryHasPendingWrites ||
+                            pendingCountdownActions.isNotEmpty(),
                 ),
             )
             changed = true
@@ -393,8 +599,10 @@ class WidgetSnapshotStore(
                 name = value.name,
                 afternoonEnabled = value.afternoonEnabled,
                 afternoonLabel = value.afternoonLabel,
+                afternoonCountdownMinutes = value.afternoonCountdownMinutes,
                 nightEnabled = value.nightEnabled,
                 nightLabel = value.nightLabel,
+                nightCountdownMinutes = value.nightCountdownMinutes,
             )
 
         fun fromRow(value: DoseRow): WidgetDoseRow =
@@ -406,6 +614,8 @@ class WidgetSnapshotStore(
                 isTaken = value.isTaken,
                 checkedAt = value.checkedAt,
                 checkedTimezone = value.checkedTimezone,
+                countdownMinutes = value.countdownMinutes,
+                countdown = value.countdown,
             )
     }
 }
@@ -442,8 +652,10 @@ internal object WidgetSnapshotCodec {
                                 .put("name", medicine.name)
                                 .put("afternoonEnabled", medicine.afternoonEnabled)
                                 .put("afternoonLabel", medicine.afternoonLabel)
+                                .put("afternoonCountdownMinutes", medicine.afternoonCountdownMinutes)
                                 .put("nightEnabled", medicine.nightEnabled)
-                                .put("nightLabel", medicine.nightLabel),
+                                .put("nightLabel", medicine.nightLabel)
+                                .put("nightCountdownMinutes", medicine.nightCountdownMinutes),
                         )
                     }
                 },
@@ -459,7 +671,23 @@ internal object WidgetSnapshotCodec {
                                 .put("label", row.label)
                                 .put("isTaken", row.isTaken)
                                 .put("checkedAt", row.checkedAt?.toString())
-                                .put("checkedTimezone", row.checkedTimezone),
+                                .put("checkedTimezone", row.checkedTimezone)
+                                .put("countdownMinutes", row.countdownMinutes)
+                                .put("countdown", row.countdown?.toJson()),
+                        )
+                    }
+                },
+            ).put(
+                "pendingCountdownActions",
+                JSONArray().apply {
+                    snapshot.pendingCountdownActions.forEach { action ->
+                        put(
+                            JSONObject()
+                                .put("actionId", action.actionId)
+                                .put("medicineId", action.medicineId)
+                                .put("slot", action.slot.wireValue)
+                                .put("createdAt", action.createdAt.toString())
+                                .put("submitted", action.submitted),
                         )
                     }
                 },
@@ -489,6 +717,7 @@ internal object WidgetSnapshotCodec {
             val medicinesJson = json.optJSONArray("medicines") ?: JSONArray()
             val rowsJson = json.optJSONArray("rows") ?: JSONArray()
             val pendingActionsJson = json.optJSONArray("pendingActions") ?: JSONArray()
+            val pendingCountdownActionsJson = json.optJSONArray("pendingCountdownActions") ?: JSONArray()
             WidgetSnapshot(
                 ownerUid = json.optNullableString("ownerUid"),
                 signedIn = json.optBoolean("signedIn"),
@@ -502,8 +731,10 @@ internal object WidgetSnapshotCodec {
                             name = value.getString("name"),
                             afternoonEnabled = value.getBoolean("afternoonEnabled"),
                             afternoonLabel = value.getString("afternoonLabel"),
+                            afternoonCountdownMinutes = value.optNullableInt("afternoonCountdownMinutes"),
                             nightEnabled = value.getBoolean("nightEnabled"),
                             nightLabel = value.getString("nightLabel"),
+                            nightCountdownMinutes = value.optNullableInt("nightCountdownMinutes"),
                         )
                     },
                 rows =
@@ -518,6 +749,22 @@ internal object WidgetSnapshotCodec {
                             isTaken = value.getBoolean("isTaken"),
                             checkedAt = value.optNullableString("checkedAt")?.let(Instant::parse),
                             checkedTimezone = value.optNullableString("checkedTimezone"),
+                            countdownMinutes = value.optNullableInt("countdownMinutes"),
+                            countdown = value.optJSONObject("countdown")?.toCountdownState(),
+                        )
+                    },
+                pendingCountdownActions =
+                    (0 until pendingCountdownActionsJson.length()).mapNotNull { index ->
+                        val value = pendingCountdownActionsJson.getJSONObject(index)
+                        val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
+                        WidgetPendingCountdownAction(
+                            actionId = value.getString("actionId"),
+                            medicineId = value.getString("medicineId"),
+                            slot = slot,
+                            createdAt =
+                                value.optNullableString("createdAt")?.let(Instant::parse)
+                                    ?: Instant.EPOCH,
+                            submitted = value.optBoolean("submitted"),
                         )
                     },
                 pendingActions =
@@ -545,4 +792,47 @@ internal object WidgetSnapshotCodec {
 
     private fun JSONObject.optNullableString(key: String): String? =
         if (isNull(key) || !has(key)) null else optString(key).takeIf(String::isNotBlank)
+
+    private fun JSONObject.optNullableInt(key: String): Int? = if (isNull(key) || !has(key)) null else optInt(key)
+
+    private fun CountdownState.toJson(): JSONObject =
+        JSONObject()
+            .put("id", id)
+            .put("ownerUid", ownerUid)
+            .put("logicalDay", logicalDay.toString())
+            .put("medicineId", medicineId)
+            .put("slot", slot.wireValue)
+            .put("durationMinutes", durationMinutes)
+            .put("startedAt", startedAt.toString())
+            .put("targetAt", targetAt.toString())
+            .put("startedTimezone", startedTimezone)
+            .put("startedSource", startedSource.wireValue)
+            .put("status", status.wireValue)
+            .put("cancelledAt", cancelledAt?.toString())
+            .put("completedAt", completedAt?.toString())
+            .put("lastActionId", lastActionId)
+            .put("updatedAt", updatedAt.toString())
+            .put("schemaVersion", schemaVersion)
+
+    private fun JSONObject.toCountdownState(): CountdownState? =
+        runCatching {
+            CountdownState(
+                id = getString("id"),
+                ownerUid = getString("ownerUid"),
+                logicalDay = LocalDate.parse(getString("logicalDay")),
+                medicineId = getString("medicineId"),
+                slot = DoseSlot.fromWire(getString("slot")) ?: return null,
+                durationMinutes = getInt("durationMinutes"),
+                startedAt = Instant.parse(getString("startedAt")),
+                targetAt = Instant.parse(getString("targetAt")),
+                startedTimezone = getString("startedTimezone"),
+                startedSource = CheckSource.fromWire(getString("startedSource")) ?: return null,
+                status = CountdownStatus.fromWire(getString("status")) ?: return null,
+                cancelledAt = optNullableString("cancelledAt")?.let(Instant::parse),
+                completedAt = optNullableString("completedAt")?.let(Instant::parse),
+                lastActionId = getString("lastActionId"),
+                updatedAt = optNullableString("updatedAt")?.let(Instant::parse) ?: Instant.EPOCH,
+                schemaVersion = optInt("schemaVersion", 1),
+            )
+        }.getOrNull()
 }

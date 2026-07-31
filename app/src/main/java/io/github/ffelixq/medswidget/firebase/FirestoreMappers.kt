@@ -3,6 +3,8 @@ package io.github.ffelixq.medswidget.firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownState
+import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseEvent
 import io.github.ffelixq.medswidget.domain.DoseSlot
@@ -25,12 +27,34 @@ internal fun DocumentSnapshot.toMedicine(): Medicine? {
         afternoonLabel = getString("afternoonLabel") ?: "Afternoon",
         nightEnabled = slotNight,
         nightLabel = getString("nightLabel") ?: "Night",
+        afternoonCountdownMinutes = getLong("afternoonCountdownMinutes")?.toInt(),
+        nightCountdownMinutes = getLong("nightCountdownMinutes")?.toInt(),
         archived = getBoolean("archived") ?: false,
         createdAt = getTimestamp("createdAt").toInstantOrEpoch(),
         updatedAt = getTimestamp("updatedAt").toInstantOrEpoch(),
         schemaVersion = getLong("schemaVersion")?.toInt() ?: SCHEMA_VERSION,
     )
 }
+
+internal fun DocumentSnapshot.toCountdownState(): CountdownState? =
+    CountdownState(
+        id = id,
+        ownerUid = getString("ownerUid") ?: return null,
+        logicalDay = runCatching { LocalDate.parse(getString("logicalDay")) }.getOrNull() ?: return null,
+        medicineId = getString("medicineId") ?: return null,
+        slot = DoseSlot.fromWire(getString("slot").orEmpty()) ?: return null,
+        durationMinutes = getLong("durationMinutes")?.toInt() ?: return null,
+        startedAt = getTimestamp("startedAt")?.toDate()?.toInstant() ?: return null,
+        targetAt = getTimestamp("targetAt")?.toDate()?.toInstant() ?: return null,
+        startedTimezone = getString("startedTimezone") ?: return null,
+        startedSource = CheckSource.fromWire(getString("startedSource").orEmpty()) ?: return null,
+        status = CountdownStatus.fromWire(getString("status").orEmpty()) ?: return null,
+        cancelledAt = getTimestamp("cancelledAt")?.toDate()?.toInstant(),
+        completedAt = getTimestamp("completedAt")?.toDate()?.toInstant(),
+        lastActionId = getString("lastActionId") ?: return null,
+        updatedAt = getTimestamp("updatedAt").toInstantOrEpoch(),
+        schemaVersion = getLong("schemaVersion")?.toInt() ?: 1,
+    )
 
 internal fun DocumentSnapshot.toDoseState(): DoseState? =
     DoseState(

@@ -91,6 +91,7 @@ class MainViewModelTest {
                         name = "  Medicine A ",
                         afternoonEnabled = true,
                         afternoonLabel = " After lunch ",
+                        afternoonCountdownMinutes = 120,
                         nightEnabled = false,
                         nightLabel = "",
                     ),
@@ -110,6 +111,12 @@ class MainViewModelTest {
                 listOf("After lunch"),
                 viewModel.state.value.rows
                     .map { it.label },
+            )
+            assertEquals(
+                120,
+                viewModel.state.value.medicines
+                    .single()
+                    .afternoonCountdownMinutes,
             )
 
             val medicineId =
@@ -261,6 +268,123 @@ class MainViewModelTest {
                     .events("user-a")
                     .first()
                     .medicineNameSnapshot,
+            )
+        }
+
+    @Test
+    fun `countdown start restart cancel and dose check use separate actions`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val fakes = fakeRepositories(session = session("user-a"), clock = clock)
+            fakes.medicines.emit(
+                "user-a",
+                DataEnvelope(
+                    listOf(
+                        medicine("a", "Medicine A").copy(
+                            afternoonCountdownMinutes = 120,
+                            nightCountdownMinutes = 90,
+                        ),
+                    ),
+                ),
+            )
+            val tracker = RefreshTracker()
+            publish(fakes, tracker, "user-a", day)
+            val viewModel = viewModel(fakes, tracker)
+            activate(viewModel)
+            advanceUntilIdle()
+
+            val afternoon =
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.AFTERNOON }
+            viewModel.startCountdown(afternoon, CheckSource.APP_PREVIEW)
+            advanceUntilIdle()
+            publish(fakes, tracker, "user-a", day)
+            advanceUntilIdle()
+
+            val running =
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.AFTERNOON }
+            assertEquals(120, running.countdown?.durationMinutes)
+            assertEquals(CheckSource.APP_PREVIEW, running.countdown?.startedSource)
+            assertFalse(running.isTaken)
+
+            viewModel.restartCountdown(running)
+            advanceUntilIdle()
+            assertEquals(1, fakes.countdowns.restartCount)
+
+            publish(fakes, tracker, "user-a", day)
+            advanceUntilIdle()
+            val restarted =
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.AFTERNOON }
+            viewModel.check(restarted)
+            advanceUntilIdle()
+            assertEquals(1, fakes.countdowns.clearCount)
+            assertEquals(1, fakes.doses.checkCalls.size)
+
+            val night =
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.NIGHT }
+            viewModel.startCountdown(night)
+            advanceUntilIdle()
+            publish(fakes, tracker, "user-a", day)
+            advanceUntilIdle()
+            viewModel.cancelCountdown(
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.NIGHT },
+            )
+            advanceUntilIdle()
+            assertEquals(1, fakes.countdowns.cancelCount)
+        }
+
+    @Test
+    fun `disabling a slot cancels its active countdown`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val fakes = fakeRepositories(session = session("user-a"), clock = clock)
+            fakes.medicines.emit(
+                "user-a",
+                DataEnvelope(
+                    listOf(
+                        medicine("a", "Medicine A").copy(
+                            afternoonCountdownMinutes = 120,
+                            nightCountdownMinutes = 90,
+                        ),
+                    ),
+                ),
+            )
+            val tracker = RefreshTracker()
+            publish(fakes, tracker, "user-a", day)
+            val viewModel = viewModel(fakes, tracker)
+            activate(viewModel)
+            advanceUntilIdle()
+            viewModel.startCountdown(
+                viewModel.state.value.rows
+                    .first { it.slot == DoseSlot.AFTERNOON },
+            )
+            advanceUntilIdle()
+            publish(fakes, tracker, "user-a", day)
+            advanceUntilIdle()
+
+            val result =
+                viewModel.saveMedicine(
+                    MedicineDraft(
+                        id = "a",
+                        name = "Medicine A",
+                        afternoonEnabled = false,
+                        nightEnabled = true,
+                        nightLabel = "Night",
+                        nightCountdownMinutes = 90,
+                    ),
+                )
+            advanceUntilIdle()
+
+            assertTrue(result.isValid)
+            assertEquals(1, fakes.countdowns.cancelCount)
+            assertEquals(
+                null,
+                fakes.medicines
+                    .medicines("user-a")
+                    .single()
+                    .afternoonCountdownMinutes,
             )
         }
 
@@ -492,6 +616,7 @@ class MainViewModelTest {
                 logicalDay = logicalDay,
                 medicines = fakes.medicines.envelope(uid),
                 doses = fakes.doses.envelope(uid, logicalDay),
+                countdowns = fakes.countdowns.envelope(uid),
             )
     }
 

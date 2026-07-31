@@ -7,9 +7,9 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import io.github.ffelixq.medswidget.data.MedicineRepository
 import io.github.ffelixq.medswidget.domain.DataEnvelope
+import io.github.ffelixq.medswidget.domain.MEDICINE_SCHEMA_VERSION
 import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.domain.MedicineDraft
-import io.github.ffelixq.medswidget.domain.SCHEMA_VERSION
 import io.github.ffelixq.medswidget.sync.OutstandingWriteTracker
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -45,7 +45,7 @@ class FirestoreMedicineRepository(
         val id = draft.id ?: UUID.randomUUID().toString()
         val reference = FirestorePaths.medicines(firestore, uid).document(id)
         val values =
-            mutableMapOf<String, Any>(
+            mutableMapOf<String, Any?>(
                 "id" to id,
                 "ownerUid" to uid,
                 "name" to draft.name,
@@ -53,9 +53,11 @@ class FirestoreMedicineRepository(
                 "afternoonLabel" to draft.afternoonLabel,
                 "nightEnabled" to draft.nightEnabled,
                 "nightLabel" to draft.nightLabel,
+                "afternoonCountdownMinutes" to draft.afternoonCountdownMinutes,
+                "nightCountdownMinutes" to draft.nightCountdownMinutes,
                 "archived" to false,
                 "updatedAt" to FieldValue.serverTimestamp(),
-                "schemaVersion" to SCHEMA_VERSION,
+                "schemaVersion" to MEDICINE_SCHEMA_VERSION,
             )
         if (draft.id == null) {
             values["createdAt"] = FieldValue.serverTimestamp()

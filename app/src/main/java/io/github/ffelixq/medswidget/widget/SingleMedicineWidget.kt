@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -38,19 +39,16 @@ import androidx.glance.text.TextStyle
 import io.github.ffelixq.medswidget.MedsApplication
 import io.github.ffelixq.medswidget.R
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownDisplayStatus
+import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.DisplayTransform
 import io.github.ffelixq.medswidget.ui.MainActivity
 import io.github.ffelixq.medswidget.util.TimeFormatting
 import kotlinx.coroutines.launch
+import java.time.Instant
 
 class SingleMedicineWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode =
-        SizeMode.Responsive(
-            setOf(
-                DpSize(110.dp, 130.dp),
-                DpSize(180.dp, 130.dp),
-            ),
-        )
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(
         context: Context,
@@ -62,40 +60,42 @@ class SingleMedicineWidget : GlanceAppWidget() {
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         val configuration = graph.configurationStore.get(appWidgetId)
         provideContent {
-            SingleMedicineWidgetContent(snapshot, configuration, appWidgetId)
+            SingleMedicineWidgetContent(snapshot, configuration, appWidgetId, LocalSize.current)
         }
     }
 }
 
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 @androidx.glance.GlanceComposable
 internal fun SingleMedicineWidgetContent(
     snapshot: WidgetSnapshot,
     configuration: SingleWidgetConfiguration?,
     appWidgetId: Int?,
+    availableSize: DpSize = DpSize(180.dp, 130.dp),
 ) {
+    val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.SINGLE)
     Column(
         modifier =
             GlanceModifier
                 .fillMaxSize()
                 .background(WidgetColors.background)
                 .cornerRadius(18.dp)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+                .padding(spec.outerPaddingDp.dp),
     ) {
         when {
             snapshot.isLoading -> {
-                WidgetHeader("Meds Widget", snapshot.compactStatus())
+                WidgetHeader("Meds Widget", snapshot.compactStatus(), spec)
                 Spacer(GlanceModifier.height(6.dp))
                 Text(
                     text = "Loading medicines…",
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
 
             !snapshot.signedIn -> {
-                WidgetHeader("Meds Widget")
+                WidgetHeader("Meds Widget", spec = spec)
                 Spacer(GlanceModifier.height(8.dp))
                 Text(
                     text = "Open the app to sign in",
@@ -103,13 +103,13 @@ internal fun SingleMedicineWidgetContent(
                         GlanceModifier.clickable(
                             actionStartActivity(Intent(LocalContext.current, MainActivity::class.java)),
                         ),
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
 
             configuration == null || configuration.ownerUid != snapshot.ownerUid -> {
-                WidgetHeader("Choose a medicine")
+                WidgetHeader("Choose a medicine", spec = spec)
                 Spacer(GlanceModifier.height(6.dp))
                 Text(
                     text = "Tap and reconfigure this widget.",
@@ -117,13 +117,13 @@ internal fun SingleMedicineWidgetContent(
                         GlanceModifier.clickable(
                             actionStartActivity(Intent(LocalContext.current, MainActivity::class.java)),
                         ),
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 2,
                 )
             }
 
             snapshot.medicine(configuration.medicineId) == null -> {
-                WidgetHeader("Medicine unavailable")
+                WidgetHeader("Medicine unavailable", spec = spec)
                 Spacer(GlanceModifier.height(6.dp))
                 Text(
                     text = "It was archived or deleted. Reconfigure this widget.",
@@ -131,7 +131,7 @@ internal fun SingleMedicineWidgetContent(
                         GlanceModifier.clickable(
                             actionStartActivity(Intent(LocalContext.current, MainActivity::class.java)),
                         ),
-                    style = WidgetTextStyles.body,
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 3,
                 )
             }
@@ -141,13 +141,25 @@ internal fun SingleMedicineWidgetContent(
                 WidgetHeader(
                     title = DisplayTransform.truncate(medicine.name, 28),
                     status = snapshot.compactStatus(),
+                    spec = spec,
                 )
                 Spacer(GlanceModifier.height(2.dp))
-                snapshot.rowsForMedicine(medicine.id).forEach { row ->
+                val rows = snapshot.rowsForMedicine(medicine.id)
+                val availableRowHeight =
+                    (
+                        (
+                            availableSize.height.value -
+                                (spec.outerPaddingDp * 2 + spec.titleSp + 6)
+                        ) / rows.size.coerceAtLeast(1)
+                    ).toInt()
+                        .coerceIn(spec.rowHeightDp, 80)
+                rows.forEach { row ->
                     WidgetDoseRowContent(
                         row = row,
                         source = CheckSource.WIDGET_2X2,
                         appWidgetId = appWidgetId,
+                        spec = spec,
+                        rowHeightDp = availableRowHeight,
                     )
                 }
             }
@@ -155,12 +167,13 @@ internal fun SingleMedicineWidgetContent(
     }
 }
 
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 @androidx.glance.GlanceComposable
 internal fun WidgetHeader(
     title: String,
     status: String? = null,
+    spec: WidgetLayoutSpec = WidgetLayoutSpec.forSize(DpSize(180.dp, 130.dp), WidgetKind.SINGLE),
 ) {
     val context = LocalContext.current
     Row(
@@ -172,16 +185,16 @@ internal fun WidgetHeader(
         Text(
             text = title,
             modifier = GlanceModifier.defaultWeight(),
-            style = WidgetTextStyles.title,
+            style = WidgetTextStyles.title(spec),
             maxLines = 1,
         )
         status?.let {
-            Text(text = it, style = WidgetTextStyles.supporting, maxLines = 1)
+            Text(text = it, style = WidgetTextStyles.supporting(spec), maxLines = 1)
         }
     }
 }
 
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 @androidx.glance.GlanceComposable
 internal fun WidgetDoseRowContent(
@@ -189,6 +202,9 @@ internal fun WidgetDoseRowContent(
     source: CheckSource,
     appWidgetId: Int? = null,
     showMedicineName: Boolean = false,
+    spec: WidgetLayoutSpec = WidgetLayoutSpec.forSize(DpSize(180.dp, 130.dp), WidgetKind.SINGLE),
+    rowHeightDp: Int = spec.rowHeightDp,
+    now: Instant = Instant.now(),
 ) {
     val context = LocalContext.current
     val completionTime =
@@ -230,40 +246,98 @@ internal fun WidgetDoseRowContent(
         } else {
             actionRunCallback<CheckDoseAction>(parameters)
         }
+    val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, now)
+    val countdownAction =
+        when (countdown.status) {
+            CountdownDisplayStatus.NOT_STARTED -> {
+                actionRunCallback<StartCountdownAction>(parameters)
+            }
+
+            CountdownDisplayStatus.RUNNING,
+            CountdownDisplayStatus.READY,
+            -> {
+                actionStartActivity(Intent(context, MainActivity::class.java))
+            }
+
+            else -> {
+                null
+            }
+        }
     Row(
         modifier =
             GlanceModifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .semantics { contentDescription = accessibilityLabel }
-                .clickable(action),
+                .height(rowHeightDp.dp),
         verticalAlignment = androidx.glance.layout.Alignment.CenterVertically,
     ) {
-        Text(
-            text = if (row.isTaken) "☑" else "☐",
-            style = WidgetTextStyles.check,
-            maxLines = 1,
-        )
-        Spacer(GlanceModifier.width(6.dp))
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            if (showMedicineName) {
+        Row(
+            modifier =
+                GlanceModifier
+                    .defaultWeight()
+                    .height(rowHeightDp.dp)
+                    .semantics { contentDescription = accessibilityLabel }
+                    .clickable(action),
+            verticalAlignment = androidx.glance.layout.Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (row.isTaken) "☑" else "☐",
+                style = WidgetTextStyles.check(spec),
+                maxLines = 1,
+            )
+            Spacer(GlanceModifier.width(6.dp))
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                if (showMedicineName) {
+                    Text(
+                        text =
+                            DisplayTransform.truncate(
+                                row.medicineName,
+                                if (spec.category == WidgetLayoutCategory.COMPACT) 18 else 26,
+                            ),
+                        style = WidgetTextStyles.supporting(spec),
+                        maxLines = 1,
+                    )
+                }
                 Text(
-                    text = DisplayTransform.truncate(row.medicineName, 22),
-                    style = WidgetTextStyles.supporting,
+                    text =
+                        DisplayTransform.truncate(
+                            row.label,
+                            if (spec.category == WidgetLayoutCategory.COMPACT) 24 else 34,
+                        ),
+                    style = WidgetTextStyles.body(spec),
                     maxLines = 1,
                 )
             }
-            Text(
-                text = DisplayTransform.truncate(row.label, 30),
-                style = WidgetTextStyles.body,
-                maxLines = 1,
-            )
+            completionTime?.let {
+                Spacer(GlanceModifier.width(4.dp))
+                Text(
+                    text = it,
+                    style = WidgetTextStyles.supporting(spec),
+                    maxLines = 1,
+                )
+            }
         }
-        completionTime?.let {
+        if (!row.isTaken && countdownAction != null && countdown.text != null) {
             Spacer(GlanceModifier.width(4.dp))
             Text(
-                text = it,
-                style = WidgetTextStyles.supporting,
+                text = countdown.text,
+                modifier =
+                    GlanceModifier
+                        .height(rowHeightDp.dp)
+                        .padding(horizontal = 6.dp, vertical = 8.dp)
+                        .semantics {
+                            contentDescription =
+                                if (countdown.status == CountdownDisplayStatus.NOT_STARTED) {
+                                    "Start ${row.label} countdown"
+                                } else {
+                                    "${row.label} countdown ${countdown.text}"
+                                }
+                        }.clickable(countdownAction),
+                style =
+                    if (countdown.status == CountdownDisplayStatus.READY) {
+                        WidgetTextStyles.countdownReady(spec)
+                    } else {
+                        WidgetTextStyles.supporting(spec)
+                    },
                 maxLines = 1,
             )
         }
@@ -271,10 +345,26 @@ internal fun WidgetDoseRowContent(
 }
 
 internal object WidgetTextStyles {
-    val title = TextStyle(color = WidgetColors.foreground, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    val body = TextStyle(color = WidgetColors.foreground, fontSize = 14.sp)
-    val check = TextStyle(color = WidgetColors.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-    val supporting = TextStyle(color = WidgetColors.foreground, fontSize = 12.sp)
+    fun title(spec: WidgetLayoutSpec) =
+        TextStyle(
+            color = WidgetColors.foreground,
+            fontSize = spec.titleSp.sp,
+            fontWeight = FontWeight.Bold,
+        )
+
+    fun body(spec: WidgetLayoutSpec) = TextStyle(color = WidgetColors.foreground, fontSize = spec.bodySp.sp)
+
+    fun check(spec: WidgetLayoutSpec) =
+        TextStyle(
+            color = WidgetColors.accent,
+            fontSize = spec.checkSp.sp,
+            fontWeight = FontWeight.Bold,
+        )
+
+    fun supporting(spec: WidgetLayoutSpec) = TextStyle(color = WidgetColors.foreground, fontSize = spec.supportingSp.sp)
+
+    fun countdownReady(spec: WidgetLayoutSpec) =
+        TextStyle(color = WidgetColors.accent, fontSize = spec.supportingSp.sp, fontWeight = FontWeight.Bold)
 }
 
 internal object WidgetColors {

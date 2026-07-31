@@ -15,6 +15,8 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CompletionProgress
+import io.github.ffelixq.medswidget.domain.CountdownState
+import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DoseRow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,6 +24,7 @@ import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
 import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
@@ -207,6 +210,66 @@ class MainScreenTest {
 
         assertEquals(0, checkCount)
         assertEquals(0, undoCount)
+    }
+
+    @Test
+    fun countdownStartIsSeparateFromCheckingAndRunningTimerHasManagementActions() {
+        val base = testDoseRow().copy(countdownMinutes = 120)
+        var starts = 0
+        var checks = 0
+        composeRule.setContent {
+            UiTestTheme {
+                MainScreen(
+                    state = testMainState(rows = listOf(base)),
+                    onCheck = { _, _ -> checks += 1 },
+                    onUndo = {},
+                    onStartCountdown = { _, _ -> starts += 1 },
+                    onCancelCountdown = {},
+                    onRestartCountdown = {},
+                    onAdd = {},
+                    onEdit = {},
+                    onHistory = {},
+                    onSettings = {},
+                )
+            }
+        }
+        composeRule.onNodeWithTag("start_countdown_${base.stateId}").performClick()
+        assertEquals(1, starts)
+        assertEquals(0, checks)
+
+        val running =
+            base.copy(
+                countdown =
+                    CountdownState(
+                        id = base.stateId,
+                        ownerUid = "user-a",
+                        logicalDay = LocalDate.of(2026, 7, 29),
+                        medicineId = base.medicineId,
+                        slot = base.slot,
+                        durationMinutes = 120,
+                        startedAt = Instant.now(),
+                        targetAt = Instant.now().plusSeconds(7_200),
+                        startedTimezone = "Asia/Singapore",
+                        startedSource = CheckSource.APP,
+                        status = CountdownStatus.RUNNING,
+                        cancelledAt = null,
+                        completedAt = null,
+                        lastActionId = "action-a",
+                    ),
+            )
+        composeRule.setContent {
+            UiTestTheme {
+                DoseCheckRow(
+                    row = running,
+                    onClick = {},
+                    onCancelCountdown = {},
+                    onRestartCountdown = {},
+                    showCountdownManagement = true,
+                )
+            }
+        }
+        composeRule.onNodeWithText("Cancel").assertIsDisplayed()
+        composeRule.onNodeWithText("Restart").assertIsDisplayed()
     }
 
     @Test

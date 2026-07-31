@@ -7,6 +7,7 @@ import io.github.ffelixq.medswidget.AppGraph
 import io.github.ffelixq.medswidget.data.RepositoryBundle
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CompletionProgress
+import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.DoseRows
 import io.github.ffelixq.medswidget.domain.DoseSlot
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.UUID
 
 data class MainUiState(
     val isLoading: Boolean = true,
@@ -45,6 +47,7 @@ internal data class MainViewModelDependencies(
     val accountOperationGate: AccountOperationGate = AccountOperationGate(),
 )
 
+@Suppress("TooManyFunctions")
 class MainViewModel internal constructor(
     private val dependencies: MainViewModelDependencies,
 ) : ViewModel() {
@@ -78,6 +81,7 @@ class MainViewModel internal constructor(
                             snapshot.medicines.value,
                             snapshot.doses.value,
                             snapshot.logicalDay,
+                            snapshot.countdowns.value,
                         )
                     MainUiState(
                         isLoading = false,
@@ -85,12 +89,17 @@ class MainViewModel internal constructor(
                         medicines = snapshot.medicines.value,
                         rows = rows,
                         progress = DoseRows.progress(rows),
-                        isCached = snapshot.medicines.fromCache || snapshot.doses.fromCache,
+                        isCached =
+                            snapshot.medicines.fromCache ||
+                                snapshot.doses.fromCache ||
+                                snapshot.countdowns.fromCache,
                         hasPendingWrites =
                             snapshot.medicines.hasPendingWrites ||
-                                snapshot.doses.hasPendingWrites,
+                                snapshot.doses.hasPendingWrites ||
+                                snapshot.countdowns.hasPendingWrites,
                         errorMessage =
                             snapshot.doses.errorMessage
+                                ?: snapshot.countdowns.errorMessage
                                 ?: snapshot.medicines.errorMessage,
                     )
                 }
@@ -113,13 +122,23 @@ class MainViewModel internal constructor(
                 if (actionDay != state.value.logicalDay) {
                     dependencies.refreshTemporalState()
                 }
-                repositories.doses.check(
-                    session.uid,
-                    actionDay,
-                    medicine,
-                    row.slot,
-                    source,
-                )
+                val applied =
+                    repositories.doses.check(
+                        session.uid,
+                        actionDay,
+                        medicine,
+                        row.slot,
+                        source,
+                    )
+                if (applied && row.countdown != null) {
+                    repositories.countdowns.clearForDoseCheck(
+                        session.uid,
+                        row.medicineId,
+                        row.slot,
+                        source,
+                        row.countdown,
+                    )
+                }
                 dependencies.refreshFromRepositories()
             }
         }
@@ -154,11 +173,70 @@ class MainViewModel internal constructor(
             repositories.auth.session.value
                 ?.uid
                 ?: return validation
+        val existing = state.value.medicines.firstOrNull { it.id == validation.normalized.id }
+        val activeCountdowns =
+            state.value.rows
+                .filter { it.medicineId == validation.normalized.id }
+                .mapNotNull(DoseRow::countdown)
         dependencies.accountOperationGate.runMutation {
             repositories.medicines.save(uid, validation.normalized)
+            cancelCountdownsForDisabledSlots(uid, validation.normalized, activeCountdowns)
+            if (validation.normalized.restartChangedCountdowns && existing != null) {
+                restartChangedCountdowns(uid, existing, validation.normalized, activeCountdowns)
+            }
             dependencies.refreshFromRepositories()
         }
         return validation
+    }
+
+    fun startCountdown(
+        row: DoseRow,
+        source: CheckSource = CheckSource.APP,
+    ) {
+        val session = repositories.auth.session.value ?: return
+        val medicine = state.value.medicines.firstOrNull { it.id == row.medicineId } ?: return
+        val duration = medicine.countdownMinutes(row.slot) ?: return
+        if (row.isTaken || row.countdown != null) return
+        viewModelScope.launch {
+            dependencies.accountOperationGate.runMutation {
+                val actionDay = currentLogicalDay()
+                repositories.countdowns.start(
+                    uid = session.uid,
+                    logicalDay = actionDay,
+                    medicine = medicine,
+                    slot = row.slot,
+                    source = source,
+                    actionId = UUID.randomUUID().toString(),
+                    startedAt = dependencies.clock.instant(),
+                    durationMinutes = duration,
+                )
+                dependencies.refreshFromRepositories()
+            }
+        }
+    }
+
+    fun cancelCountdown(row: DoseRow) {
+        val session = repositories.auth.session.value ?: return
+        val countdown = row.countdown ?: return
+        viewModelScope.launch {
+            dependencies.accountOperationGate.runMutation {
+                repositories.countdowns.cancel(session.uid, countdown)
+                dependencies.refreshFromRepositories()
+            }
+        }
+    }
+
+    fun restartCountdown(row: DoseRow) {
+        val session = repositories.auth.session.value ?: return
+        val countdown = row.countdown ?: return
+        val medicine = state.value.medicines.firstOrNull { it.id == row.medicineId } ?: return
+        val duration = medicine.countdownMinutes(row.slot) ?: return
+        viewModelScope.launch {
+            dependencies.accountOperationGate.runMutation {
+                repositories.countdowns.restart(session.uid, countdown, duration)
+                dependencies.refreshFromRepositories()
+            }
+        }
     }
 
     fun archiveMedicine(
@@ -171,6 +249,10 @@ class MainViewModel internal constructor(
                 ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
+                state.value.rows
+                    .filter { it.medicineId == medicineId }
+                    .mapNotNull(DoseRow::countdown)
+                    .forEach { repositories.countdowns.cancel(uid, it) }
                 repositories.medicines.archive(uid, medicineId, archived)
                 dependencies.refreshFromRepositories()
             }
@@ -184,6 +266,10 @@ class MainViewModel internal constructor(
                 ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
+                state.value.rows
+                    .filter { it.medicineId == medicineId }
+                    .mapNotNull(DoseRow::countdown)
+                    .forEach { repositories.countdowns.cancel(uid, it) }
                 repositories.medicines.delete(uid, medicineId)
                 dependencies.refreshFromRepositories()
             }
@@ -198,4 +284,43 @@ class MainViewModel internal constructor(
             settings.resetMinutesAfterMidnight,
         )
     }
+
+    private suspend fun restartChangedCountdowns(
+        uid: String,
+        existing: Medicine,
+        draft: MedicineDraft,
+        activeCountdowns: List<CountdownState>,
+    ) {
+        activeCountdowns.forEach { countdown ->
+            if (!draft.isSlotEnabled(countdown.slot)) return@forEach
+            val oldDuration = existing.countdownMinutes(countdown.slot)
+            val newDuration =
+                when (countdown.slot) {
+                    DoseSlot.AFTERNOON -> draft.afternoonCountdownMinutes
+                    DoseSlot.NIGHT -> draft.nightCountdownMinutes
+                }
+            if (newDuration == oldDuration) return@forEach
+            if (newDuration == null) {
+                repositories.countdowns.cancel(uid, countdown)
+            } else {
+                repositories.countdowns.restart(uid, countdown, newDuration)
+            }
+        }
+    }
+
+    private suspend fun cancelCountdownsForDisabledSlots(
+        uid: String,
+        draft: MedicineDraft,
+        activeCountdowns: List<CountdownState>,
+    ) {
+        activeCountdowns
+            .filterNot { draft.isSlotEnabled(it.slot) }
+            .forEach { countdown -> repositories.countdowns.cancel(uid, countdown) }
+    }
+
+    private fun MedicineDraft.isSlotEnabled(slot: DoseSlot): Boolean =
+        when (slot) {
+            DoseSlot.AFTERNOON -> afternoonEnabled
+            DoseSlot.NIGHT -> nightEnabled
+        }
 }

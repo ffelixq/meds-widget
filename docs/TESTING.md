@@ -1,5 +1,20 @@
 # Testing
 
+## V1.1 coverage
+
+V1.1 tests duration bounds/presets, targets, ceiling rounding, time/reset
+changes, cancellation/restart/check consumption, adaptive scheduling, and
+legacy data. Widget coverage includes exact-size categories, one/two-slot
+layouts, long labels, distinct Start/Check actions, cold initialization,
+offline optimistic starts, idempotency, rollback, and multiple configurations.
+Compose tests cover configuration and accessibility actions. Firestore Emulator
+tests cover ownership, bounds, target derivation, immutable events, transitions,
+and schema-1 compatibility.
+
+Every minified APK must pass `scripts/verify-release-widget-callback.sh`, which
+inspects DEX and R8 mapping for both callbacks. Automated checks do not prove
+Samsung launcher sizing or refresh timing; follow `SAMSUNG_VALIDATION.md`.
+
 ## Evidence policy
 
 A test source file, workflow definition, or zero exit from a task with no

@@ -90,7 +90,21 @@ service cloud.firestore {
     }
 
     function validMedicineDocument(userId, medicineId, data) {
-      return hasExactly(
+      let commonValid = isValidIdentifier(data.id)
+        && data.id == medicineId
+        && data.ownerUid is string
+        && data.ownerUid == userId
+        && isBoundedString(data.name, 100)
+        && data.afternoonEnabled is bool
+        && isBoundedString(data.afternoonLabel, 60)
+        && data.nightEnabled is bool
+        && isBoundedString(data.nightLabel, 60)
+        && (data.afternoonEnabled || data.nightEnabled)
+        && data.archived is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.schemaVersion is int;
+      let validV1 = hasExactly(
           data,
           [
             'id',
@@ -106,21 +120,259 @@ service cloud.firestore {
             'schemaVersion'
           ]
         )
-        && isValidIdentifier(data.id)
-        && data.id == medicineId
-        && data.ownerUid is string
-        && data.ownerUid == userId
-        && isBoundedString(data.name, 100)
-        && data.afternoonEnabled is bool
-        && isBoundedString(data.afternoonLabel, 60)
-        && data.nightEnabled is bool
-        && isBoundedString(data.nightLabel, 60)
-        && (data.afternoonEnabled || data.nightEnabled)
-        && data.archived is bool
-        && data.createdAt is timestamp
-        && data.updatedAt is timestamp
-        && data.schemaVersion is int
         && data.schemaVersion == 1;
+      let validV2 = hasExactly(
+          data,
+          [
+            'id',
+            'ownerUid',
+            'name',
+            'afternoonEnabled',
+            'afternoonLabel',
+            'afternoonCountdownMinutes',
+            'nightEnabled',
+            'nightLabel',
+            'nightCountdownMinutes',
+            'archived',
+            'createdAt',
+            'updatedAt',
+            'schemaVersion'
+          ]
+        )
+        && data.schemaVersion == 2
+        && (
+          data.afternoonCountdownMinutes == null
+          || (
+            data.afternoonEnabled
+            && data.afternoonCountdownMinutes is int
+            && data.afternoonCountdownMinutes >= 1
+            && data.afternoonCountdownMinutes <= 1440
+          )
+        )
+        && (
+          data.nightCountdownMinutes == null
+          || (
+            data.nightEnabled
+            && data.nightCountdownMinutes is int
+            && data.nightCountdownMinutes >= 1
+            && data.nightCountdownMinutes <= 1440
+          )
+        );
+      return commonValid && (validV1 || validV2);
+    }
+
+    function validCountdownStateDocument(userId, countdownStateId, data) {
+      return hasExactly(
+          data,
+          [
+            'ownerUid',
+            'logicalDay',
+            'medicineId',
+            'slot',
+            'durationMinutes',
+            'startedAt',
+            'targetAt',
+            'startedTimezone',
+            'startedSource',
+            'status',
+            'cancelledAt',
+            'completedAt',
+            'updatedAt',
+            'lastActionId',
+            'schemaVersion'
+          ]
+        )
+        && data.ownerUid == userId
+        && isValidLogicalDay(data.logicalDay)
+        && isValidIdentifier(data.medicineId)
+        && isValidSlot(data.slot)
+        && countdownStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
+        && data.durationMinutes is int
+        && data.durationMinutes >= 1
+        && data.durationMinutes <= 1440
+        && data.startedAt is timestamp
+        && data.targetAt is timestamp
+        && data.targetAt
+          == data.startedAt + duration.value(data.durationMinutes, 'm')
+        && isBoundedString(data.startedTimezone, 100)
+        && isValidSource(data.startedSource)
+        && (
+          data.status == 'running'
+          || data.status == 'cancelled'
+          || data.status == 'consumed'
+        )
+        && (data.cancelledAt == null || data.cancelledAt is timestamp)
+        && (data.completedAt == null || data.completedAt is timestamp)
+        && data.updatedAt is timestamp
+        && isValidIdentifier(data.lastActionId)
+        && data.schemaVersion == 1;
+    }
+
+    function validCountdownEventDocument(userId, eventId, data) {
+      return hasExactly(
+          data,
+          [
+            'eventId',
+            'ownerUid',
+            'action',
+            'logicalDay',
+            'medicineId',
+            'slot',
+            'durationMinutes',
+            'occurredAt',
+            'timezoneId',
+            'source',
+            'relatedStateId',
+            'previousActionId',
+            'syncedAt',
+            'schemaVersion'
+          ]
+        )
+        && isValidIdentifier(data.eventId)
+        && data.eventId == eventId
+        && data.ownerUid == userId
+        && (
+          data.action == 'start'
+          || data.action == 'cancel'
+          || data.action == 'restart'
+          || data.action == 'clear_by_check'
+        )
+        && isValidLogicalDay(data.logicalDay)
+        && isValidIdentifier(data.medicineId)
+        && isValidSlot(data.slot)
+        && data.durationMinutes is int
+        && data.durationMinutes >= 1
+        && data.durationMinutes <= 1440
+        && data.occurredAt is timestamp
+        && isBoundedString(data.timezoneId, 100)
+        && isValidSource(data.source)
+        && (
+          data.action == 'start'
+          || data.action == 'clear_by_check'
+          || data.source == 'app'
+        )
+        && data.relatedStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
+        && (
+          data.previousActionId == null
+          || isValidIdentifier(data.previousActionId)
+        )
+        && isServerTimestamp(data.syncedAt)
+        && data.schemaVersion == 1;
+    }
+
+    function countdownEventAfterMatchesState(userId, stateId, state) {
+      let event = getAfter(
+        /databases/$(database)/documents/users/$(userId)/countdownEvents/$(state.lastActionId)
+      ).data;
+      let statePath =
+        /databases/$(database)/documents/users/$(userId)/countdownStates/$(stateId);
+      let previousActionId = exists(statePath) ? get(statePath).data.lastActionId : null;
+      return event.ownerUid == userId
+        && event.relatedStateId == stateId
+        && event.logicalDay == state.logicalDay
+        && event.medicineId == state.medicineId
+        && event.slot == state.slot
+        && event.durationMinutes == state.durationMinutes
+        && (
+          (
+            event.action == 'start'
+            && (
+              (previousActionId == null && event.previousActionId == null)
+              || event.previousActionId == previousActionId
+            )
+          )
+          || (event.action != 'start' && event.previousActionId == previousActionId)
+        )
+        && (
+          (
+            (event.action == 'start' || event.action == 'restart')
+            && state.status == 'running'
+            && state.cancelledAt == null
+            && state.completedAt == null
+            && state.startedAt == event.occurredAt
+            && state.startedTimezone == event.timezoneId
+            && state.startedSource == event.source
+          )
+          || (
+            event.action == 'cancel'
+            && state.status == 'cancelled'
+            && state.cancelledAt == event.occurredAt
+            && state.completedAt == null
+          )
+          || (
+            event.action == 'clear_by_check'
+            && state.status == 'consumed'
+            && state.completedAt == event.occurredAt
+            && state.cancelledAt == null
+          )
+        );
+    }
+
+    function countdownStateAfterMatchesEvent(userId, eventId, event) {
+      let state = getAfter(
+        /databases/$(database)/documents/users/$(userId)/countdownStates/$(event.relatedStateId)
+      ).data;
+      return state.lastActionId == eventId
+        && countdownEventAfterMatchesState(userId, event.relatedStateId, state);
+    }
+
+    function validCountdownStateTransition(oldState, newState) {
+      return newState.ownerUid == oldState.ownerUid
+        && newState.logicalDay == oldState.logicalDay
+        && newState.medicineId == oldState.medicineId
+        && newState.slot == oldState.slot
+        && newState.lastActionId != oldState.lastActionId
+        && (
+          (
+            (oldState.status == 'cancelled' || oldState.status == 'consumed')
+            && newState.status == 'running'
+            && newState.cancelledAt == null
+            && newState.completedAt == null
+            && newState.diff(oldState).affectedKeys().hasOnly(
+              [
+                'status',
+                'durationMinutes',
+                'startedAt',
+                'targetAt',
+                'startedTimezone',
+                'startedSource',
+                'cancelledAt',
+                'completedAt',
+                'lastActionId',
+                'updatedAt'
+              ]
+            )
+          )
+          || (
+            oldState.status == 'running'
+            && newState.status == 'running'
+            && newState.diff(oldState).affectedKeys().hasOnly(
+              [
+                'durationMinutes',
+                'startedAt',
+                'targetAt',
+                'startedTimezone',
+                'startedSource',
+                'lastActionId',
+                'updatedAt'
+              ]
+            )
+          )
+          || (
+            oldState.status == 'running'
+            && newState.status == 'cancelled'
+            && newState.diff(oldState).affectedKeys().hasOnly(
+              ['status', 'cancelledAt', 'lastActionId', 'updatedAt']
+            )
+          )
+          || (
+            oldState.status == 'running'
+            && newState.status == 'consumed'
+            && newState.diff(oldState).affectedKeys().hasOnly(
+              ['status', 'completedAt', 'lastActionId', 'updatedAt']
+            )
+          )
+        );
     }
 
     function validDoseStateDocument(userId, doseStateId, data) {
@@ -420,6 +672,40 @@ service cloud.firestore {
           && stateAfterMatchesEvent(userId, eventId, request.resource.data);
         // Audit events are immutable. Owner-only deletion remains available
         // for the documented client-side account deletion flow.
+        allow update: if false;
+        allow delete: if ownsPath(userId);
+      }
+
+      match /countdownStates/{countdownStateId} {
+        allow get, list: if ownsPath(userId);
+        allow create: if ownsPath(userId)
+          && validCountdownStateDocument(userId, countdownStateId, request.resource.data)
+          && request.resource.data.status == 'running'
+          && request.resource.data.cancelledAt == null
+          && request.resource.data.completedAt == null
+          && isServerTimestamp(request.resource.data.updatedAt)
+          && countdownEventAfterMatchesState(
+            userId,
+            countdownStateId,
+            request.resource.data
+          );
+        allow update: if ownsPath(userId)
+          && validCountdownStateDocument(userId, countdownStateId, request.resource.data)
+          && validCountdownStateTransition(resource.data, request.resource.data)
+          && isServerTimestamp(request.resource.data.updatedAt)
+          && countdownEventAfterMatchesState(
+            userId,
+            countdownStateId,
+            request.resource.data
+          );
+        allow delete: if ownsPath(userId);
+      }
+
+      match /countdownEvents/{eventId} {
+        allow get, list: if ownsPath(userId);
+        allow create: if ownsPath(userId)
+          && validCountdownEventDocument(userId, eventId, request.resource.data)
+          && countdownStateAfterMatchesEvent(userId, eventId, request.resource.data);
         allow update: if false;
         allow delete: if ownsPath(userId);
       }

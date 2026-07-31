@@ -167,3 +167,45 @@ permission for the installer source if it is no longer needed.
 
 Do not replace the label at the top of this document or report Samsung testing
 as passed until all 34 steps have evidence from a physical Samsung device.
+
+## V1.1 responsive sizing and countdown addendum
+
+Every item below is also **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION**:
+
+1. Install the V1.1 App Distribution build over `1.0.0 (10)` on the same phone
+   and confirm Android accepts the existing signing identity.
+2. Compare the 2×2 typography and controls with 1.0.0 (10); confirm previously
+   unused area is used without clipping.
+3. Test one-slot and two-slot single widgets at every permitted horizontal and
+   vertical resize.
+4. Resize the 4×2 widget narrow/wide and short/tall; confirm the header remains
+   compact and all rows remain reachable by vertical scrolling.
+5. Repeat sizing with default and increased Android font/display size, long
+   medicine names/labels, and light/dark home-screen themes.
+6. Configure Afternoon for 2 hours and Night for 90 minutes.
+7. Start Afternoon using the 2×2 widget's separate **Start 2h** target; confirm
+   the dose stays unchecked and the app shows the same target time.
+8. Start Night from the 4×2 widget; confirm both timers belong to the correct
+   medicine slots and neither action checks a dose.
+9. Confirm scheduled refreshes reduce the displayed remaining time without
+   opening the app.
+10. Use a short custom duration to confirm the widget reaches **READY** and
+    does not automatically check the dose.
+11. Tap a running/READY label and confirm it opens the app instead of restarting
+    or cancelling from the widget.
+12. Check the dose before/after READY; confirm the timer disappears, check time
+    appears, all surfaces converge, and another widget tap cannot undo it.
+13. In the app, start then cancel and restart intentionally; verify start/target
+    time details and that changing duration offers Keep or Restart.
+14. Start a timer offline, confirm immediate local display, reconnect, and
+    confirm cloud convergence without a duplicate timer.
+15. Reboot during an active timer and confirm it resumes from its absolute
+    target rather than restarting its duration.
+16. Kill the app process, then start timers from each widget type; confirm the
+    cold Glance callback works.
+17. Keep multiple independently configured 2×2 instances and confirm a Start or
+    Check affects only the selected medicine/slot while all matching surfaces
+    refresh.
+18. Cross midnight and a custom logical-day reset with a running timer; confirm
+    it stays associated with its originating logical day and is not silently
+    reused for the new day.

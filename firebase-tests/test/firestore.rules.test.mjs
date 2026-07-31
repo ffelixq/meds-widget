@@ -38,6 +38,11 @@ const UNDONE_AT = Timestamp.fromDate(new Date("2026-07-29T05:19:00.000Z"));
 const RECHECKED_AT = Timestamp.fromDate(
   new Date("2026-07-29T05:24:00.000Z"),
 );
+const COUNTDOWN_TARGET_AT = Timestamp.fromDate(
+  new Date("2026-07-29T07:14:00.000Z"),
+);
+const COUNTDOWN_EVENT_ID = "countdownStart000001";
+const COUNTDOWN_CANCEL_EVENT_ID = "countdownCancel00001";
 const FIXED_SERVER_TIME = Timestamp.fromDate(
   new Date("2026-07-29T05:30:00.000Z"),
 );
@@ -94,6 +99,66 @@ function medicineDocument(
     archived: false,
     createdAt: timestamp,
     updatedAt: timestamp,
+    schemaVersion: 1,
+    ...overrides,
+  };
+}
+
+function medicineV2Document(uid, overrides = {}) {
+  return medicineDocument(uid, MEDICINE_ID, {
+    afternoonCountdownMinutes: 120,
+    nightCountdownMinutes: 90,
+    schemaVersion: 2,
+    ...overrides,
+  });
+}
+
+function countdownStateDocument(
+  uid,
+  eventId = COUNTDOWN_EVENT_ID,
+  overrides = {},
+  useServerTimestamp = true,
+) {
+  return {
+    ownerUid: uid,
+    logicalDay: LOGICAL_DAY,
+    medicineId: MEDICINE_ID,
+    slot: "afternoon",
+    durationMinutes: 120,
+    startedAt: CHECKED_AT,
+    targetAt: COUNTDOWN_TARGET_AT,
+    startedTimezone: "Asia/Singapore",
+    startedSource: "widget_2x2",
+    status: "running",
+    cancelledAt: null,
+    completedAt: null,
+    updatedAt: useServerTimestamp ? serverTimestamp() : FIXED_SERVER_TIME,
+    lastActionId: eventId,
+    schemaVersion: 1,
+    ...overrides,
+  };
+}
+
+function countdownEventDocument(
+  uid,
+  eventId = COUNTDOWN_EVENT_ID,
+  overrides = {},
+  useServerTimestamp = true,
+) {
+  return {
+    eventId,
+    ownerUid: uid,
+    action: "start",
+    logicalDay: LOGICAL_DAY,
+    medicineId: MEDICINE_ID,
+    slot: "afternoon",
+    durationMinutes: 120,
+    occurredAt: CHECKED_AT,
+    timezoneId: "Asia/Singapore",
+    source: "widget_2x2",
+    relatedStateId: STATE_ID,
+    previousActionId: null,
+    syncedAt: useServerTimestamp ? serverTimestamp() : FIXED_SERVER_TIME,
     schemaVersion: 1,
     ...overrides,
   };
@@ -203,6 +268,27 @@ async function commitUndo(
       previousActionId: CHECK_EVENT_ID,
       ...eventOverrides,
     }),
+  );
+  return batch.commit();
+}
+
+async function commitCountdownStart(
+  db,
+  {
+    uid = ALICE,
+    eventId = COUNTDOWN_EVENT_ID,
+    stateOverrides = {},
+    eventOverrides = {},
+  } = {},
+) {
+  const batch = writeBatch(db);
+  batch.set(
+    doc(db, `users/${uid}/countdownStates/${STATE_ID}`),
+    countdownStateDocument(uid, eventId, stateOverrides),
+  );
+  batch.set(
+    doc(db, `users/${uid}/countdownEvents/${eventId}`),
+    countdownEventDocument(uid, eventId, eventOverrides),
   );
   return batch.commit();
 }
@@ -502,6 +588,193 @@ describe("strict user, settings, and medicine schemas", () => {
 
     assert.ok(created.createdAt instanceof Timestamp);
   });
+
+  it("accepts backward-compatible V1 medicines and bounded V2 countdown fields", async () => {
+    const db = authenticatedDb(ALICE);
+    const legacyRef = doc(db, `users/${ALICE}/medicines/legacyMedicine`);
+    await assertSucceeds(
+      setDoc(legacyRef, medicineDocument(ALICE, "legacyMedicine")),
+    );
+    await assertSucceeds(
+      setDoc(
+        doc(db, `users/${ALICE}/medicines/${MEDICINE_ID}`),
+        medicineV2Document(ALICE),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/medicines/disabledCountdown`),
+        medicineV2Document(ALICE, {
+          id: "disabledCountdown",
+          afternoonEnabled: false,
+          afternoonCountdownMinutes: 30,
+        }),
+      ),
+    );
+  });
+});
+
+describe("countdown ownership, bounds, and immutable audit", () => {
+  it("allows the owner to start a bounded countdown atomically", async () => {
+    const db = authenticatedDb(ALICE);
+    await assertSucceeds(commitCountdownStart(db));
+    const state = await getDoc(
+      doc(db, `users/${ALICE}/countdownStates/${STATE_ID}`),
+    );
+    assert.equal(state.data().durationMinutes, 120);
+    assert.equal(state.data().status, "running");
+  });
+
+  it("denies anonymous and cross-user countdown access", async () => {
+    await assertFails(commitCountdownStart(anonymousDb()));
+    await seedDocument(
+      `users/${ALICE}/countdownStates/${STATE_ID}`,
+      countdownStateDocument(ALICE, COUNTDOWN_EVENT_ID, {}, false),
+    );
+    await assertFails(
+      getDoc(
+        doc(
+          authenticatedDb(BOB),
+          `users/${ALICE}/countdownStates/${STATE_ID}`,
+        ),
+      ),
+    );
+    await assertFails(
+      setDoc(
+        doc(
+          authenticatedDb(BOB),
+          `users/${ALICE}/countdownStates/${STATE_ID}`,
+        ),
+        countdownStateDocument(ALICE),
+      ),
+    );
+  });
+
+  it("rejects wrong owners, invalid slots, and invalid durations", async () => {
+    const db = authenticatedDb(ALICE);
+    await assertFails(
+      commitCountdownStart(db, {
+        stateOverrides: { ownerUid: BOB },
+        eventOverrides: { ownerUid: BOB },
+      }),
+    );
+    await assertFails(
+      commitCountdownStart(db, {
+        stateOverrides: { slot: "morning" },
+        eventOverrides: {
+          slot: "morning",
+          relatedStateId: `${LOGICAL_DAY}_${MEDICINE_ID}_morning`,
+        },
+      }),
+    );
+    for (const invalidDuration of [0, 1441]) {
+      await assertFails(
+        commitCountdownStart(db, {
+          stateOverrides: { durationMinutes: invalidDuration },
+          eventOverrides: { durationMinutes: invalidDuration },
+        }),
+      );
+    }
+    await assertFails(
+      commitCountdownStart(db, {
+        stateOverrides: { targetAt: UNDONE_AT },
+      }),
+    );
+  });
+
+  it("allows owner cancellation and keeps countdown events immutable", async () => {
+    const db = authenticatedDb(ALICE);
+    await commitCountdownStart(db);
+    const batch = writeBatch(db);
+    batch.update(doc(db, `users/${ALICE}/countdownStates/${STATE_ID}`), {
+      status: "cancelled",
+      cancelledAt: UNDONE_AT,
+      lastActionId: COUNTDOWN_CANCEL_EVENT_ID,
+      updatedAt: serverTimestamp(),
+    });
+    batch.set(
+      doc(
+        db,
+        `users/${ALICE}/countdownEvents/${COUNTDOWN_CANCEL_EVENT_ID}`,
+      ),
+      countdownEventDocument(ALICE, COUNTDOWN_CANCEL_EVENT_ID, {
+        action: "cancel",
+        occurredAt: UNDONE_AT,
+        source: "app",
+        previousActionId: COUNTDOWN_EVENT_ID,
+      }),
+    );
+    await assertSucceeds(batch.commit());
+    await assertFails(
+      updateDoc(
+        doc(
+          db,
+          `users/${ALICE}/countdownEvents/${COUNTDOWN_CANCEL_EVENT_ID}`,
+        ),
+        { durationMinutes: 30 },
+      ),
+    );
+  });
+
+  it("allows a new widget start after an explicitly cancelled timer", async () => {
+    const db = authenticatedDb(ALICE);
+    await commitCountdownStart(db);
+    const cancelBatch = writeBatch(db);
+    cancelBatch.update(
+      doc(db, `users/${ALICE}/countdownStates/${STATE_ID}`),
+      {
+        status: "cancelled",
+        cancelledAt: UNDONE_AT,
+        lastActionId: COUNTDOWN_CANCEL_EVENT_ID,
+        updatedAt: serverTimestamp(),
+      },
+    );
+    cancelBatch.set(
+      doc(
+        db,
+        `users/${ALICE}/countdownEvents/${COUNTDOWN_CANCEL_EVENT_ID}`,
+      ),
+      countdownEventDocument(ALICE, COUNTDOWN_CANCEL_EVENT_ID, {
+        action: "cancel",
+        occurredAt: UNDONE_AT,
+        source: "app",
+        previousActionId: COUNTDOWN_EVENT_ID,
+      }),
+    );
+    await cancelBatch.commit();
+
+    const restartEventId = "countdownStartAgain1";
+    const nextTarget = Timestamp.fromDate(
+      new Date("2026-07-29T06:54:00.000Z"),
+    );
+    const restartBatch = writeBatch(db);
+    restartBatch.update(
+      doc(db, `users/${ALICE}/countdownStates/${STATE_ID}`),
+      {
+        status: "running",
+        durationMinutes: 90,
+        startedAt: RECHECKED_AT,
+        targetAt: nextTarget,
+        startedTimezone: "Asia/Singapore",
+        startedSource: "widget_4x2",
+        cancelledAt: null,
+        completedAt: null,
+        lastActionId: restartEventId,
+        updatedAt: serverTimestamp(),
+      },
+    );
+    restartBatch.set(
+      doc(db, `users/${ALICE}/countdownEvents/${restartEventId}`),
+      countdownEventDocument(ALICE, restartEventId, {
+        action: "start",
+        durationMinutes: 90,
+        occurredAt: RECHECKED_AT,
+        source: "widget_4x2",
+        previousActionId: COUNTDOWN_CANCEL_EVENT_ID,
+      }),
+    );
+    await assertSucceeds(restartBatch.commit());
+  });
 });
 
 describe("atomic dose state and immutable event audit", () => {
@@ -790,6 +1063,14 @@ describe("client-side account data deletion", () => {
       [
         `users/${ALICE}/doseEvents/${CHECK_EVENT_ID}`,
         doseEventDocument(ALICE, CHECK_EVENT_ID, {}, false),
+      ],
+      [
+        `users/${ALICE}/countdownStates/${STATE_ID}`,
+        countdownStateDocument(ALICE, COUNTDOWN_EVENT_ID, {}, false),
+      ],
+      [
+        `users/${ALICE}/countdownEvents/${COUNTDOWN_EVENT_ID}`,
+        countdownEventDocument(ALICE, COUNTDOWN_EVENT_ID, {}, false),
       ],
     ];
 

@@ -1,5 +1,27 @@
 # Architecture
 
+## V1.1 responsive and countdown flow
+
+Both Glance providers use `SizeMode.Exact` and `LocalSize.current`. Shared
+`WidgetLayout` thresholds consider width and height and select compact,
+standard, or spacious typography, padding, and row heights. Compose previews
+consume the same tokens.
+
+Countdown configuration lives on each medicine slot. `CountdownLogic` derives
+display solely from `startedAt`, `targetAt`, and the current clock.
+`FirestoreCountdownRepository` writes deterministic `countdownStates` plus
+immutable random-ID `countdownEvents`. `WidgetSnapshotStore` applies an
+account-bound optimistic start, while `CountdownRefreshScheduler` schedules
+only the next adaptive 10/5/1-minute one-time WorkManager refresh, bounded by
+the target.
+
+`StartCountdownAction` and `CheckDoseAction` are distinct Glance callbacks and
+click targets. They validate authoritative Firebase Auth, widget configuration
+where applicable, and cached ownership/eligibility. Checking consumes an
+active timer but never waits for it. Widget cancellation, restart, and undo are
+prohibited. Both callbacks keep public zero-argument constructors and narrow
+R8 preservation verified from minified APK DEX.
+
 ## Goals and boundaries
 
 Meds Widget V1 is one native Android application. Its architecture is optimized
