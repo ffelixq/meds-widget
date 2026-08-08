@@ -135,7 +135,7 @@ class WidgetActionsTest {
                     ),
                     actionParametersOf(
                         WidgetActionParameters.MEDICINE_ID to MEDICINE_ID,
-                        WidgetActionParameters.SLOT to "morning",
+                        WidgetActionParameters.SLOT to "middayish",
                         WidgetActionParameters.SOURCE to CheckSource.WIDGET_4X2.wireValue,
                     ),
                     actionParametersOf(
