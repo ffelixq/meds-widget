@@ -253,9 +253,18 @@ service cloud.firestore {
     }
 
     function validMedicineDocument(userId, medicineId, data) {
-      return validMedicineV1(userId, medicineId, data)
-        || validMedicineV2(userId, medicineId, data)
-        || validMedicineV3(userId, medicineId, data);
+      return (
+          data.schemaVersion == 1
+          && validMedicineV1(userId, medicineId, data)
+        )
+        || (
+          data.schemaVersion == 2
+          && validMedicineV2(userId, medicineId, data)
+        )
+        || (
+          data.schemaVersion == 3
+          && validMedicineV3(userId, medicineId, data)
+        );
     }
 
     function validCountdownStateDocument(userId, countdownStateId, data) {
@@ -476,8 +485,14 @@ service cloud.firestore {
     }
 
     function validDoseStateDocument(userId, doseStateId, data) {
-      return validDoseStateV1(userId, doseStateId, data)
-        || validDoseStateV2(userId, doseStateId, data);
+      return (
+          data.schemaVersion == 1
+          && validDoseStateV1(userId, doseStateId, data)
+        )
+        || (
+          data.schemaVersion == 2
+          && validDoseStateV2(userId, doseStateId, data)
+        );
     }
 
     function validDoseEventV1(userId, eventId, data) {
@@ -559,8 +574,14 @@ service cloud.firestore {
     }
 
     function validDoseEventDocument(userId, eventId, data) {
-      return validDoseEventV1(userId, eventId, data)
-        || validDoseEventV2(userId, eventId, data);
+      return (
+          data.schemaVersion == 1
+          && validDoseEventV1(userId, eventId, data)
+        )
+        || (
+          data.schemaVersion == 2
+          && validDoseEventV2(userId, eventId, data)
+        );
     }
 
     function eventAfterMatchesState(userId, doseStateId, state) {
@@ -639,15 +660,49 @@ service cloud.firestore {
         && eventAfterMatchesState(userId, event.relatedStateId, state);
     }
 
-    function validDoseStateTransition(oldState, newState) {
+    function isTakenDoseState(state) {
+      return state.isTaken == true && state.undoneAt == null;
+    }
+
+    function isSkippedDoseState(state) {
+      return state.schemaVersion == 2
+        && state.isTaken == false
+        && state.skippedAt is timestamp
+        && state.undoneAt == null;
+    }
+
+    function isPendingDoseState(state) {
+      return state.isTaken == false
+        && state.undoneAt is timestamp
+        && (
+          state.schemaVersion == 1
+          || (
+            state.schemaVersion == 2
+            && state.skippedAt == null
+            && state.skipReason == null
+          )
+        );
+    }
+
+    function validDoseStateTransition(userId, oldState, newState) {
+      let event = getAfter(
+        /databases/$(database)/documents/users/$(userId)/doseEvents/$(newState.lastActionId)
+      ).data;
       let identityPreserved = newState.ownerUid == oldState.ownerUid
         && newState.logicalDay == oldState.logicalDay
         && newState.medicineId == oldState.medicineId
         && newState.slot == oldState.slot
         && newState.lastActionId != oldState.lastActionId;
-      let legacyTransition = oldState.schemaVersion == 1 && newState.schemaVersion == 1;
-      let upgradeOrV2 = newState.schemaVersion == 2;
-      return identityPreserved && (legacyTransition || upgradeOrV2);
+      let undoResolved = event.action == 'undo'
+        && (isTakenDoseState(oldState) || isSkippedDoseState(oldState))
+        && isPendingDoseState(newState);
+      let checkPending = event.action == 'check'
+        && isPendingDoseState(oldState)
+        && isTakenDoseState(newState);
+      let skipPending = event.action == 'skip'
+        && isPendingDoseState(oldState)
+        && isSkippedDoseState(newState);
+      return identityPreserved && (undoResolved || checkPending || skipPending);
     }
 
     match /users/{userId} {
@@ -701,7 +756,7 @@ service cloud.firestore {
           && eventAfterMatchesState(userId, doseStateId, request.resource.data);
         allow update: if ownsPath(userId)
           && validDoseStateDocument(userId, doseStateId, request.resource.data)
-          && validDoseStateTransition(resource.data, request.resource.data)
+          && validDoseStateTransition(userId, resource.data, request.resource.data)
           && isServerTimestamp(request.resource.data.updatedAt)
           && eventAfterMatchesState(userId, doseStateId, request.resource.data);
         allow delete: if ownsPath(userId);
