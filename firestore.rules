@@ -18,6 +18,10 @@ service cloud.firestore {
       return value is string && value.size() > 0 && value.size() <= maxLength;
     }
 
+    function isOptionalString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
     function isValidIdentifier(value) {
       return value is string
         && value.size() > 0
@@ -31,11 +35,31 @@ service cloud.firestore {
         && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    function isOptionalLogicalDay(value) {
+      return value == null || isValidLogicalDay(value);
+    }
+
     function isValidSlot(value) {
+      return value == 'morning'
+        || value == 'afternoon'
+        || value == 'evening'
+        || value == 'night';
+    }
+
+    function isLegacySlot(value) {
       return value == 'afternoon' || value == 'night';
     }
 
     function isValidSource(value) {
+      return value == 'app'
+        || value == 'app_preview'
+        || value == 'widget_2x2'
+        || value == 'widget_4x2'
+        || value == 'widget_4x4'
+        || value == 'notification';
+    }
+
+    function isLegacySource(value) {
       return value == 'app'
         || value == 'app_preview'
         || value == 'widget_2x2'
@@ -46,8 +70,47 @@ service cloud.firestore {
       return value == 'system' || value == 'light' || value == 'dark';
     }
 
+    function isValidWidgetNameMode(value) {
+      return value == 'full' || value == 'nickname' || value == 'hidden';
+    }
+
     function isServerTimestamp(value) {
       return value is timestamp && value == request.time;
+    }
+
+    function isNullableCountdown(value, enabled) {
+      return value == null
+        || (
+          enabled
+          && value is int
+          && value >= 1
+          && value <= 1440
+        );
+    }
+
+    function isNullableReminder(value, enabled) {
+      return value == null
+        || (
+          enabled
+          && value is int
+          && value >= 0
+          && value <= 1439
+        );
+    }
+
+    function isPositiveNumber(value, maxValue) {
+      return (value is int || value is float)
+        && value > 0
+        && value <= maxValue;
+    }
+
+    function isNullableNonNegativeNumber(value, maxValue) {
+      return value == null
+        || (
+          (value is int || value is float)
+          && value >= 0
+          && value <= maxValue
+        );
     }
 
     function validUserDocument(userId, data) {
@@ -55,11 +118,9 @@ service cloud.firestore {
           data,
           ['ownerUid', 'createdAt', 'updatedAt', 'schemaVersion']
         )
-        && data.ownerUid is string
         && data.ownerUid == userId
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
-        && data.schemaVersion is int
         && data.schemaVersion == 1;
     }
 
@@ -76,7 +137,6 @@ service cloud.firestore {
             'schemaVersion'
           ]
         )
-        && data.ownerUid is string
         && data.ownerUid == userId
         && data.resetMinutesAfterMidnight is int
         && data.resetMinutesAfterMidnight >= 0
@@ -85,101 +145,126 @@ service cloud.firestore {
         && isBoundedString(data.displayName, 80)
         && isValidTheme(data.themePreference)
         && data.updatedAt is timestamp
-        && data.schemaVersion is int
         && data.schemaVersion == 1;
     }
 
-    function validMedicineDocument(userId, medicineId, data) {
-      let commonValid = isValidIdentifier(data.id)
+    function validMedicineCommon(userId, medicineId, data) {
+      return isValidIdentifier(data.id)
         && data.id == medicineId
-        && data.ownerUid is string
         && data.ownerUid == userId
         && isBoundedString(data.name, 100)
         && data.afternoonEnabled is bool
         && isBoundedString(data.afternoonLabel, 60)
         && data.nightEnabled is bool
         && isBoundedString(data.nightLabel, 60)
-        && (data.afternoonEnabled || data.nightEnabled)
         && data.archived is bool
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.schemaVersion is int;
-      let validV1 = hasExactly(
+    }
+
+    function validMedicineV1(userId, medicineId, data) {
+      return validMedicineCommon(userId, medicineId, data)
+        && hasExactly(
           data,
           [
-            'id',
-            'ownerUid',
-            'name',
-            'afternoonEnabled',
-            'afternoonLabel',
-            'nightEnabled',
-            'nightLabel',
-            'archived',
-            'createdAt',
-            'updatedAt',
-            'schemaVersion'
+            'id', 'ownerUid', 'name',
+            'afternoonEnabled', 'afternoonLabel',
+            'nightEnabled', 'nightLabel',
+            'archived', 'createdAt', 'updatedAt', 'schemaVersion'
           ]
         )
-        && data.schemaVersion == 1;
-      let validV2 = hasExactly(
+        && data.schemaVersion == 1
+        && (data.afternoonEnabled || data.nightEnabled);
+    }
+
+    function validMedicineV2(userId, medicineId, data) {
+      return validMedicineCommon(userId, medicineId, data)
+        && hasExactly(
           data,
           [
-            'id',
-            'ownerUid',
-            'name',
-            'afternoonEnabled',
-            'afternoonLabel',
-            'afternoonCountdownMinutes',
-            'nightEnabled',
-            'nightLabel',
-            'nightCountdownMinutes',
-            'archived',
-            'createdAt',
-            'updatedAt',
-            'schemaVersion'
+            'id', 'ownerUid', 'name',
+            'afternoonEnabled', 'afternoonLabel', 'afternoonCountdownMinutes',
+            'nightEnabled', 'nightLabel', 'nightCountdownMinutes',
+            'archived', 'createdAt', 'updatedAt', 'schemaVersion'
           ]
         )
         && data.schemaVersion == 2
-        && (
-          data.afternoonCountdownMinutes == null
-          || (
-            data.afternoonEnabled
-            && data.afternoonCountdownMinutes is int
-            && data.afternoonCountdownMinutes >= 1
-            && data.afternoonCountdownMinutes <= 1440
-          )
+        && (data.afternoonEnabled || data.nightEnabled)
+        && isNullableCountdown(data.afternoonCountdownMinutes, data.afternoonEnabled)
+        && isNullableCountdown(data.nightCountdownMinutes, data.nightEnabled);
+    }
+
+    function validMedicineV3(userId, medicineId, data) {
+      return validMedicineCommon(userId, medicineId, data)
+        && hasExactly(
+          data,
+          [
+            'id', 'ownerUid', 'name', 'nickname', 'notes', 'widgetNameMode',
+            'morningEnabled', 'morningLabel', 'morningCountdownMinutes', 'morningReminderMinutes',
+            'afternoonEnabled', 'afternoonLabel', 'afternoonCountdownMinutes', 'afternoonReminderMinutes',
+            'eveningEnabled', 'eveningLabel', 'eveningCountdownMinutes', 'eveningReminderMinutes',
+            'nightEnabled', 'nightLabel', 'nightCountdownMinutes', 'nightReminderMinutes',
+            'startDate', 'endDate',
+            'supplyEnabled', 'supplyInitialUnits', 'unitsPerDose', 'lowSupplyThreshold', 'supplyUnitName',
+            'archived', 'createdAt', 'updatedAt', 'schemaVersion'
+          ]
         )
+        && data.schemaVersion == 3
+        && isOptionalString(data.nickname, 60)
+        && isOptionalString(data.notes, 500)
+        && isValidWidgetNameMode(data.widgetNameMode)
+        && (data.widgetNameMode != 'nickname' || isBoundedString(data.nickname, 60))
+        && data.morningEnabled is bool
+        && isBoundedString(data.morningLabel, 60)
+        && data.eveningEnabled is bool
+        && isBoundedString(data.eveningLabel, 60)
         && (
-          data.nightCountdownMinutes == null
+          data.morningEnabled
+          || data.afternoonEnabled
+          || data.eveningEnabled
+          || data.nightEnabled
+        )
+        && isNullableCountdown(data.morningCountdownMinutes, data.morningEnabled)
+        && isNullableCountdown(data.afternoonCountdownMinutes, data.afternoonEnabled)
+        && isNullableCountdown(data.eveningCountdownMinutes, data.eveningEnabled)
+        && isNullableCountdown(data.nightCountdownMinutes, data.nightEnabled)
+        && isNullableReminder(data.morningReminderMinutes, data.morningEnabled)
+        && isNullableReminder(data.afternoonReminderMinutes, data.afternoonEnabled)
+        && isNullableReminder(data.eveningReminderMinutes, data.eveningEnabled)
+        && isNullableReminder(data.nightReminderMinutes, data.nightEnabled)
+        && isOptionalLogicalDay(data.startDate)
+        && isOptionalLogicalDay(data.endDate)
+        && data.supplyEnabled is bool
+        && isPositiveNumber(data.unitsPerDose, 1000000)
+        && isBoundedString(data.supplyUnitName, 30)
+        && (
+          (
+            data.supplyEnabled
+            && isPositiveNumber(data.supplyInitialUnits, 1000000)
+            && isNullableNonNegativeNumber(data.lowSupplyThreshold, 1000000)
+          )
           || (
-            data.nightEnabled
-            && data.nightCountdownMinutes is int
-            && data.nightCountdownMinutes >= 1
-            && data.nightCountdownMinutes <= 1440
+            !data.supplyEnabled
+            && data.supplyInitialUnits == null
+            && data.lowSupplyThreshold == null
           )
         );
-      return commonValid && (validV1 || validV2);
+    }
+
+    function validMedicineDocument(userId, medicineId, data) {
+      return validMedicineV1(userId, medicineId, data)
+        || validMedicineV2(userId, medicineId, data)
+        || validMedicineV3(userId, medicineId, data);
     }
 
     function validCountdownStateDocument(userId, countdownStateId, data) {
       return hasExactly(
           data,
           [
-            'ownerUid',
-            'logicalDay',
-            'medicineId',
-            'slot',
-            'durationMinutes',
-            'startedAt',
-            'targetAt',
-            'startedTimezone',
-            'startedSource',
-            'status',
-            'cancelledAt',
-            'completedAt',
-            'updatedAt',
-            'lastActionId',
-            'schemaVersion'
+            'ownerUid', 'logicalDay', 'medicineId', 'slot', 'durationMinutes',
+            'startedAt', 'targetAt', 'startedTimezone', 'startedSource', 'status',
+            'cancelledAt', 'completedAt', 'updatedAt', 'lastActionId', 'schemaVersion'
           ]
         )
         && data.ownerUid == userId
@@ -192,15 +277,10 @@ service cloud.firestore {
         && data.durationMinutes <= 1440
         && data.startedAt is timestamp
         && data.targetAt is timestamp
-        && data.targetAt
-          == data.startedAt + duration.value(data.durationMinutes, 'm')
+        && data.targetAt == data.startedAt + duration.value(data.durationMinutes, 'm')
         && isBoundedString(data.startedTimezone, 100)
         && isValidSource(data.startedSource)
-        && (
-          data.status == 'running'
-          || data.status == 'cancelled'
-          || data.status == 'consumed'
-        )
+        && (data.status == 'running' || data.status == 'cancelled' || data.status == 'consumed')
         && (data.cancelledAt == null || data.cancelledAt is timestamp)
         && (data.completedAt == null || data.completedAt is timestamp)
         && data.updatedAt is timestamp
@@ -212,20 +292,9 @@ service cloud.firestore {
       return hasExactly(
           data,
           [
-            'eventId',
-            'ownerUid',
-            'action',
-            'logicalDay',
-            'medicineId',
-            'slot',
-            'durationMinutes',
-            'occurredAt',
-            'timezoneId',
-            'source',
-            'relatedStateId',
-            'previousActionId',
-            'syncedAt',
-            'schemaVersion'
+            'eventId', 'ownerUid', 'action', 'logicalDay', 'medicineId', 'slot',
+            'durationMinutes', 'occurredAt', 'timezoneId', 'source', 'relatedStateId',
+            'previousActionId', 'syncedAt', 'schemaVersion'
           ]
         )
         && isValidIdentifier(data.eventId)
@@ -246,16 +315,9 @@ service cloud.firestore {
         && data.occurredAt is timestamp
         && isBoundedString(data.timezoneId, 100)
         && isValidSource(data.source)
-        && (
-          data.action == 'start'
-          || data.action == 'clear_by_check'
-          || data.source == 'app'
-        )
+        && (data.action == 'start' || data.action == 'clear_by_check' || data.source == 'app')
         && data.relatedStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
-        && (
-          data.previousActionId == null
-          || isValidIdentifier(data.previousActionId)
-        )
+        && (data.previousActionId == null || isValidIdentifier(data.previousActionId))
         && isServerTimestamp(data.syncedAt)
         && data.schemaVersion == 1;
     }
@@ -264,8 +326,7 @@ service cloud.firestore {
       let event = getAfter(
         /databases/$(database)/documents/users/$(userId)/countdownEvents/$(state.lastActionId)
       ).data;
-      let statePath =
-        /databases/$(database)/documents/users/$(userId)/countdownStates/$(stateId);
+      let statePath = /databases/$(database)/documents/users/$(userId)/countdownStates/$(stateId);
       let previousActionId = exists(statePath) ? get(statePath).data.lastActionId : null;
       return event.ownerUid == userId
         && event.relatedStateId == stateId
@@ -328,74 +389,79 @@ service cloud.firestore {
             && newState.status == 'running'
             && newState.cancelledAt == null
             && newState.completedAt == null
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              [
-                'status',
-                'durationMinutes',
-                'startedAt',
-                'targetAt',
-                'startedTimezone',
-                'startedSource',
-                'cancelledAt',
-                'completedAt',
-                'lastActionId',
-                'updatedAt'
-              ]
-            )
           )
-          || (
-            oldState.status == 'running'
-            && newState.status == 'running'
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              [
-                'durationMinutes',
-                'startedAt',
-                'targetAt',
-                'startedTimezone',
-                'startedSource',
-                'lastActionId',
-                'updatedAt'
-              ]
-            )
-          )
-          || (
-            oldState.status == 'running'
-            && newState.status == 'cancelled'
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              ['status', 'cancelledAt', 'lastActionId', 'updatedAt']
-            )
-          )
-          || (
-            oldState.status == 'running'
-            && newState.status == 'consumed'
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              ['status', 'completedAt', 'lastActionId', 'updatedAt']
-            )
-          )
+          || (oldState.status == 'running' && newState.status == 'running')
+          || (oldState.status == 'running' && newState.status == 'cancelled')
+          || (oldState.status == 'running' && newState.status == 'consumed')
         );
     }
 
-    function validDoseStateDocument(userId, doseStateId, data) {
+    function validDoseStateV1(userId, doseStateId, data) {
       return hasExactly(
           data,
           [
-            'ownerUid',
-            'logicalDay',
-            'medicineId',
-            'slot',
-            'labelSnapshot',
-            'medicineNameSnapshot',
-            'isTaken',
-            'checkedAt',
-            'checkedTimezone',
-            'checkedSource',
-            'undoneAt',
-            'lastActionId',
-            'updatedAt',
-            'schemaVersion'
+            'ownerUid', 'logicalDay', 'medicineId', 'slot', 'labelSnapshot',
+            'medicineNameSnapshot', 'isTaken', 'checkedAt', 'checkedTimezone',
+            'checkedSource', 'undoneAt', 'lastActionId', 'updatedAt', 'schemaVersion'
           ]
         )
-        && data.ownerUid is string
+        && data.ownerUid == userId
+        && isValidLogicalDay(data.logicalDay)
+        && isValidIdentifier(data.medicineId)
+        && isLegacySlot(data.slot)
+        && doseStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
+        && isBoundedString(data.labelSnapshot, 60)
+        && isBoundedString(data.medicineNameSnapshot, 100)
+        && data.isTaken is bool
+        && data.checkedAt is timestamp
+        && isBoundedString(data.checkedTimezone, 100)
+        && isLegacySource(data.checkedSource)
+        && (data.undoneAt == null || data.undoneAt is timestamp)
+        && isValidIdentifier(data.lastActionId)
+        && data.updatedAt is timestamp
+        && data.schemaVersion == 1;
+    }
+
+    function validDoseStateV2(userId, doseStateId, data) {
+      let taken = data.isTaken == true
+        && data.checkedAt is timestamp
+        && isBoundedString(data.checkedTimezone, 100)
+        && isValidSource(data.checkedSource)
+        && data.skippedAt == null
+        && data.skipReason == null
+        && data.undoneAt == null;
+      let skipped = data.isTaken == false
+        && data.checkedAt == null
+        && data.checkedTimezone == null
+        && data.checkedSource == null
+        && data.skippedAt is timestamp
+        && (data.skipReason == null || isOptionalString(data.skipReason, 120))
+        && data.undoneAt == null;
+      let pendingAfterUndo = data.isTaken == false
+        && data.skippedAt == null
+        && data.skipReason == null
+        && data.undoneAt is timestamp
+        && (
+          (
+            data.checkedAt is timestamp
+            && isBoundedString(data.checkedTimezone, 100)
+            && isValidSource(data.checkedSource)
+          )
+          || (
+            data.checkedAt == null
+            && data.checkedTimezone == null
+            && data.checkedSource == null
+          )
+        );
+      return hasExactly(
+          data,
+          [
+            'ownerUid', 'logicalDay', 'medicineId', 'slot', 'labelSnapshot',
+            'medicineNameSnapshot', 'isTaken', 'checkedAt', 'checkedTimezone',
+            'checkedSource', 'skippedAt', 'skipReason', 'undoneAt', 'lastActionId',
+            'updatedAt', 'schemaVersion'
+          ]
+        )
         && data.ownerUid == userId
         && isValidLogicalDay(data.logicalDay)
         && isValidIdentifier(data.medicineId)
@@ -403,43 +469,63 @@ service cloud.firestore {
         && doseStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
         && isBoundedString(data.labelSnapshot, 60)
         && isBoundedString(data.medicineNameSnapshot, 100)
-        && data.isTaken is bool
-        && data.checkedAt is timestamp
-        && isBoundedString(data.checkedTimezone, 100)
-        && isValidSource(data.checkedSource)
-        && (data.undoneAt == null || data.undoneAt is timestamp)
         && isValidIdentifier(data.lastActionId)
         && data.updatedAt is timestamp
-        && data.schemaVersion is int
-        && data.schemaVersion == 1;
+        && data.schemaVersion == 2
+        && (taken || skipped || pendingAfterUndo);
     }
 
-    function validDoseEventDocument(userId, eventId, data) {
+    function validDoseStateDocument(userId, doseStateId, data) {
+      return validDoseStateV1(userId, doseStateId, data)
+        || validDoseStateV2(userId, doseStateId, data);
+    }
+
+    function validDoseEventV1(userId, eventId, data) {
       return hasExactly(
           data,
           [
-            'eventId',
-            'ownerUid',
-            'action',
-            'logicalDay',
-            'medicineId',
-            'medicineNameSnapshot',
-            'slot',
-            'labelSnapshot',
-            'occurredAt',
-            'timezoneId',
-            'source',
-            'relatedStateId',
-            'previousActionId',
-            'syncedAt',
-            'schemaVersion'
+            'eventId', 'ownerUid', 'action', 'logicalDay', 'medicineId',
+            'medicineNameSnapshot', 'slot', 'labelSnapshot', 'occurredAt',
+            'timezoneId', 'source', 'relatedStateId', 'previousActionId',
+            'syncedAt', 'schemaVersion'
           ]
         )
         && isValidIdentifier(data.eventId)
         && data.eventId == eventId
-        && data.ownerUid is string
         && data.ownerUid == userId
         && (data.action == 'check' || data.action == 'undo')
+        && isValidLogicalDay(data.logicalDay)
+        && isValidIdentifier(data.medicineId)
+        && isBoundedString(data.medicineNameSnapshot, 100)
+        && isLegacySlot(data.slot)
+        && isBoundedString(data.labelSnapshot, 60)
+        && data.occurredAt is timestamp
+        && isBoundedString(data.timezoneId, 100)
+        && isLegacySource(data.source)
+        && (data.action == 'check' || data.source == 'app')
+        && data.relatedStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
+        && (
+          (data.action == 'check' && data.previousActionId == null)
+          || (data.action == 'undo' && isValidIdentifier(data.previousActionId))
+        )
+        && isServerTimestamp(data.syncedAt)
+        && data.schemaVersion == 1;
+    }
+
+    function validDoseEventV2(userId, eventId, data) {
+      return hasExactly(
+          data,
+          [
+            'eventId', 'ownerUid', 'action', 'logicalDay', 'medicineId',
+            'medicineNameSnapshot', 'slot', 'labelSnapshot', 'occurredAt',
+            'timezoneId', 'source', 'relatedStateId', 'previousActionId',
+            'skipReason', 'syncedAt', 'schemaVersion'
+          ]
+        )
+        && isValidIdentifier(data.eventId)
+        && data.eventId == eventId
+        && data.ownerUid == userId
+        && (data.action == 'check' || data.action == 'skip' || data.action == 'undo')
         && isValidLogicalDay(data.logicalDay)
         && isValidIdentifier(data.medicineId)
         && isBoundedString(data.medicineNameSnapshot, 100)
@@ -448,150 +534,123 @@ service cloud.firestore {
         && data.occurredAt is timestamp
         && isBoundedString(data.timezoneId, 100)
         && isValidSource(data.source)
-        && (
-          (data.action == 'check')
-          || (data.action == 'undo' && data.source == 'app')
-        )
-        && data.relatedStateId
-          == data.logicalDay + '_' + data.medicineId + '_' + data.slot
+        && data.relatedStateId == data.logicalDay + '_' + data.medicineId + '_' + data.slot
         && (
           (
             data.action == 'check'
             && data.previousActionId == null
+            && data.skipReason == null
+          )
+          || (
+            data.action == 'skip'
+            && data.source == 'app'
+            && data.previousActionId == null
+            && (data.skipReason == null || isOptionalString(data.skipReason, 120))
           )
           || (
             data.action == 'undo'
+            && data.source == 'app'
             && isValidIdentifier(data.previousActionId)
+            && data.skipReason == null
           )
         )
         && isServerTimestamp(data.syncedAt)
-        && data.schemaVersion is int
-        && data.schemaVersion == 1;
+        && data.schemaVersion == 2;
+    }
+
+    function validDoseEventDocument(userId, eventId, data) {
+      return validDoseEventV1(userId, eventId, data)
+        || validDoseEventV2(userId, eventId, data);
     }
 
     function eventAfterMatchesState(userId, doseStateId, state) {
       let event = getAfter(
         /databases/$(database)/documents/users/$(userId)/doseEvents/$(state.lastActionId)
       ).data;
-      let statePath =
-        /databases/$(database)/documents/users/$(userId)/doseStates/$(doseStateId);
-      let previousActionId =
-        exists(statePath) ? get(statePath).data.lastActionId : null;
-      return event.ownerUid == userId
+      let statePath = /databases/$(database)/documents/users/$(userId)/doseStates/$(doseStateId);
+      let previousActionId = exists(statePath) ? get(statePath).data.lastActionId : null;
+      let common = event.ownerUid == userId
         && event.eventId == state.lastActionId
         && event.logicalDay == state.logicalDay
         && event.medicineId == state.medicineId
         && event.medicineNameSnapshot == state.medicineNameSnapshot
         && event.slot == state.slot
         && event.labelSnapshot == state.labelSnapshot
-        && event.relatedStateId == doseStateId
+        && event.relatedStateId == doseStateId;
+      let v1 = state.schemaVersion == 1
+        && event.schemaVersion == 1
         && (
           (
             event.action == 'check'
-            && event.previousActionId == null
-          )
-          || (
-            event.action == 'undo'
-            && event.previousActionId == previousActionId
-          )
-        )
-        && (
-          (
-            state.isTaken == true
+            && state.isTaken == true
             && state.undoneAt == null
-            && event.action == 'check'
+            && event.previousActionId == null
             && event.occurredAt == state.checkedAt
             && event.timezoneId == state.checkedTimezone
             && event.source == state.checkedSource
           )
           || (
-            state.isTaken == false
-            && state.undoneAt is timestamp
-            && event.action == 'undo'
-            && event.occurredAt == state.undoneAt
-            && event.source == 'app'
+            event.action == 'undo'
+            && state.isTaken == false
+            && state.undoneAt == event.occurredAt
+            && event.previousActionId == previousActionId
           )
         );
+      let v2 = state.schemaVersion == 2
+        && event.schemaVersion == 2
+        && (
+          (
+            event.action == 'check'
+            && state.isTaken == true
+            && state.skippedAt == null
+            && state.undoneAt == null
+            && event.previousActionId == null
+            && event.occurredAt == state.checkedAt
+            && event.timezoneId == state.checkedTimezone
+            && event.source == state.checkedSource
+          )
+          || (
+            event.action == 'skip'
+            && state.isTaken == false
+            && state.skippedAt == event.occurredAt
+            && state.undoneAt == null
+            && event.previousActionId == null
+            && event.skipReason == state.skipReason
+          )
+          || (
+            event.action == 'undo'
+            && state.isTaken == false
+            && state.skippedAt == null
+            && state.undoneAt == event.occurredAt
+            && event.previousActionId == previousActionId
+          )
+        );
+      return common && (v1 || v2);
     }
 
     function stateAfterMatchesEvent(userId, eventId, event) {
       let state = getAfter(
         /databases/$(database)/documents/users/$(userId)/doseStates/$(event.relatedStateId)
       ).data;
-      let statePath =
-        /databases/$(database)/documents/users/$(userId)/doseStates/$(event.relatedStateId);
-      let previousActionId =
-        exists(statePath) ? get(statePath).data.lastActionId : null;
-      return state.ownerUid == userId
-        && state.lastActionId == eventId
+      return state.lastActionId == eventId
         && state.logicalDay == event.logicalDay
         && state.medicineId == event.medicineId
-        && state.medicineNameSnapshot == event.medicineNameSnapshot
         && state.slot == event.slot
-        && state.labelSnapshot == event.labelSnapshot
-        && (
-          (
-            event.action == 'check'
-            && event.previousActionId == null
-          )
-          || (
-            event.action == 'undo'
-            && event.previousActionId == previousActionId
-          )
-        )
-        && (
-          (
-            event.action == 'check'
-            && state.isTaken == true
-            && state.undoneAt == null
-            && state.checkedAt == event.occurredAt
-            && state.checkedTimezone == event.timezoneId
-            && state.checkedSource == event.source
-          )
-          || (
-            event.action == 'undo'
-            && event.source == 'app'
-            && state.isTaken == false
-            && state.undoneAt == event.occurredAt
-          )
-        );
+        && eventAfterMatchesState(userId, event.relatedStateId, state);
     }
 
     function validDoseStateTransition(oldState, newState) {
-      return newState.lastActionId != oldState.lastActionId
-        && (
-          (
-            oldState.isTaken == true
-            && newState.isTaken == false
-            && newState.undoneAt is timestamp
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              ['isTaken', 'undoneAt', 'lastActionId', 'updatedAt']
-            )
-          )
-          || (
-            oldState.isTaken == false
-            && newState.isTaken == true
-            && newState.undoneAt == null
-            && newState.diff(oldState).affectedKeys().hasOnly(
-              [
-                'medicineNameSnapshot',
-                'labelSnapshot',
-                'isTaken',
-                'checkedAt',
-                'checkedTimezone',
-                'checkedSource',
-                'undoneAt',
-                'lastActionId',
-                'updatedAt'
-              ]
-            )
-          )
-        );
+      let identityPreserved = newState.ownerUid == oldState.ownerUid
+        && newState.logicalDay == oldState.logicalDay
+        && newState.medicineId == oldState.medicineId
+        && newState.slot == oldState.slot
+        && newState.lastActionId != oldState.lastActionId;
+      let legacyTransition = oldState.schemaVersion == 1 && newState.schemaVersion == 1;
+      let upgradeOrV2 = newState.schemaVersion == 2;
+      return identityPreserved && (legacyTransition || upgradeOrV2);
     }
 
     match /users/{userId} {
-      // A root user document is addressable only by that user. Listing the
-      // users collection is intentionally not allowed.
       allow get: if ownsPath(userId);
       allow create: if ownsPath(userId)
         && validUserDocument(userId, request.resource.data)
@@ -636,32 +695,15 @@ service cloud.firestore {
       match /doseStates/{doseStateId} {
         allow get, list: if ownsPath(userId);
         allow create: if ownsPath(userId)
-          && validDoseStateDocument(
-            userId,
-            doseStateId,
-            request.resource.data
-          )
-          && request.resource.data.isTaken == true
+          && validDoseStateDocument(userId, doseStateId, request.resource.data)
           && request.resource.data.undoneAt == null
           && isServerTimestamp(request.resource.data.updatedAt)
-          && eventAfterMatchesState(
-            userId,
-            doseStateId,
-            request.resource.data
-          );
+          && eventAfterMatchesState(userId, doseStateId, request.resource.data);
         allow update: if ownsPath(userId)
-          && validDoseStateDocument(
-            userId,
-            doseStateId,
-            request.resource.data
-          )
+          && validDoseStateDocument(userId, doseStateId, request.resource.data)
           && validDoseStateTransition(resource.data, request.resource.data)
           && isServerTimestamp(request.resource.data.updatedAt)
-          && eventAfterMatchesState(
-            userId,
-            doseStateId,
-            request.resource.data
-          );
+          && eventAfterMatchesState(userId, doseStateId, request.resource.data);
         allow delete: if ownsPath(userId);
       }
 
@@ -670,8 +712,6 @@ service cloud.firestore {
         allow create: if ownsPath(userId)
           && validDoseEventDocument(userId, eventId, request.resource.data)
           && stateAfterMatchesEvent(userId, eventId, request.resource.data);
-        // Audit events are immutable. Owner-only deletion remains available
-        // for the documented client-side account deletion flow.
         allow update: if false;
         allow delete: if ownsPath(userId);
       }
@@ -684,20 +724,12 @@ service cloud.firestore {
           && request.resource.data.cancelledAt == null
           && request.resource.data.completedAt == null
           && isServerTimestamp(request.resource.data.updatedAt)
-          && countdownEventAfterMatchesState(
-            userId,
-            countdownStateId,
-            request.resource.data
-          );
+          && countdownEventAfterMatchesState(userId, countdownStateId, request.resource.data);
         allow update: if ownsPath(userId)
           && validCountdownStateDocument(userId, countdownStateId, request.resource.data)
           && validCountdownStateTransition(resource.data, request.resource.data)
           && isServerTimestamp(request.resource.data.updatedAt)
-          && countdownEventAfterMatchesState(
-            userId,
-            countdownStateId,
-            request.resource.data
-          );
+          && countdownEventAfterMatchesState(userId, countdownStateId, request.resource.data);
         allow delete: if ownsPath(userId);
       }
 
@@ -711,8 +743,6 @@ service cloud.firestore {
       }
     }
 
-    // Unknown top-level collections, nested collections, and collection-group
-    // queries have no matching allow rule.
     match /{document=**} {
       allow read, write: if false;
     }
