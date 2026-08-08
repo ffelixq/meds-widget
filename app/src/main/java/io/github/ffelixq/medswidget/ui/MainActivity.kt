@@ -189,6 +189,7 @@ private fun AppNavigation(
                 state = mainState,
                 onCheck = mainViewModel::check,
                 onUndo = mainViewModel::undo,
+                onSkip = mainViewModel::skip,
                 onStartCountdown = mainViewModel::startCountdown,
                 onCancelCountdown = mainViewModel::cancelCountdown,
                 onRestartCountdown = mainViewModel::restartCountdown,
@@ -227,7 +228,10 @@ private fun AppNavigation(
             route = Routes.EDIT,
             arguments = listOf(navArgument("medicineId") { type = NavType.StringType }),
         ) { entry ->
-            val medicine = mainState.medicines.firstOrNull { it.id == entry.arguments?.getString("medicineId") }
+            val medicine =
+                mainState.medicines.firstOrNull {
+                    it.id == entry.arguments?.getString("medicineId")
+                }
             MedicineScreen(
                 medicine = medicine,
                 onBack = navigation::popBackStack,
