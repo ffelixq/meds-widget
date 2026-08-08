@@ -5,12 +5,10 @@ import com.google.firebase.firestore.DocumentSnapshot
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.CountdownStatus
-import io.github.ffelixq.medswidget.domain.DOSE_SCHEMA_VERSION
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseEvent
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.DoseState
-import io.github.ffelixq.medswidget.domain.MEDICINE_SCHEMA_VERSION
 import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.domain.SCHEMA_VERSION
 import io.github.ffelixq.medswidget.domain.ThemePreference
@@ -19,6 +17,7 @@ import io.github.ffelixq.medswidget.domain.WidgetNameMode
 import java.time.Instant
 import java.time.LocalDate
 
+@Suppress("CyclomaticComplexMethod")
 internal fun DocumentSnapshot.toMedicine(): Medicine? {
     val slotAfternoon = getBoolean("afternoonEnabled") ?: return null
     val slotNight = getBoolean("nightEnabled") ?: return null
@@ -55,7 +54,7 @@ internal fun DocumentSnapshot.toMedicine(): Medicine? {
         archived = getBoolean("archived") ?: false,
         createdAt = getTimestamp("createdAt").toInstantOrEpoch(),
         updatedAt = getTimestamp("updatedAt").toInstantOrEpoch(),
-        schemaVersion = getLong("schemaVersion")?.toInt() ?: MEDICINE_SCHEMA_VERSION,
+        schemaVersion = getLong("schemaVersion")?.toInt() ?: 1,
     )
 }
 
@@ -63,7 +62,7 @@ internal fun DocumentSnapshot.toCountdownState(): CountdownState? =
     CountdownState(
         id = id,
         ownerUid = getString("ownerUid") ?: return null,
-        logicalDay = runCatching { LocalDate.parse(getString("logicalDay")) }.getOrNull() ?: return null,
+        logicalDay = parseRequiredDate("logicalDay") ?: return null,
         medicineId = getString("medicineId") ?: return null,
         slot = DoseSlot.fromWire(getString("slot").orEmpty()) ?: return null,
         durationMinutes = getLong("durationMinutes")?.toInt() ?: return null,
@@ -83,7 +82,7 @@ internal fun DocumentSnapshot.toDoseState(): DoseState? =
     DoseState(
         id = id,
         ownerUid = getString("ownerUid") ?: return null,
-        logicalDay = runCatching { LocalDate.parse(getString("logicalDay")) }.getOrNull() ?: return null,
+        logicalDay = parseRequiredDate("logicalDay") ?: return null,
         medicineId = getString("medicineId") ?: return null,
         slot = DoseSlot.fromWire(getString("slot").orEmpty()) ?: return null,
         labelSnapshot = getString("labelSnapshot") ?: return null,
@@ -97,7 +96,7 @@ internal fun DocumentSnapshot.toDoseState(): DoseState? =
         undoneAt = getTimestamp("undoneAt")?.toDate()?.toInstant(),
         lastActionId = getString("lastActionId").orEmpty(),
         updatedAt = getTimestamp("updatedAt").toInstantOrEpoch(),
-        schemaVersion = getLong("schemaVersion")?.toInt() ?: DOSE_SCHEMA_VERSION,
+        schemaVersion = getLong("schemaVersion")?.toInt() ?: 1,
     )
 
 internal fun DocumentSnapshot.toDoseEvent(): DoseEvent? =
@@ -105,7 +104,7 @@ internal fun DocumentSnapshot.toDoseEvent(): DoseEvent? =
         eventId = getString("eventId") ?: id,
         ownerUid = getString("ownerUid") ?: return null,
         action = DoseAction.fromWire(getString("action").orEmpty()) ?: return null,
-        logicalDay = runCatching { LocalDate.parse(getString("logicalDay")) }.getOrNull() ?: return null,
+        logicalDay = parseRequiredDate("logicalDay") ?: return null,
         medicineId = getString("medicineId") ?: return null,
         medicineNameSnapshot = getString("medicineNameSnapshot") ?: return null,
         slot = DoseSlot.fromWire(getString("slot").orEmpty()) ?: return null,
@@ -117,12 +116,13 @@ internal fun DocumentSnapshot.toDoseEvent(): DoseEvent? =
         previousActionId = getString("previousActionId"),
         skipReason = getString("skipReason"),
         syncedAt = getTimestamp("syncedAt").toInstantOrEpoch(),
-        schemaVersion = getLong("schemaVersion")?.toInt() ?: DOSE_SCHEMA_VERSION,
+        schemaVersion = getLong("schemaVersion")?.toInt() ?: 1,
     )
 
 internal fun DocumentSnapshot.toSettings(default: UserSettings): UserSettings =
     UserSettings(
-        resetMinutesAfterMidnight = getLong("resetMinutesAfterMidnight")?.toInt() ?: default.resetMinutesAfterMidnight,
+        resetMinutesAfterMidnight =
+            getLong("resetMinutesAfterMidnight")?.toInt() ?: default.resetMinutesAfterMidnight,
         timezoneId = getString("timezoneId") ?: default.timezoneId,
         displayName = getString("displayName") ?: default.displayName,
         themePreference = ThemePreference.fromWire(getString("themePreference").orEmpty()),
@@ -130,6 +130,11 @@ internal fun DocumentSnapshot.toSettings(default: UserSettings): UserSettings =
         schemaVersion = getLong("schemaVersion")?.toInt() ?: SCHEMA_VERSION,
     )
 
-private fun parseLocalDate(value: String): LocalDate? = runCatching { LocalDate.parse(value) }.getOrNull()
+private fun DocumentSnapshot.parseRequiredDate(field: String): LocalDate? =
+    getString(field)?.let(::parseLocalDate)
 
-private fun Timestamp?.toInstantOrEpoch(): Instant = this?.toDate()?.toInstant() ?: Instant.EPOCH
+private fun parseLocalDate(value: String): LocalDate? =
+    runCatching { LocalDate.parse(value) }.getOrNull()
+
+private fun Timestamp?.toInstantOrEpoch(): Instant =
+    this?.toDate()?.toInstant() ?: Instant.EPOCH
