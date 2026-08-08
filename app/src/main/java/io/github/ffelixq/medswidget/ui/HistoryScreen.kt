@@ -28,11 +28,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.AdherenceSummary
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.DoseAction
+import io.github.ffelixq.medswidget.domain.HistoryEntry
 import io.github.ffelixq.medswidget.util.TimeFormatting
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -44,13 +46,6 @@ fun HistoryScreen(
     state: HistoryUiState,
     onBack: () -> Unit,
 ) {
-    var selectedDays by remember { mutableIntStateOf(30) }
-    val summary =
-        when (selectedDays) {
-            7 -> state.sevenDay
-            90 -> state.ninetyDay
-            else -> state.thirtyDay
-        }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -63,77 +58,96 @@ fun HistoryScreen(
             )
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (state.isLoading) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().testTag("history_loading"),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-                        Text("Loading history…", style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            } else {
-                item {
-                    AdherenceCard(
-                        summary = summary,
-                        selectedDays = selectedDays,
-                        onDaysChange = { selectedDays = it },
-                    )
-                }
+        HistoryBody(state, Modifier.padding(padding))
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun HistoryBody(
+    state: HistoryUiState,
+    modifier: Modifier = Modifier,
+) {
+    var selectedDays by remember { mutableIntStateOf(30) }
+    val summary =
+        when (selectedDays) {
+            7 -> state.sevenDay
+            90 -> state.ninetyDay
+            else -> state.thirtyDay
+        }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (state.isLoading) {
+            item { HistoryLoading() }
+        } else {
+            item {
+                AdherenceCard(
+                    summary = summary,
+                    selectedDays = selectedDays,
+                    onDaysChange = { selectedDays = it },
+                )
             }
-            state.errorMessage?.let { message ->
-                item { Text(message, color = MaterialTheme.colorScheme.error) }
+        }
+        state.errorMessage?.let { message ->
+            item { Text(message, color = MaterialTheme.colorScheme.error) }
+        }
+        if (!state.isLoading && state.entries.isEmpty()) {
+            item { Text("No taken or skipped doses have been recorded yet.") }
+        }
+        state.entries.groupBy { it.logicalDay }.forEach { (day, entries) ->
+            item(key = "day_$day") {
+                Text(
+                    day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
-            if (!state.isLoading && state.entries.isEmpty()) {
-                item { Text("No taken or skipped doses have been recorded yet.") }
+            entries.forEach { entry ->
+                item(key = entry.eventId) { HistoryEntryCard(entry) }
             }
-            state.entries.groupBy { it.logicalDay }.forEach { (day, entries) ->
-                item(key = "day_$day") {
-                    Text(
-                        day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                }
-                entries.forEach { entry ->
-                    item(key = entry.eventId) {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(entry.medicineName, style = MaterialTheme.typography.titleSmall)
-                                Text(entry.label, style = MaterialTheme.typography.bodyMedium)
-                                val verb = if (entry.action == DoseAction.SKIP) "Skipped" else "Taken"
-                                Text(
-                                    "$verb ${TimeFormatting.compact(
-                                        androidx.compose.ui.platform.LocalContext.current,
-                                        entry.checkedAt,
-                                        entry.checkedTimezone,
-                                    )} from ${entry.checkedSource.displayName()}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                entry.skipReason?.let {
-                                    Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                                entry.undoneAt?.let {
-                                    Text(
-                                        "Undone ${TimeFormatting.compact(
-                                            androidx.compose.ui.platform.LocalContext.current,
-                                            it,
-                                            entry.undoTimezone,
-                                        )} from ${entry.undoSource?.displayName().orEmpty()}",
-                                        color = MaterialTheme.colorScheme.error,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun HistoryLoading() {
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("history_loading"),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+        Text("Loading history…", style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun HistoryEntryCard(entry: HistoryEntry) {
+    val context = LocalContext.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(entry.medicineName, style = MaterialTheme.typography.titleSmall)
+            Text(entry.label, style = MaterialTheme.typography.bodyMedium)
+            val verb = if (entry.action == DoseAction.SKIP) "Skipped" else "Taken"
+            val eventTime = TimeFormatting.compact(context, entry.checkedAt, entry.checkedTimezone)
+            Text(
+                "$verb $eventTime from ${entry.checkedSource.displayName()}",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            entry.skipReason?.let { reason ->
+                Text("Reason: $reason", style = MaterialTheme.typography.bodySmall)
+            }
+            entry.undoneAt?.let { undoneAt ->
+                val undoTime = TimeFormatting.compact(context, undoneAt, entry.undoTimezone)
+                Text(
+                    "Undone $undoTime from ${entry.undoSource?.displayName().orEmpty()}",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
@@ -158,13 +172,18 @@ private fun AdherenceCard(
                     )
                 }
             }
-            Text("${"%.1f".format(summary.adherencePercent)}% taken", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "${summary.taken} taken · ${summary.skipped} skipped · ${summary.missed} missed · ${summary.scheduled} due",
+                "${"%.1f".format(summary.adherencePercent)}% taken",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                "${summary.taken} taken · ${summary.skipped} skipped · " +
+                    "${summary.missed} missed · ${summary.scheduled} due",
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                "Adherence uses the current saved schedule and course dates; it is a personal tracking summary, not a clinical measure.",
+                "Adherence uses the current saved schedule and course dates. " +
+                    "It is a personal tracking summary, not a clinical measure.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
