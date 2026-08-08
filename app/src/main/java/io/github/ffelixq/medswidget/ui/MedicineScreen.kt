@@ -77,7 +77,7 @@ fun MedicineScreen(
     var widgetNameMode by rememberSaveable(medicine?.id) {
         mutableStateOf(medicine?.widgetNameMode ?: WidgetNameMode.FULL)
     }
-    var morning by rememberSaveable(medicine?.id) {
+    var morning by remember(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.morningEnabled ?: false,
@@ -87,7 +87,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var afternoon by rememberSaveable(medicine?.id) {
+    var afternoon by remember(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.afternoonEnabled ?: true,
@@ -97,7 +97,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var evening by rememberSaveable(medicine?.id) {
+    var evening by remember(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.eveningEnabled ?: false,
@@ -107,7 +107,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var night by rememberSaveable(medicine?.id) {
+    var night by remember(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.nightEnabled ?: true,
@@ -117,9 +117,15 @@ fun MedicineScreen(
             ),
         )
     }
-    var startDateText by rememberSaveable(medicine?.id) { mutableStateOf(medicine?.startDate?.toString().orEmpty()) }
-    var endDateText by rememberSaveable(medicine?.id) { mutableStateOf(medicine?.endDate?.toString().orEmpty()) }
-    var supplyEnabled by rememberSaveable(medicine?.id) { mutableStateOf(medicine?.supplyEnabled ?: false) }
+    var startDateText by rememberSaveable(medicine?.id) {
+        mutableStateOf(medicine?.startDate?.toString().orEmpty())
+    }
+    var endDateText by rememberSaveable(medicine?.id) {
+        mutableStateOf(medicine?.endDate?.toString().orEmpty())
+    }
+    var supplyEnabled by rememberSaveable(medicine?.id) {
+        mutableStateOf(medicine?.supplyEnabled ?: false)
+    }
     var supplyInitialUnits by rememberSaveable(medicine?.id) {
         mutableStateOf(medicine?.supplyInitialUnits?.toDisplayNumber().orEmpty())
     }
@@ -129,7 +135,9 @@ fun MedicineScreen(
     var lowSupplyThreshold by rememberSaveable(medicine?.id) {
         mutableStateOf(medicine?.lowSupplyThreshold?.toDisplayNumber().orEmpty())
     }
-    var supplyUnitName by rememberSaveable(medicine?.id) { mutableStateOf(medicine?.supplyUnitName ?: "tablets") }
+    var supplyUnitName by rememberSaveable(medicine?.id) {
+        mutableStateOf(medicine?.supplyUnitName ?: "tablets")
+    }
     var errors by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isSaving by remember { mutableStateOf(false) }
     var deleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -171,7 +179,10 @@ fun MedicineScreen(
             supplyEnabled = supplyEnabled,
             supplyInitialUnits = supplyInitialUnits.toDoubleOrNull(),
             unitsPerDose = unitsPerDose.toDoubleOrNull() ?: 0.0,
-            lowSupplyThreshold = lowSupplyThreshold.takeIf(String::isNotBlank)?.toDoubleOrNull(),
+            lowSupplyThreshold =
+                lowSupplyThreshold
+                    .takeIf(String::isNotBlank)
+                    ?.toDoubleOrNull(),
             supplyUnitName = supplyUnitName,
         )
     }
@@ -221,7 +232,9 @@ fun MedicineScreen(
                 value = nickname,
                 onValueChange = { nickname = it.take(61) },
                 label = { Text("Nickname (optional)") },
-                supportingText = { Text(errors["nickname"] ?: "Use this for a discreet widget name") },
+                supportingText = {
+                    Text(errors["nickname"] ?: "Use this for a discreet widget name")
+                },
                 isError = "nickname" in errors,
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("medicine_nickname"),
@@ -230,7 +243,9 @@ fun MedicineScreen(
                 value = notes,
                 onValueChange = { notes = it.take(501) },
                 label = { Text("Notes (optional)") },
-                supportingText = { Text(errors["notes"] ?: "Personal notes only; not medical advice") },
+                supportingText = {
+                    Text(errors["notes"] ?: "Personal notes only; not medical advice")
+                },
                 isError = "notes" in errors,
                 minLines = 2,
                 maxLines = 5,
@@ -238,7 +253,10 @@ fun MedicineScreen(
             )
 
             Text("Widget privacy", style = MaterialTheme.typography.titleMedium)
-            Text("Choose what appears on your unlocked home screen.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Choose what appears on your unlocked home screen.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 WidgetNameMode.entries.forEach { mode ->
                     FilterChip(
@@ -260,38 +278,22 @@ fun MedicineScreen(
             HorizontalDivider()
             Text("Daily schedule", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Enable any combination. Labels can describe the real routine, such as After breakfast or Before bed.",
+                "Enable any combination. Labels can describe the real routine, " +
+                    "such as After breakfast or Before bed.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            SlotEditor(
-                slot = DoseSlot.MORNING,
-                state = morning,
-                onStateChange = { morning = it },
-                errors = errors,
-            )
-            SlotEditor(
-                slot = DoseSlot.AFTERNOON,
-                state = afternoon,
-                onStateChange = { afternoon = it },
-                errors = errors,
-            )
-            SlotEditor(
-                slot = DoseSlot.EVENING,
-                state = evening,
-                onStateChange = { evening = it },
-                errors = errors,
-            )
-            SlotEditor(
-                slot = DoseSlot.NIGHT,
-                state = night,
-                onStateChange = { night = it },
-                errors = errors,
-            )
+            SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
+            SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
+            SlotEditor(DoseSlot.EVENING, evening, { evening = it }, errors)
+            SlotEditor(DoseSlot.NIGHT, night, { night = it }, errors)
             errors["slots"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             HorizontalDivider()
             Text("Course", style = MaterialTheme.typography.titleLarge)
-            Text("Leave both dates blank for an ongoing medicine.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Leave both dates blank for an ongoing medicine.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             OutlinedTextField(
                 value = startDateText,
                 onValueChange = { startDateText = it.take(10) },
@@ -359,7 +361,12 @@ fun MedicineScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                OutlinedButton(
+                    onClick = onBack,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Cancel")
+                }
                 Button(
                     enabled = !isSaving,
                     onClick = {
@@ -368,7 +375,8 @@ fun MedicineScreen(
                             medicine != null &&
                                 activeCountdowns.any { countdown ->
                                     draft.isSlotEnabled(countdown.slot) &&
-                                        draft.countdownMinutes(countdown.slot) != medicine.countdownMinutes(countdown.slot)
+                                        draft.countdownMinutes(countdown.slot) !=
+                                        medicine.countdownMinutes(countdown.slot)
                                 }
                         if (runningDurationChanged) {
                             pendingCountdownDraft = draft
@@ -391,7 +399,10 @@ fun MedicineScreen(
                 ) {
                     Text("Archive medicine")
                 }
-                TextButton(onClick = { deleteDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = { deleteDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text("Delete medicine", color = MaterialTheme.colorScheme.error)
                 }
             }
@@ -401,7 +412,8 @@ fun MedicineScreen(
     pendingCountdownDraft?.let { draft ->
         val stopsRunningTimer =
             activeCountdowns.any { countdown ->
-                draft.isSlotEnabled(countdown.slot) && draft.countdownMinutes(countdown.slot) == null
+                draft.isSlotEnabled(countdown.slot) &&
+                    draft.countdownMinutes(countdown.slot) == null
             }
         AlertDialog(
             onDismissRequest = { pendingCountdownDraft = null },
@@ -409,9 +421,11 @@ fun MedicineScreen(
             text = {
                 Text(
                     if (stopsRunningTimer) {
-                        "Keep its original target time, or stop the affected timer and disable future starts."
+                        "Keep its original target time, or stop the affected timer " +
+                            "and disable future starts."
                     } else {
-                        "Keep its original target time, or restart the affected timer using the new duration."
+                        "Keep its original target time, or restart the affected timer " +
+                            "using the new duration."
                     },
                 )
             },
@@ -438,7 +452,11 @@ fun MedicineScreen(
         AlertDialog(
             onDismissRequest = { deleteDialog = false },
             title = { Text("Delete medicine?") },
-            text = { Text("Historical dose records will remain, but this medicine cannot be restored.") },
+            text = {
+                Text(
+                    "Historical dose records will remain, but this medicine cannot be restored.",
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -448,7 +466,9 @@ fun MedicineScreen(
                     },
                 ) { Text("Delete") }
             },
-            dismissButton = { TextButton(onClick = { deleteDialog = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { deleteDialog = false }) { Text("Cancel") }
+            },
         )
     }
 }
@@ -476,7 +496,9 @@ private fun SlotEditor(
                 label = { Text("Custom label") },
                 singleLine = true,
                 isError = errors["${tag}Label"] != null,
-                supportingText = { Text(errors["${tag}Label"] ?: "${state.label.length}/60") },
+                supportingText = {
+                    Text(errors["${tag}Label"] ?: "${state.label.length}/60")
+                },
                 modifier = Modifier.fillMaxWidth().testTag("${tag}_label"),
             )
             CountdownEditor(
@@ -508,8 +530,11 @@ private fun ToggleRow(
             Modifier
                 .fillMaxWidth()
                 .testTag("${tag}_toggle")
-                .toggleable(value = enabled, role = Role.Switch, onValueChange = onEnabledChange)
-                .semantics(mergeDescendants = true) {
+                .toggleable(
+                    value = enabled,
+                    role = Role.Switch,
+                    onValueChange = onEnabledChange,
+                ).semantics(mergeDescendants = true) {
                     contentDescription = title
                     role = Role.Switch
                 },
@@ -530,10 +555,16 @@ private fun CountdownEditor(
     tag: String,
 ) {
     val presets = listOf(30, 60, 90, 120)
-    var customMode by rememberSaveable(tag, minutes) { mutableStateOf(minutes != null && minutes !in presets) }
+    var customMode by rememberSaveable(tag, minutes) {
+        mutableStateOf(minutes != null && minutes !in presets)
+    }
+    val title =
+        minutes
+            ?.let { "Meal countdown · ${CountdownLogic.formatDuration(it)}" }
+            ?: "Meal countdown"
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ToggleRow(
-            title = minutes?.let { "Meal countdown · ${CountdownLogic.formatDuration(it)}" } ?: "Meal countdown",
+            title = title,
             enabled = minutes != null,
             onEnabledChange = { enabled -> onMinutesChange(if (enabled) 30 else null) },
             tag = "${tag}_countdown",
@@ -606,9 +637,14 @@ private fun ReminderEditor(
             DoseSlot.EVENING -> 18 * 60
             DoseSlot.NIGHT -> 22 * 60
         }
+    val title =
+        minutesAfterMidnight
+            ?.let(::formatClockMinutes)
+            ?.let { "Reminder · $it" }
+            ?: "Time reminder"
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         ToggleRow(
-            title = minutesAfterMidnight?.let(::formatClockMinutes)?.let { "Reminder · $it" } ?: "Time reminder",
+            title = title,
             enabled = minutesAfterMidnight != null,
             onEnabledChange = { onMinutesChange(if (it) defaultMinutes else null) },
             tag = "${tag}_reminder",
@@ -618,7 +654,12 @@ private fun ReminderEditor(
                 OutlinedTextField(
                     value = (minutesAfterMidnight / 60).toString().padStart(2, '0'),
                     onValueChange = { hourText ->
-                        val hour = hourText.filter(Char::isDigit).toIntOrNull()?.coerceIn(0, 23) ?: 0
+                        val hour =
+                            hourText
+                                .filter(Char::isDigit)
+                                .toIntOrNull()
+                                ?.coerceIn(0, 23)
+                                ?: 0
                         onMinutesChange(hour * 60 + minutesAfterMidnight % 60)
                     },
                     label = { Text("Hour") },
@@ -629,7 +670,12 @@ private fun ReminderEditor(
                 OutlinedTextField(
                     value = (minutesAfterMidnight % 60).toString().padStart(2, '0'),
                     onValueChange = { minuteText ->
-                        val minute = minuteText.filter(Char::isDigit).toIntOrNull()?.coerceIn(0, 59) ?: 0
+                        val minute =
+                            minuteText
+                                .filter(Char::isDigit)
+                                .toIntOrNull()
+                                ?.coerceIn(0, 59)
+                                ?: 0
                         onMinutesChange((minutesAfterMidnight / 60) * 60 + minute)
                     },
                     label = { Text("Minute") },
@@ -638,7 +684,10 @@ private fun ReminderEditor(
                     modifier = Modifier.weight(1f).testTag("${tag}_reminder_minute"),
                 )
             }
-            Text("Reminder scheduling is device-local; the medicine data still syncs to your account.", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Reminder scheduling is device-local; the medicine data still syncs to your account.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
@@ -656,12 +705,16 @@ private fun NumberField(
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { onValueChange(it.filter { character -> character.isDigit() || character == '.' }) },
+        onValueChange = {
+            onValueChange(
+                it.filter { character -> character.isDigit() || character == '.' },
+            )
+        },
         label = { Text(label) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
         isError = error != null,
-        supportingText = { error?.let { Text(it) } },
+        supportingText = { error?.let { message -> Text(message) } },
         modifier = modifier.testTag(tag),
     )
 }
