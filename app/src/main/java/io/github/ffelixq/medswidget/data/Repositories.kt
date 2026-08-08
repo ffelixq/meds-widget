@@ -22,16 +22,9 @@ interface AuthRepository {
     val session: StateFlow<AuthSession?>
     val isConfigured: Boolean
 
-    suspend fun signInWithEmail(
-        email: String,
-        password: String,
-    )
+    suspend fun signInWithEmail(email: String, password: String)
 
-    suspend fun signUpWithEmail(
-        email: String,
-        password: String,
-        displayName: String,
-    )
+    suspend fun signUpWithEmail(email: String, password: String, displayName: String)
 
     suspend fun signInWithGoogleIdToken(idToken: String)
 
@@ -53,28 +46,15 @@ interface MedicineRepository {
 
     fun observeAll(uid: String): Flow<DataEnvelope<List<Medicine>>>
 
-    suspend fun save(
-        uid: String,
-        draft: MedicineDraft,
-    ): String
+    suspend fun save(uid: String, draft: MedicineDraft): String
 
-    suspend fun archive(
-        uid: String,
-        medicineId: String,
-        archived: Boolean,
-    )
+    suspend fun archive(uid: String, medicineId: String, archived: Boolean)
 
-    suspend fun delete(
-        uid: String,
-        medicineId: String,
-    )
+    suspend fun delete(uid: String, medicineId: String)
 }
 
 interface DoseRepository {
-    fun observeDay(
-        uid: String,
-        logicalDay: LocalDate,
-    ): Flow<DataEnvelope<List<DoseState>>>
+    fun observeDay(uid: String, logicalDay: LocalDate): Flow<DataEnvelope<List<DoseState>>>
 
     fun observeHistory(uid: String): Flow<DataEnvelope<List<DoseEvent>>>
 
@@ -86,10 +66,6 @@ interface DoseRepository {
         source: CheckSource,
     ): Boolean
 
-    /**
-     * Correlated check used by a widget's optimistic cache. Implementations that can report
-     * asynchronous write outcomes should preserve [actionId] and [occurredAt].
-     */
     suspend fun checkWithAction(
         uid: String,
         logicalDay: LocalDate,
@@ -99,6 +75,15 @@ interface DoseRepository {
         actionId: String,
         occurredAt: Instant,
     ): Boolean = check(uid, logicalDay, medicine, slot, source)
+
+    suspend fun skip(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        reason: String = "",
+        source: CheckSource = CheckSource.APP,
+    ): Boolean
 
     suspend fun undo(
         uid: String,
@@ -110,7 +95,6 @@ interface DoseRepository {
 }
 
 interface CountdownRepository {
-    /** Active timers include timers from an earlier logical day until explicitly resolved. */
     fun observeActive(uid: String): Flow<DataEnvelope<List<CountdownState>>>
 
     @Suppress("LongParameterList")
@@ -125,11 +109,7 @@ interface CountdownRepository {
         durationMinutes: Int,
     ): Boolean
 
-    suspend fun cancel(
-        uid: String,
-        state: CountdownState,
-        source: CheckSource = CheckSource.APP,
-    ): Boolean
+    suspend fun cancel(uid: String, state: CountdownState, source: CheckSource = CheckSource.APP): Boolean
 
     suspend fun restart(
         uid: String,
@@ -175,10 +155,7 @@ interface SettingsRepository {
 
     fun observeCloud(uid: String): Flow<DataEnvelope<UserSettings>>
 
-    suspend fun update(
-        uid: String,
-        transform: (UserSettings) -> UserSettings,
-    )
+    suspend fun update(uid: String, transform: (UserSettings) -> UserSettings)
 
     suspend fun clear()
 }
