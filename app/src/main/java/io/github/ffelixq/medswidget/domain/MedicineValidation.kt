@@ -48,6 +48,14 @@ data class MedicineDraft(
             DoseSlot.EVENING -> eveningCountdownMinutes
             DoseSlot.NIGHT -> nightCountdownMinutes
         }
+
+    fun reminderMinutes(slot: DoseSlot): Int? =
+        when (slot) {
+            DoseSlot.MORNING -> morningReminderMinutes
+            DoseSlot.AFTERNOON -> afternoonReminderMinutes
+            DoseSlot.EVENING -> eveningReminderMinutes
+            DoseSlot.NIGHT -> nightReminderMinutes
+        }
 }
 
 data class ValidationResult(
@@ -59,52 +67,65 @@ data class ValidationResult(
 
 object MedicineValidator {
     fun validate(draft: MedicineDraft): ValidationResult {
-        val normalized =
-            draft.copy(
-                name = draft.name.trim(),
-                nickname = draft.nickname.trim(),
-                notes = draft.notes.trim(),
-                morningLabel = normalizeLabel(draft.morningEnabled, draft.morningLabel, DoseSlot.MORNING),
-                morningCountdownMinutes = draft.morningCountdownMinutes.takeIf { draft.morningEnabled },
-                morningReminderMinutes = draft.morningReminderMinutes.takeIf { draft.morningEnabled },
-                afternoonLabel = normalizeLabel(draft.afternoonEnabled, draft.afternoonLabel, DoseSlot.AFTERNOON),
-                afternoonCountdownMinutes = draft.afternoonCountdownMinutes.takeIf { draft.afternoonEnabled },
-                afternoonReminderMinutes = draft.afternoonReminderMinutes.takeIf { draft.afternoonEnabled },
-                eveningLabel = normalizeLabel(draft.eveningEnabled, draft.eveningLabel, DoseSlot.EVENING),
-                eveningCountdownMinutes = draft.eveningCountdownMinutes.takeIf { draft.eveningEnabled },
-                eveningReminderMinutes = draft.eveningReminderMinutes.takeIf { draft.eveningEnabled },
-                nightLabel = normalizeLabel(draft.nightEnabled, draft.nightLabel, DoseSlot.NIGHT),
-                nightCountdownMinutes = draft.nightCountdownMinutes.takeIf { draft.nightEnabled },
-                nightReminderMinutes = draft.nightReminderMinutes.takeIf { draft.nightEnabled },
-                supplyUnitName = draft.supplyUnitName.trim().ifBlank { "units" },
-                supplyInitialUnits = draft.supplyInitialUnits.takeIf { draft.supplyEnabled },
-                lowSupplyThreshold = draft.lowSupplyThreshold.takeIf { draft.supplyEnabled },
-            )
+        val normalized = normalize(draft)
         val errors = mutableMapOf<String, String>()
-
-        if (normalized.name.isEmpty()) {
-            errors["name"] = "Medicine name is required."
-        } else if (normalized.name.length > MEDICINE_NAME_MAX_LENGTH) {
-            errors["name"] = "Medicine name must be $MEDICINE_NAME_MAX_LENGTH characters or fewer."
-        }
-        if (normalized.nickname.length > MEDICINE_NICKNAME_MAX_LENGTH) {
-            errors["nickname"] = "Nickname must be $MEDICINE_NICKNAME_MAX_LENGTH characters or fewer."
-        }
-        if (normalized.notes.length > MEDICINE_NOTES_MAX_LENGTH) {
-            errors["notes"] = "Notes must be $MEDICINE_NOTES_MAX_LENGTH characters or fewer."
-        }
-        if (normalized.widgetNameMode == WidgetNameMode.NICKNAME && normalized.nickname.isBlank()) {
-            errors["nickname"] = "Add a nickname before using it on widgets."
-        }
+        validateIdentity(normalized, errors)
         if (DoseSlot.entries.none(normalized::isSlotEnabled)) {
             errors["slots"] = "Enable at least one slot."
         }
-        DoseSlot.entries.forEach { slot ->
-            validateSlot(slot, normalized, errors)
-        }
+        DoseSlot.entries.forEach { slot -> validateSlot(slot, normalized, errors) }
         validateCourse(normalized.startDate, normalized.endDate, errors)
         validateSupply(normalized, errors)
         return ValidationResult(normalized, errors)
+    }
+
+    private fun normalize(draft: MedicineDraft): MedicineDraft =
+        draft.copy(
+            name = draft.name.trim(),
+            nickname = draft.nickname.trim(),
+            notes = draft.notes.trim(),
+            morningLabel =
+                normalizeLabel(draft.morningEnabled, draft.morningLabel, DoseSlot.MORNING),
+            morningCountdownMinutes = draft.morningCountdownMinutes.takeIf { draft.morningEnabled },
+            morningReminderMinutes = draft.morningReminderMinutes.takeIf { draft.morningEnabled },
+            afternoonLabel =
+                normalizeLabel(draft.afternoonEnabled, draft.afternoonLabel, DoseSlot.AFTERNOON),
+            afternoonCountdownMinutes =
+                draft.afternoonCountdownMinutes.takeIf { draft.afternoonEnabled },
+            afternoonReminderMinutes = draft.afternoonReminderMinutes.takeIf { draft.afternoonEnabled },
+            eveningLabel =
+                normalizeLabel(draft.eveningEnabled, draft.eveningLabel, DoseSlot.EVENING),
+            eveningCountdownMinutes = draft.eveningCountdownMinutes.takeIf { draft.eveningEnabled },
+            eveningReminderMinutes = draft.eveningReminderMinutes.takeIf { draft.eveningEnabled },
+            nightLabel = normalizeLabel(draft.nightEnabled, draft.nightLabel, DoseSlot.NIGHT),
+            nightCountdownMinutes = draft.nightCountdownMinutes.takeIf { draft.nightEnabled },
+            nightReminderMinutes = draft.nightReminderMinutes.takeIf { draft.nightEnabled },
+            supplyUnitName = draft.supplyUnitName.trim().ifBlank { "units" },
+            supplyInitialUnits = draft.supplyInitialUnits.takeIf { draft.supplyEnabled },
+            lowSupplyThreshold = draft.lowSupplyThreshold.takeIf { draft.supplyEnabled },
+        )
+
+    private fun validateIdentity(
+        draft: MedicineDraft,
+        errors: MutableMap<String, String>,
+    ) {
+        when {
+            draft.name.isEmpty() -> errors["name"] = "Medicine name is required."
+            draft.name.length > MEDICINE_NAME_MAX_LENGTH -> {
+                errors["name"] =
+                    "Medicine name must be $MEDICINE_NAME_MAX_LENGTH characters or fewer."
+            }
+        }
+        if (draft.nickname.length > MEDICINE_NICKNAME_MAX_LENGTH) {
+            errors["nickname"] =
+                "Nickname must be $MEDICINE_NICKNAME_MAX_LENGTH characters or fewer."
+        }
+        if (draft.notes.length > MEDICINE_NOTES_MAX_LENGTH) {
+            errors["notes"] = "Notes must be $MEDICINE_NOTES_MAX_LENGTH characters or fewer."
+        }
+        if (draft.widgetNameMode == WidgetNameMode.NICKNAME && draft.nickname.isBlank()) {
+            errors["nickname"] = "Add a nickname before using it on widgets."
+        }
     }
 
     private fun normalizeLabel(
@@ -120,30 +141,32 @@ object MedicineValidator {
     ) {
         if (!draft.isSlotEnabled(slot)) return
         val prefix = slot.wireValue
-        val label =
-            when (slot) {
-                DoseSlot.MORNING -> draft.morningLabel
-                DoseSlot.AFTERNOON -> draft.afternoonLabel
-                DoseSlot.EVENING -> draft.eveningLabel
-                DoseSlot.NIGHT -> draft.nightLabel
+        val label = labelFor(slot, draft)
+        when {
+            label.isEmpty() -> errors["${prefix}Label"] = "Enabled slots need a label."
+            label.length > SLOT_LABEL_MAX_LENGTH -> {
+                errors["${prefix}Label"] =
+                    "Slot labels must be $SLOT_LABEL_MAX_LENGTH characters or fewer."
             }
-        if (label.isEmpty()) {
-            errors["${prefix}Label"] = "Enabled slots need a label."
-        } else if (label.length > SLOT_LABEL_MAX_LENGTH) {
-            errors["${prefix}Label"] = "Slot labels must be $SLOT_LABEL_MAX_LENGTH characters or fewer."
         }
         validateCountdown("${prefix}CountdownMinutes", draft.countdownMinutes(slot), errors)
-        val reminder =
-            when (slot) {
-                DoseSlot.MORNING -> draft.morningReminderMinutes
-                DoseSlot.AFTERNOON -> draft.afternoonReminderMinutes
-                DoseSlot.EVENING -> draft.eveningReminderMinutes
-                DoseSlot.NIGHT -> draft.nightReminderMinutes
+        draft.reminderMinutes(slot)?.let { reminder ->
+            if (reminder !in 0..REMINDER_MINUTES_MAX) {
+                errors["${prefix}ReminderMinutes"] = "Reminder time must be within the day."
             }
-        if (reminder != null && reminder !in 0..REMINDER_MINUTES_MAX) {
-            errors["${prefix}ReminderMinutes"] = "Reminder time must be within the day."
         }
     }
+
+    private fun labelFor(
+        slot: DoseSlot,
+        draft: MedicineDraft,
+    ): String =
+        when (slot) {
+            DoseSlot.MORNING -> draft.morningLabel
+            DoseSlot.AFTERNOON -> draft.afternoonLabel
+            DoseSlot.EVENING -> draft.eveningLabel
+            DoseSlot.NIGHT -> draft.nightLabel
+        }
 
     private fun validateCourse(
         startDate: LocalDate?,
@@ -160,21 +183,25 @@ object MedicineValidator {
         errors: MutableMap<String, String>,
     ) {
         if (!draft.supplyEnabled) return
-        val initial = draft.supplyInitialUnits
-        if (initial == null || initial <= 0.0 || initial > SUPPLY_MAX_UNITS) {
+        if (invalidPositiveNumber(draft.supplyInitialUnits)) {
             errors["supplyInitialUnits"] = "Enter a starting supply greater than 0."
         }
-        if (!draft.unitsPerDose.isFinite() || draft.unitsPerDose <= 0.0 || draft.unitsPerDose > SUPPLY_MAX_UNITS) {
+        if (invalidPositiveNumber(draft.unitsPerDose)) {
             errors["unitsPerDose"] = "Units per dose must be greater than 0."
         }
-        val threshold = draft.lowSupplyThreshold
-        if (threshold != null && (!threshold.isFinite() || threshold < 0.0 || threshold > SUPPLY_MAX_UNITS)) {
+        if (invalidNonNegativeNumber(draft.lowSupplyThreshold)) {
             errors["lowSupplyThreshold"] = "Low-supply threshold must be 0 or greater."
         }
         if (draft.supplyUnitName.length > 30) {
             errors["supplyUnitName"] = "Supply unit name must be 30 characters or fewer."
         }
     }
+
+    private fun invalidPositiveNumber(value: Double?): Boolean =
+        value == null || !value.isFinite() || value <= 0.0 || value > SUPPLY_MAX_UNITS
+
+    private fun invalidNonNegativeNumber(value: Double?): Boolean =
+        value != null && (!value.isFinite() || value < 0.0 || value > SUPPLY_MAX_UNITS)
 
     private fun validateCountdown(
         key: String,
