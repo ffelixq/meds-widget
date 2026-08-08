@@ -10,7 +10,6 @@ import io.github.ffelixq.medswidget.domain.CompletionProgress
 import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.DoseRows
-import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.LogicalDayCalculator
 import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.domain.MedicineDraft
@@ -67,14 +66,8 @@ class MainViewModel internal constructor(
     val state: StateFlow<MainUiState> =
         combine(repositories.auth.session, dependencies.accountDaySnapshot) { session, snapshot ->
             when {
-                session == null -> {
-                    MainUiState(isLoading = false, errorMessage = "Sign in to view medicines.")
-                }
-
-                snapshot == null || snapshot.ownerUid != session.uid -> {
-                    MainUiState()
-                }
-
+                session == null -> MainUiState(isLoading = false, errorMessage = "Sign in to view medicines.")
+                snapshot == null || snapshot.ownerUid != session.uid -> MainUiState()
                 else -> {
                     val rows =
                         DoseRows.build(
@@ -119,17 +112,8 @@ class MainViewModel internal constructor(
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
                 val actionDay = currentLogicalDay()
-                if (actionDay != state.value.logicalDay) {
-                    dependencies.refreshTemporalState()
-                }
-                val applied =
-                    repositories.doses.check(
-                        session.uid,
-                        actionDay,
-                        medicine,
-                        row.slot,
-                        source,
-                    )
+                if (actionDay != state.value.logicalDay) dependencies.refreshTemporalState()
+                val applied = repositories.doses.check(session.uid, actionDay, medicine, row.slot, source)
                 if (applied && row.countdown != null) {
                     repositories.countdowns.clearForDoseCheck(
                         session.uid,
@@ -138,6 +122,36 @@ class MainViewModel internal constructor(
                         source,
                         row.countdown,
                     )
+                }
+                dependencies.refreshFromRepositories()
+            }
+        }
+    }
+
+    fun skip(
+        row: DoseRow,
+        reason: String = "",
+    ) {
+        val session = repositories.auth.session.value ?: return
+        val medicine = state.value.medicines.firstOrNull { it.id == row.medicineId } ?: return
+        viewModelScope.launch {
+            dependencies.accountOperationGate.runMutation {
+                val actionDay = currentLogicalDay()
+                if (actionDay != state.value.logicalDay) {
+                    dependencies.refreshTemporalState()
+                    return@runMutation
+                }
+                val applied =
+                    repositories.doses.skip(
+                        session.uid,
+                        actionDay,
+                        medicine,
+                        row.slot,
+                        reason,
+                        CheckSource.APP,
+                    )
+                if (applied && row.countdown != null) {
+                    repositories.countdowns.cancel(session.uid, row.countdown)
                 }
                 dependencies.refreshFromRepositories()
             }
@@ -154,13 +168,7 @@ class MainViewModel internal constructor(
                     dependencies.refreshTemporalState()
                     return@runMutation
                 }
-                repositories.doses.undo(
-                    session.uid,
-                    actionDay,
-                    medicine,
-                    row.slot,
-                    CheckSource.APP,
-                )
+                repositories.doses.undo(session.uid, actionDay, medicine, row.slot, CheckSource.APP)
                 dependencies.refreshFromRepositories()
             }
         }
@@ -169,10 +177,7 @@ class MainViewModel internal constructor(
     suspend fun saveMedicine(draft: MedicineDraft): ValidationResult {
         val validation = MedicineValidator.validate(draft)
         if (!validation.isValid) return validation
-        val uid =
-            repositories.auth.session.value
-                ?.uid
-                ?: return validation
+        val uid = repositories.auth.session.value?.uid ?: return validation
         val existing = state.value.medicines.firstOrNull { it.id == validation.normalized.id }
         val activeCountdowns =
             state.value.rows
@@ -196,13 +201,12 @@ class MainViewModel internal constructor(
         val session = repositories.auth.session.value ?: return
         val medicine = state.value.medicines.firstOrNull { it.id == row.medicineId } ?: return
         val duration = medicine.countdownMinutes(row.slot) ?: return
-        if (row.isTaken || row.countdown != null) return
+        if (row.isTaken || row.isSkipped || row.countdown != null) return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
-                val actionDay = currentLogicalDay()
                 repositories.countdowns.start(
                     uid = session.uid,
-                    logicalDay = actionDay,
+                    logicalDay = currentLogicalDay(),
                     medicine = medicine,
                     slot = row.slot,
                     source = source,
@@ -243,10 +247,7 @@ class MainViewModel internal constructor(
         medicineId: String,
         archived: Boolean = true,
     ) {
-        val uid =
-            repositories.auth.session.value
-                ?.uid
-                ?: return
+        val uid = repositories.auth.session.value?.uid ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
                 state.value.rows
@@ -260,10 +261,7 @@ class MainViewModel internal constructor(
     }
 
     fun deleteMedicine(medicineId: String) {
-        val uid =
-            repositories.auth.session.value
-                ?.uid
-                ?: return
+        val uid = repositories.auth.session.value?.uid ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
                 state.value.rows
@@ -294,11 +292,7 @@ class MainViewModel internal constructor(
         activeCountdowns.forEach { countdown ->
             if (!draft.isSlotEnabled(countdown.slot)) return@forEach
             val oldDuration = existing.countdownMinutes(countdown.slot)
-            val newDuration =
-                when (countdown.slot) {
-                    DoseSlot.AFTERNOON -> draft.afternoonCountdownMinutes
-                    DoseSlot.NIGHT -> draft.nightCountdownMinutes
-                }
+            val newDuration = draft.countdownMinutes(countdown.slot)
             if (newDuration == oldDuration) return@forEach
             if (newDuration == null) {
                 repositories.countdowns.cancel(uid, countdown)
@@ -317,10 +311,4 @@ class MainViewModel internal constructor(
             .filterNot { draft.isSlotEnabled(it.slot) }
             .forEach { countdown -> repositories.countdowns.cancel(uid, countdown) }
     }
-
-    private fun MedicineDraft.isSlotEnabled(slot: DoseSlot): Boolean =
-        when (slot) {
-            DoseSlot.AFTERNOON -> afternoonEnabled
-            DoseSlot.NIGHT -> nightEnabled
-        }
 }
