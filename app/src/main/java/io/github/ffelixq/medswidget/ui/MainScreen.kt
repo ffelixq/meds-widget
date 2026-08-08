@@ -28,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownDisplay
 import io.github.ffelixq.medswidget.domain.CountdownDisplayStatus
 import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.DoseRow
@@ -109,22 +110,10 @@ fun MainScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item {
-                TodaySummary(state)
-            }
-
+            item { TodaySummary(state) }
             if (!state.isLoading && state.medicines.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("No medicines yet", style = MaterialTheme.typography.titleMedium)
-                            Text("Add a medicine, choose its daily slots, and your Today list will appear here.")
-                            Button(onClick = onAdd) { Text("Add medicine") }
-                        }
-                    }
-                }
+                item { EmptyTodayCard(onAdd) }
             }
-
             state.medicines.forEach { medicine ->
                 item(key = "medicine_${medicine.id}") {
                     MedicineCard(
@@ -149,13 +138,14 @@ fun MainScreen(
                     )
                 }
             }
-
             if (state.rows.isNotEmpty()) {
                 item {
                     WidgetPreviews(
                         state = state,
                         onCheck = { row -> onCheck(row, CheckSource.APP_PREVIEW) },
-                        onStartCountdown = { row -> onStartCountdown(row, CheckSource.APP_PREVIEW) },
+                        onStartCountdown = { row ->
+                            onStartCountdown(row, CheckSource.APP_PREVIEW)
+                        },
                     )
                 }
             }
@@ -164,66 +154,111 @@ fun MainScreen(
     }
 
     undoCandidate?.let { row ->
-        val wasSkipped = row.isSkipped
-        AlertDialog(
-            onDismissRequest = { undoCandidate = null },
-            title = { Text(if (wasSkipped) "Undo skipped dose?" else "Undo this check?") },
-            text = {
-                Text(
-                    if (wasSkipped) {
-                        "This returns ${row.medicineName} — ${row.label} to Pending. The skip and undo remain in history."
-                    } else {
-                        "This marks ${row.medicineName} — ${row.label} as Pending. The original check and undo remain in history."
-                    },
-                )
+        UndoDoseDialog(
+            row = row,
+            onDismiss = { undoCandidate = null },
+            onConfirm = {
+                onUndo(row)
+                undoCandidate = null
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onUndo(row)
-                        undoCandidate = null
-                    },
-                ) { Text("Undo") }
-            },
-            dismissButton = { TextButton(onClick = { undoCandidate = null }) { Text("Cancel") } },
         )
     }
-
     skipCandidate?.let { row ->
-        AlertDialog(
-            onDismissRequest = { skipCandidate = null },
-            title = { Text("Skip this dose?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("${row.medicineName} — ${row.label} will be recorded as skipped, not taken.")
-                    OutlinedTextField(
-                        value = skipReason,
-                        onValueChange = { skipReason = it.take(120) },
-                        label = { Text("Reason (optional)") },
-                        maxLines = 3,
-                        modifier = Modifier.fillMaxWidth().testTag("skip_reason"),
-                    )
-                }
+        SkipDoseDialog(
+            row = row,
+            reason = skipReason,
+            onReasonChange = { skipReason = it.take(120) },
+            onDismiss = { skipCandidate = null },
+            onConfirm = {
+                onSkip(row, skipReason)
+                skipCandidate = null
+                skipReason = ""
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onSkip(row, skipReason)
-                        skipCandidate = null
-                        skipReason = ""
-                    },
-                ) { Text("Skip dose") }
-            },
-            dismissButton = { TextButton(onClick = { skipCandidate = null }) { Text("Cancel") } },
         )
     }
 }
 
 @Suppress("FunctionNaming")
 @Composable
+private fun EmptyTodayCard(onAdd: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("No medicines yet", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Add a medicine, choose its daily slots, and your Today list will appear here.",
+            )
+            Button(onClick = onAdd) { Text("Add medicine") }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun UndoDoseDialog(
+    row: DoseRow,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val wasSkipped = row.isSkipped
+    val message =
+        if (wasSkipped) {
+            "This returns ${row.medicineName} — ${row.label} to Pending. " +
+                "The skip and undo remain in history."
+        } else {
+            "This marks ${row.medicineName} — ${row.label} as Pending. " +
+                "The original check and undo remain in history."
+        }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (wasSkipped) "Undo skipped dose?" else "Undo this check?") },
+        text = { Text(message) },
+        confirmButton = { Button(onClick = onConfirm) { Text("Undo") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun SkipDoseDialog(
+    row: DoseRow,
+    reason: String,
+    onReasonChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Skip this dose?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "${row.medicineName} — ${row.label} will be recorded as skipped, not taken.",
+                )
+                OutlinedTextField(
+                    value = reason,
+                    onValueChange = onReasonChange,
+                    label = { Text("Reason (optional)") },
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth().testTag("skip_reason"),
+                )
+            }
+        },
+        confirmButton = { Button(onClick = onConfirm) { Text("Skip dose") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Suppress("FunctionNaming")
+@Composable
 private fun TodaySummary(state: MainUiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             if (state.isLoading) {
                 Row(
                     modifier = Modifier.fillMaxWidth().testTag("main_loading"),
@@ -240,22 +275,36 @@ private fun TodaySummary(state: MainUiState) {
                 style = MaterialTheme.typography.titleMedium,
             )
             Text(
-                "${state.progress.completed} taken · ${state.progress.skipped} skipped · ${state.progress.pending} pending",
+                "${state.progress.completed} taken · ${state.progress.skipped} skipped · " +
+                    "${state.progress.pending} pending",
                 style = MaterialTheme.typography.bodyLarge,
             )
             if (state.progress.total > 0) {
                 LinearProgressIndicator(
-                    progress = { state.progress.completed.toFloat() / state.progress.total },
+                    progress = {
+                        state.progress.completed.toFloat() / state.progress.total
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (state.hasPendingWrites) {
-                Text("Waiting to sync", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-            } else if (state.isCached) {
-                Text("Showing cached data", style = MaterialTheme.typography.labelMedium)
+            when {
+                state.hasPendingWrites -> {
+                    Text(
+                        "Waiting to sync",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                state.isCached -> {
+                    Text("Showing cached data", style = MaterialTheme.typography.labelMedium)
+                }
             }
-            state.errorMessage?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            state.errorMessage?.let { message ->
+                Text(
+                    message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
@@ -276,25 +325,16 @@ private fun MedicineCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(medicine.name, style = MaterialTheme.typography.titleMedium)
-                    if (medicine.nickname.isNotBlank()) {
-                        Text(medicine.nickname, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                Text("Edit", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-            }
+            MedicineHeader(medicine, onEdit)
             when {
                 medicine.startDate?.isAfter(logicalDay) == true -> {
                     Text("Starts ${medicine.startDate}", style = MaterialTheme.typography.bodyMedium)
                 }
                 medicine.endDate?.isBefore(logicalDay) == true -> {
-                    Text("Course completed ${medicine.endDate}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Course completed ${medicine.endDate}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
                 rows.isEmpty() -> {
                     Text("No doses scheduled today", style = MaterialTheme.typography.bodyMedium)
@@ -318,7 +358,32 @@ private fun MedicineCard(
     }
 }
 
-@Suppress("FunctionNaming", "LongParameterList", "CyclomaticComplexMethod")
+@Suppress("FunctionNaming")
+@Composable
+private fun MedicineHeader(
+    medicine: Medicine,
+    onEdit: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(medicine.name, style = MaterialTheme.typography.titleMedium)
+            if (medicine.nickname.isNotBlank()) {
+                Text(medicine.nickname, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Text(
+            "Edit",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+@Suppress("FunctionNaming", "LongParameterList")
 @Composable
 fun DoseCheckRow(
     row: DoseRow,
@@ -332,102 +397,174 @@ fun DoseCheckRow(
     now: Instant = Instant.now(),
     onSkip: (() -> Unit)? = null,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val liveNow by countdownClock(row, now)
+    val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, liveNow)
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DosePrimaryContent(
+            row = row,
+            onClick = onClick,
+            allowUndo = allowUndo,
+            modifier = modifier.weight(1f),
+        )
+        if (!row.isTaken && !row.isSkipped) {
+            DoseTrailingActions(
+                row = row,
+                countdown = countdown,
+                onStartCountdown = onStartCountdown,
+                onCancelCountdown = onCancelCountdown,
+                onRestartCountdown = onRestartCountdown,
+                showCountdownManagement = showCountdownManagement,
+                onSkip = onSkip,
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun countdownClock(
+    row: DoseRow,
+    initialNow: Instant,
+) = produceState(initialValue = initialNow, row.countdown?.targetAt) {
+    while (row.countdown != null) {
+        val remaining = Duration.between(Instant.now(), row.countdown.targetAt)
+        if (remaining.isNegative || remaining.isZero) {
+            value = Instant.now()
+            break
+        }
+        delay(minOf(remaining.toMillis().coerceAtLeast(1_000L), 60_000L))
+        value = Instant.now()
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun DosePrimaryContent(
+    row: DoseRow,
+    onClick: () -> Unit,
+    allowUndo: Boolean,
+    modifier: Modifier,
+) {
+    val context = LocalContext.current
     val status =
         when {
             row.isTaken -> "taken"
             row.isSkipped -> "skipped"
             else -> "pending"
         }
-    val liveNow by produceState(initialValue = now, row.countdown?.targetAt) {
-        while (row.countdown != null) {
-            val remaining = Duration.between(Instant.now(), row.countdown.targetAt)
-            if (remaining.isNegative || remaining.isZero) {
-                value = Instant.now()
-                break
-            }
-            delay(minOf(remaining.toMillis().coerceAtLeast(1_000L), 60_000L))
-            value = Instant.now()
-        }
-    }
-    val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, liveNow)
     Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(vertical = 4.dp),
+        modifier =
+            modifier
+                .heightIn(min = 48.dp)
+                .clickable(
+                    enabled = (!row.isTaken && !row.isSkipped) || allowUndo,
+                    role = Role.Checkbox,
+                    onClick = onClick,
+                ).semantics(mergeDescendants = true) {
+                    contentDescription = "${row.medicineName}, ${row.label}, $status"
+                    role = Role.Checkbox
+                },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier =
-                modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clickable(
-                        enabled = (!row.isTaken && !row.isSkipped) || allowUndo,
-                        role = Role.Checkbox,
-                        onClick = onClick,
-                    ).semantics(mergeDescendants = true) {
-                        contentDescription = "${row.medicineName}, ${row.label}, $status"
-                        role = Role.Checkbox
-                    },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(checked = row.isTaken, onCheckedChange = null)
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(row.label, style = MaterialTheme.typography.bodyLarge)
-                when {
-                    row.isTaken && row.checkedAt != null -> {
-                        Text(
-                            "Taken ${TimeFormatting.compact(context, row.checkedAt, row.checkedTimezone)}",
-                            style = MaterialTheme.typography.bodySmall,
+        Checkbox(checked = row.isTaken, onCheckedChange = null)
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(row.label, style = MaterialTheme.typography.bodyLarge)
+            DoseStatusText(row, context)
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun DoseStatusText(
+    row: DoseRow,
+    context: android.content.Context,
+) {
+    when {
+        row.isTaken && row.checkedAt != null -> {
+            val checkedTime =
+                TimeFormatting.compact(context, row.checkedAt, row.checkedTimezone)
+            Text("Taken $checkedTime", style = MaterialTheme.typography.bodySmall)
+        }
+        row.isSkipped -> {
+            Text(
+                row.skipReason?.let { "Skipped · $it" } ?: "Skipped",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
+    }
+}
+
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun DoseTrailingActions(
+    row: DoseRow,
+    countdown: CountdownDisplay,
+    onStartCountdown: (() -> Unit)?,
+    onCancelCountdown: (() -> Unit)?,
+    onRestartCountdown: (() -> Unit)?,
+    showCountdownManagement: Boolean,
+    onSkip: (() -> Unit)?,
+) {
+    val context = LocalContext.current
+    when (countdown.status) {
+        CountdownDisplayStatus.NOT_STARTED -> {
+            onStartCountdown?.let { start ->
+                TextButton(
+                    onClick = start,
+                    modifier = Modifier.testTag("start_countdown_${row.stateId}"),
+                ) {
+                    Text(countdown.text.orEmpty())
+                }
+            }
+        }
+        CountdownDisplayStatus.RUNNING,
+        CountdownDisplayStatus.READY,
+        -> {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    countdown.text.orEmpty(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                row.countdown?.let { activeCountdown ->
+                    val readyTime =
+                        TimeFormatting.compact(
+                            context,
+                            activeCountdown.targetAt,
+                            activeCountdown.startedTimezone,
                         )
-                    }
-                    row.isSkipped -> {
-                        Text(
-                            row.skipReason?.let { "Skipped · $it" } ?: "Skipped",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.tertiary,
-                        )
+                    Text("Ready $readyTime", style = MaterialTheme.typography.labelSmall)
+                }
+                if (showCountdownManagement) {
+                    Row {
+                        TextButton(onClick = { onCancelCountdown?.invoke() }) {
+                            Text("Cancel")
+                        }
+                        TextButton(onClick = { onRestartCountdown?.invoke() }) {
+                            Text("Restart")
+                        }
                     }
                 }
             }
         }
-        if (!row.isTaken && !row.isSkipped) {
-            when (countdown.status) {
-                CountdownDisplayStatus.NOT_STARTED -> {
-                    onStartCountdown?.let { start ->
-                        TextButton(onClick = start, modifier = Modifier.testTag("start_countdown_${row.stateId}")) {
-                            Text(countdown.text.orEmpty())
-                        }
-                    }
-                }
-                CountdownDisplayStatus.RUNNING,
-                CountdownDisplayStatus.READY,
-                -> {
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            countdown.text.orEmpty(),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        row.countdown?.let {
-                            Text(
-                                "Ready ${TimeFormatting.compact(context, it.targetAt, it.startedTimezone)}",
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-                        if (showCountdownManagement) {
-                            Row {
-                                TextButton(onClick = { onCancelCountdown?.invoke() }) { Text("Cancel") }
-                                TextButton(onClick = { onRestartCountdown?.invoke() }) { Text("Restart") }
-                            }
-                        }
-                    }
-                }
-                else -> Unit
-            }
-            if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
-                TextButton(onClick = onSkip, modifier = Modifier.testTag("skip_${row.stateId}")) { Text("Skip") }
-            }
+        else -> Unit
+    }
+    if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
+        TextButton(
+            onClick = onSkip,
+            modifier = Modifier.testTag("skip_${row.stateId}"),
+        ) {
+            Text("Skip")
         }
     }
 }
@@ -439,18 +576,32 @@ private fun WidgetPreviews(
     onCheck: (DoseRow) -> Unit,
     onStartCountdown: (DoseRow) -> Unit,
 ) {
-    val firstMedicine = state.medicines.firstOrNull { medicine -> state.rows.any { it.medicineId == medicine.id } } ?: return
+    val firstMedicine =
+        state.medicines.firstOrNull { medicine ->
+            state.rows.any { it.medicineId == medicine.id }
+        } ?: return
     val rows = state.rows.filter { it.medicineId == firstMedicine.id }
     val singleSpec = WidgetLayoutSpec.forSize(DpSize(190.dp, 145.dp), WidgetKind.SINGLE)
     val allSpec = WidgetLayoutSpec.forSize(DpSize(320.dp, 160.dp), WidgetKind.ALL)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Widget previews", style = MaterialTheme.typography.titleLarge)
-        Text("Live previews use the same dose actions as the real widgets.", style = MaterialTheme.typography.bodySmall)
+        Text(
+            "Live previews use the same dose actions as the real widgets.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp)) {
-                Text("2×2 · ${firstMedicine.widgetDisplayName()}", fontSize = singleSpec.titleSp.sp)
+                Text(
+                    "2×2 · ${firstMedicine.widgetDisplayName()}",
+                    fontSize = singleSpec.titleSp.sp,
+                )
                 rows.forEach { row ->
-                    PreviewRow(row, singleSpec, { onCheck(row) }, { onStartCountdown(row) })
+                    PreviewRow(
+                        row,
+                        singleSpec,
+                        { onCheck(row) },
+                        { onStartCountdown(row) },
+                    )
                 }
             }
         }
@@ -458,11 +609,18 @@ private fun WidgetPreviews(
             Column(Modifier.padding(14.dp)) {
                 Text("4×2 · ${state.progress.compactDisplay}", fontSize = allSpec.titleSp.sp)
                 state.rows.take(4).forEach { row ->
-                    Text(
-                        state.medicines.firstOrNull { it.id == row.medicineId }?.widgetDisplayName() ?: "Medicine",
-                        fontSize = allSpec.supportingSp.sp,
+                    val displayName =
+                        state.medicines
+                            .firstOrNull { it.id == row.medicineId }
+                            ?.widgetDisplayName()
+                            ?: "Medicine"
+                    Text(displayName, fontSize = allSpec.supportingSp.sp)
+                    PreviewRow(
+                        row,
+                        allSpec,
+                        { onCheck(row) },
+                        { onStartCountdown(row) },
                     )
-                    PreviewRow(row, allSpec, { onCheck(row) }, { onStartCountdown(row) })
                 }
             }
         }
@@ -485,14 +643,22 @@ private fun PreviewRow(
         Text(
             if (row.isTaken) "☑" else if (row.isSkipped) "–" else "☐",
             fontSize = spec.checkSp.sp,
-            modifier = Modifier.clickable(enabled = !row.isTaken && !row.isSkipped, onClick = onCheck),
+            modifier =
+                Modifier.clickable(
+                    enabled = !row.isTaken && !row.isSkipped,
+                    onClick = onCheck,
+                ),
         )
         Spacer(Modifier.width(6.dp))
         Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
-        if (!row.isTaken && !row.isSkipped && countdown.status == CountdownDisplayStatus.NOT_STARTED) {
-            TextButton(onClick = onStartCountdown) { Text(countdown.text.orEmpty()) }
-        } else if (!row.isTaken && !row.isSkipped) {
-            Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
+        when {
+            row.isTaken || row.isSkipped -> Unit
+            countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
+                TextButton(onClick = onStartCountdown) {
+                    Text(countdown.text.orEmpty())
+                }
+            }
+            else -> Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
         }
     }
 }
