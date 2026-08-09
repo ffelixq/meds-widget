@@ -219,6 +219,7 @@ class SettingsScreenTest {
                     onSignOut = {},
                     onDeletePasswordAccount = {},
                     onDeleteGoogleAccount = {},
+                    onExport = {},
                 )
             }
         }
@@ -249,6 +250,7 @@ class SettingsScreenTest {
         onSignOut: () -> Unit = {},
         onDeletePassword: (String?) -> Unit = {},
         onDeleteGoogle: () -> Unit = {},
+        onExport: () -> Unit = {},
     ) {
         composeRule.setContent {
             UiTestTheme {
@@ -267,6 +269,7 @@ class SettingsScreenTest {
                     onSignOut = onSignOut,
                     onDeletePasswordAccount = onDeletePassword,
                     onDeleteGoogleAccount = onDeleteGoogle,
+                    onExport = onExport,
                 )
             }
         }
