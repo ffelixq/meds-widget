@@ -1,0 +1,28 @@
+name: Update V2 README
+
+on:
+  push:
+    branches:
+      - feature/v2-product-core
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/v2-product-core
+          fetch-depth: 0
+      - name: Update README
+        run: python3 scripts/update_v2_readme.py
+      - name: Commit README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: update README for V2"
+          git push origin HEAD:feature/v2-product-core
