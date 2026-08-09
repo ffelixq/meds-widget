@@ -73,9 +73,7 @@ interface MedicineRepository {
         uid: String,
         medicineId: String,
         units: Double,
-    ) {
-        throw UnsupportedOperationException("Supply refill is not supported by this repository")
-    }
+    ) = throw UnsupportedOperationException("Supply refill is not supported by this repository")
 }
 
 interface DoseRepository {
@@ -111,9 +109,7 @@ interface DoseRepository {
         slot: DoseSlot,
         reason: String = "",
         source: CheckSource = CheckSource.APP,
-    ): Boolean {
-        throw UnsupportedOperationException("Dose skipping is not supported by this repository")
-    }
+    ): Boolean = throw UnsupportedOperationException("Dose skipping is not supported by this repository")
 
     suspend fun undo(
         uid: String,
