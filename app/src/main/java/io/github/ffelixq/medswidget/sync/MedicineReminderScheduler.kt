@@ -207,7 +207,6 @@ class MedicineReminderWorker(
             PackageManager.PERMISSION_GRANTED
 
     private fun ensureChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -227,6 +226,13 @@ class MedicineReminderWorker(
         medicineName: String,
         label: String,
     ) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         val openApp =
             PendingIntent.getActivity(
                 context,
@@ -247,9 +253,13 @@ class MedicineReminderWorker(
                 .setAutoCancel(true)
                 .setContentIntent(openApp)
                 .build()
-        NotificationManagerCompat.from(context).notify(
-            (medicineId + slot.wireValue).hashCode(),
-            notification,
-        )
+        try {
+            NotificationManagerCompat.from(context).notify(
+                (medicineId + slot.wireValue).hashCode(),
+                notification,
+            )
+        } catch (_: SecurityException) {
+            // Permission can be revoked between the explicit check and delivery.
+        }
     }
 }
