@@ -118,7 +118,7 @@ internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
                             row = row,
                             source = CheckSource.WIDGET_4X4,
                             showMedicineName = true,
-                            layoutSpec = spec,
+                            spec = spec,
                         )
                     }
                 }
