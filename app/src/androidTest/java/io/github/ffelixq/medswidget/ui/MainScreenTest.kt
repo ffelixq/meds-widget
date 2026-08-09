@@ -3,18 +3,15 @@ package io.github.ffelixq.medswidget.ui
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CompletionProgress
@@ -55,7 +52,7 @@ class MainScreenTest {
     }
 
     @Test
-    fun emptyStateShowsProgressAndBothAddAffordancesWork() {
+    fun emptyStateShowsV2ProgressAndBothAddAffordancesWork() {
         var addCount = 0
         composeRule.setContent {
             UiTestTheme {
@@ -76,7 +73,7 @@ class MainScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("0 of 0 completed").assertIsDisplayed()
+        composeRule.onNodeWithText("0 taken · 0 skipped · 0 pending").assertIsDisplayed()
         composeRule.onNodeWithText("No medicines yet").assertIsDisplayed()
         composeRule.onNodeWithText("Add medicine").performClick()
         composeRule.onNodeWithContentDescription("Add medicine").performClick()
@@ -85,7 +82,7 @@ class MainScreenTest {
     }
 
     @Test
-    fun appDoseCheckUsesAppSourceAndExposesAccessibleStatus() {
+    fun appDoseCheckUsesAppSourceAndExposesAccessiblePendingStatus() {
         val row = testDoseRow()
         var checkedRow: DoseRow? = null
         var checkedSource: CheckSource? = null
@@ -108,7 +105,7 @@ class MainScreenTest {
 
         composeRule
             .onNodeWithTag("app_dose_${row.stateId}")
-            .assertContentDescriptionEquals("Medicine A, After lunch, not taken")
+            .assertContentDescriptionEquals("Medicine A, After lunch, pending")
             .performClick()
 
         assertSame(row, checkedRow)
@@ -137,27 +134,28 @@ class MainScreenTest {
         composeRule.onNodeWithText("Undo this check?").assertIsDisplayed()
         assertNull(undone)
 
-        composeRule.onNodeWithText("Undo check").performClick()
+        composeRule.onNodeWithText("Undo").performClick()
 
         assertSame(row, undone)
     }
 
     @Test
-    fun liveSinglePreviewChecksWithPreviewSourceAndAllPreviewIsScrollable() {
+    fun livePreviewsCheckWithPreviewSourceAndShowBothWidgetLayouts() {
         val medicine = testMedicine()
         val rows =
             listOf(
                 testDoseRow(medicine = medicine),
-                testDoseRow(medicine = medicine, slot = io.github.ffelixq.medswidget.domain.DoseSlot.NIGHT),
+                testDoseRow(
+                    medicine = medicine,
+                    slot = io.github.ffelixq.medswidget.domain.DoseSlot.NIGHT,
+                ),
             )
         val checks = mutableListOf<Pair<DoseRow, CheckSource>>()
         composeRule.setContent {
             UiTestTheme {
                 MainScreen(
                     state = testMainState(medicine, rows),
-                    onCheck = { row, source ->
-                        checks += row to source
-                    },
+                    onCheck = { row, source -> checks += row to source },
                     onUndo = {},
                     onAdd = {},
                     onEdit = {},
@@ -166,15 +164,12 @@ class MainScreenTest {
                 )
             }
         }
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(2)
 
-        composeRule
-            .onNodeWithTag("preview_single_${rows.first().stateId}")
-            .performClick()
-        composeRule.onNodeWithTag("preview_all_list").performScrollTo()
-        composeRule
-            .onNodeWithTag("preview_all_${rows.first().stateId}")
-            .performClick()
+        composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("2×2 · Medicine A").assertIsDisplayed()
+        composeRule.onAllNodesWithText("☐")[0].performClick()
+        composeRule.onNodeWithText("4×2 · 0/2").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("☐")[2].performClick()
 
         assertEquals(
             listOf(
@@ -183,8 +178,6 @@ class MainScreenTest {
             ),
             checks,
         )
-        composeRule.onNodeWithTag("preview_all_list").assert(hasScrollAction())
-        composeRule.onNodeWithText("All medicines · 4×2 preview  0/2").assertIsDisplayed()
     }
 
     @Test
@@ -205,11 +198,9 @@ class MainScreenTest {
                 )
             }
         }
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(2)
 
-        composeRule
-            .onNodeWithTag("preview_single_${checked.stateId}")
-            .performClick()
+        composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("☑")[0].performClick()
 
         assertEquals(0, checkCount)
         assertEquals(0, undoCount)
