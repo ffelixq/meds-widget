@@ -1,9 +1,11 @@
 # Meds Widget
 
-Meds Widget is a focused, native Android medicine-tracking utility. It keeps an
-afternoon/night checklist in the app and in two home-screen widgets. It is a
-tracking utility only: it does not provide medical advice, dosing advice,
-reminders, treatment recommendations, or drug information.
+Meds Widget is a focused, native Android medicine-tracking utility. V2 supports
+Morning, Afternoon, Evening, and Night routines across the app and home-screen
+widgets, with optional personal reminders, countdowns, supply tracking, history,
+and export. It is a tracking utility only: it does not provide medical advice,
+dosing advice, treatment recommendations, drug-interaction guidance, or drug
+information.
 
 - Application ID: `io.github.ffelixq.medswidget`
 - Repository: <https://github.com/ffelixq/meds-widget>
@@ -11,14 +13,14 @@ reminders, treatment recommendations, or drug information.
 - Firebase Android App ID:
   `1:648847295725:android:15e7b95037f6ff897678e4`
 - Platform: Android 8.0 (API 26) and newer
-- V1.1 distribution: signed APK through Firebase App Distribution and GitHub
+- V2 distribution: signed APK through Firebase App Distribution and GitHub
   Actions artifacts; no Google Play publication
 - Licence: no open-source licence has been assigned
 
 ## Project status
 
 The repository contains the Android application, the Firestore rules and
-indexes, emulator-based rule tests, and automation definitions used for V1.
+indexes, emulator-based rule tests, and automation definitions used for the current release.
 External resource identifiers, deployment results, APK hashes, and links to
 completed CI runs belong in `VALIDATION_REPORT.md`; they must not be inferred
 from configuration templates or an unexecuted workflow.
@@ -56,14 +58,17 @@ No fabricated UI images are included.
 
 ## Features
 
+See [V2 test release](docs/V2_RELEASE.md) for V2 behavior and the physical Samsung validation checklist.
+
 - Email/password registration, sign-in, password reset, and sign-out with
   Firebase Authentication.
 - Google authentication through Android Credential Manager and Sign in with
   Google, not the deprecated Google Sign-In integration.
 - Medicine creation, editing, archiving, and deletion.
-- Independently enabled afternoon and night slots, with custom per-medicine
-  labels. At least one slot is required. Blank labels are rejected for enabled
-  slots; a blank disabled-slot label is normalized to that slot's default.
+- Independently enabled Morning, Afternoon, Evening, and Night slots, with
+  custom per-medicine labels. At least one slot is required. Blank labels are
+  rejected for enabled slots; a blank disabled-slot label is normalized to that
+  slot's default.
 - Optional 1–1,440 minute personal countdowns configured independently for
   afternoon and night, with 30/60/90/120-minute presets and custom hours/minutes.
 - Countdown start from the app, previews, or either widget. Widget **Start** and
@@ -77,12 +82,18 @@ No fabricated UI images are included.
   instance. Exact launcher width and height select compact, standard, or
   spacious typography and row spacing.
 - A responsive, vertically scrollable 4×2 Glance widget containing every
-  active dose and using the same size categories.
+  active dose, plus a responsive 4×4 dashboard widget for a larger Today view.
 - Functional previews for compact/standard single-medicine and all-medicines
   layouts, including not-started, running, ready, and checked states.
 - Immediate local widget snapshots and Firestore's Android offline queue.
 - Light, dark, and system themes.
-- Compact history grouped by logical medication day.
+- History and adherence summaries grouped by logical medication day.
+- Optional per-slot device-local medicine reminders with Android notification
+  permission handling.
+- Optional supply tracking, low-supply status, and app-based refills; taken doses
+  reduce supply and app Undo restores a previously taken dose.
+- Settings shortcuts for pinning supported widget sizes and a local CSV export
+  of medicine setup and dose history.
 - Client-side account deletion with reauthentication, account-wide mutation
   exclusion, best-effort app-cache clearing, and Firestore persistence reset.
 
