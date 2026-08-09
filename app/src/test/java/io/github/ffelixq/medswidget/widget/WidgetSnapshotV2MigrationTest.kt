@@ -56,7 +56,8 @@ class WidgetSnapshotV2MigrationTest {
     @Test
     fun `legacy V1 snapshot decodes with safe V2 defaults`() {
         val legacy =
-            """{
+            """
+            {
               "ownerUid":"user",
               "signedIn":true,
               "isLoading":false,
@@ -75,7 +76,8 @@ class WidgetSnapshotV2MigrationTest {
               "fromCache":false,
               "hasPendingWrites":false,
               "repositoryHasPendingWrites":false
-            }""".trimIndent()
+            }
+            """.trimIndent()
 
         val restored = WidgetSnapshotCodec.decode(legacy).medicines.single()
 

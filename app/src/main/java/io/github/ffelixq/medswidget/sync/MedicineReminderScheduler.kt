@@ -141,33 +141,65 @@ class MedicineReminderWorker(
     workerParams: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
-        val uid = inputData.getString(MedicineReminderScheduler.KEY_UID) ?: return Result.success()
-        val medicineId = inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_ID) ?: return Result.success()
-        val slot =
-            DoseSlot.fromWire(inputData.getString(MedicineReminderScheduler.KEY_SLOT).orEmpty())
-                ?: return Result.success()
-        val workName = inputData.getString(MedicineReminderScheduler.KEY_WORK_NAME)
-        val endDate =
-            inputData.getString(MedicineReminderScheduler.KEY_END_DATE)?.let {
-                runCatching { LocalDate.parse(it) }.getOrNull()
+        val request = reminderRequest() ?: return Result.success()
+        if (request.isExpired()) {
+            request.workName?.let {
+                WorkManager.getInstance(applicationContext).cancelUniqueWork(it)
             }
-        if (endDate != null && LocalDate.now().isAfter(endDate)) {
-            workName?.let { WorkManager.getInstance(applicationContext).cancelUniqueWork(it) }
-            return Result.success()
+        } else if (canDeliver(request.uid)) {
+            ensureChannel(applicationContext)
+            showNotification(
+                applicationContext,
+                request.medicineId,
+                request.slot,
+                request.medicineName,
+                request.label,
+            )
         }
-
-        val graph = MedsApplication.graph(applicationContext)
-        if (graph.currentAuthenticatedUid != uid || graph.accountOperationGate.isDeletionInProgress) {
-            return Result.success()
-        }
-        if (!notificationsAllowed(applicationContext)) return Result.success()
-
-        ensureChannel(applicationContext)
-        val medicineName = inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_NAME).orEmpty()
-        val label = inputData.getString(MedicineReminderScheduler.KEY_LABEL).orEmpty()
-        showNotification(applicationContext, medicineId, slot, medicineName, label)
         return Result.success()
     }
+
+    private fun reminderRequest(): ReminderRequest? {
+        val uid = inputData.getString(MedicineReminderScheduler.KEY_UID) ?: return null
+        val medicineId =
+            inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_ID) ?: return null
+        val slot =
+            DoseSlot.fromWire(inputData.getString(MedicineReminderScheduler.KEY_SLOT).orEmpty())
+                ?: return null
+        val endDate =
+            inputData.getString(MedicineReminderScheduler.KEY_END_DATE)?.let { raw ->
+                runCatching { LocalDate.parse(raw) }.getOrNull()
+            }
+        return ReminderRequest(
+            uid = uid,
+            medicineId = medicineId,
+            slot = slot,
+            medicineName =
+                inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_NAME).orEmpty(),
+            label = inputData.getString(MedicineReminderScheduler.KEY_LABEL).orEmpty(),
+            endDate = endDate,
+            workName = inputData.getString(MedicineReminderScheduler.KEY_WORK_NAME),
+        )
+    }
+
+    private fun ReminderRequest.isExpired(): Boolean = endDate != null && LocalDate.now().isAfter(endDate)
+
+    private fun canDeliver(uid: String): Boolean {
+        val graph = MedsApplication.graph(applicationContext)
+        val signedIn =
+            graph.currentAuthenticatedUid == uid && !graph.accountOperationGate.isDeletionInProgress
+        return signedIn && notificationsAllowed(applicationContext)
+    }
+
+    private data class ReminderRequest(
+        val uid: String,
+        val medicineId: String,
+        val slot: DoseSlot,
+        val medicineName: String,
+        val label: String,
+        val endDate: LocalDate?,
+        val workName: String?,
+    )
 
     private fun notificationsAllowed(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

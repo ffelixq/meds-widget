@@ -204,14 +204,16 @@ class FirestoreDoseRepository(
                 )
             activeState[stateKey] = state
             writeAction(
-                state,
-                previous,
-                actionId,
-                DoseAction.CHECK,
-                occurredAt,
-                zone,
-                source,
-                medicine,
+                DoseWriteRequest(
+                    state = state,
+                    rollbackState = previous,
+                    actionId = actionId,
+                    action = DoseAction.CHECK,
+                    occurredAt = occurredAt,
+                    timezoneId = zone,
+                    source = source,
+                    medicine = medicine,
+                ),
             )
             true
         }
@@ -260,13 +262,15 @@ class FirestoreDoseRepository(
                 )
             activeState[stateKey] = state
             writeAction(
-                state,
-                previous,
-                actionId,
-                DoseAction.SKIP,
-                now,
-                zone,
-                source,
+                DoseWriteRequest(
+                    state = state,
+                    rollbackState = previous,
+                    actionId = actionId,
+                    action = DoseAction.SKIP,
+                    occurredAt = now,
+                    timezoneId = zone,
+                    source = source,
+                ),
             )
             true
         }
@@ -299,28 +303,40 @@ class FirestoreDoseRepository(
                 )
             activeState[stateKey] = updated
             writeAction(
-                updated,
-                current,
-                actionId,
-                DoseAction.UNDO,
-                now,
-                zone,
-                source,
-                medicine,
+                DoseWriteRequest(
+                    state = updated,
+                    rollbackState = current,
+                    actionId = actionId,
+                    action = DoseAction.UNDO,
+                    occurredAt = now,
+                    timezoneId = zone,
+                    source = source,
+                    medicine = medicine,
+                ),
             )
             true
         }
 
-    private fun writeAction(
-        state: DoseState,
-        rollbackState: DoseState?,
-        actionId: String,
-        action: DoseAction,
-        occurredAt: Instant,
-        timezoneId: String,
-        source: CheckSource,
-        medicine: Medicine? = null,
-    ) {
+    private data class DoseWriteRequest(
+        val state: DoseState,
+        val rollbackState: DoseState?,
+        val actionId: String,
+        val action: DoseAction,
+        val occurredAt: Instant,
+        val timezoneId: String,
+        val source: CheckSource,
+        val medicine: Medicine? = null,
+    )
+
+    private fun writeAction(request: DoseWriteRequest) {
+        val state = request.state
+        val rollbackState = request.rollbackState
+        val actionId = request.actionId
+        val action = request.action
+        val occurredAt = request.occurredAt
+        val timezoneId = request.timezoneId
+        val source = request.source
+        val medicine = request.medicine
         val stateReference =
             FirestorePaths
                 .doseStates(firestore, state.ownerUid)

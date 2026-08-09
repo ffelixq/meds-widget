@@ -752,100 +752,105 @@ internal object WidgetSnapshotCodec {
     fun decode(raw: String): WidgetSnapshot =
         runCatching {
             val json = JSONObject(raw)
-            val medicinesJson = json.optJSONArray("medicines") ?: JSONArray()
-            val rowsJson = json.optJSONArray("rows") ?: JSONArray()
-            val pendingActionsJson = json.optJSONArray("pendingActions") ?: JSONArray()
-            val pendingCountdownActionsJson = json.optJSONArray("pendingCountdownActions") ?: JSONArray()
             WidgetSnapshot(
                 ownerUid = json.optNullableString("ownerUid"),
                 signedIn = json.optBoolean("signedIn"),
                 isLoading = json.optBoolean("isLoading"),
                 logicalDay = LocalDate.parse(json.getString("logicalDay")),
-                medicines =
-                    (0 until medicinesJson.length()).map { index ->
-                        val value = medicinesJson.getJSONObject(index)
-                        val name = value.getString("name")
-                        WidgetMedicine(
-                            id = value.getString("id"),
-                            name = name,
-                            displayName = value.optNullableString("displayName") ?: name,
-                            morningEnabled = value.optBoolean("morningEnabled", false),
-                            morningLabel =
-                                value.optNullableString("morningLabel")
-                                    ?: DoseSlot.MORNING.defaultLabel,
-                            morningCountdownMinutes = value.optNullableInt("morningCountdownMinutes"),
-                            afternoonEnabled = value.optBoolean("afternoonEnabled", false),
-                            afternoonLabel =
-                                value.optNullableString("afternoonLabel")
-                                    ?: DoseSlot.AFTERNOON.defaultLabel,
-                            afternoonCountdownMinutes = value.optNullableInt("afternoonCountdownMinutes"),
-                            eveningEnabled = value.optBoolean("eveningEnabled", false),
-                            eveningLabel =
-                                value.optNullableString("eveningLabel")
-                                    ?: DoseSlot.EVENING.defaultLabel,
-                            eveningCountdownMinutes = value.optNullableInt("eveningCountdownMinutes"),
-                            nightEnabled = value.optBoolean("nightEnabled", false),
-                            nightLabel =
-                                value.optNullableString("nightLabel")
-                                    ?: DoseSlot.NIGHT.defaultLabel,
-                            nightCountdownMinutes = value.optNullableInt("nightCountdownMinutes"),
-                            supplyEnabled = value.optBoolean("supplyEnabled", false),
-                            supplyRemainingUnits = value.optNullableDouble("supplyRemainingUnits"),
-                            unitsPerDose = value.optDouble("unitsPerDose", 1.0),
-                        )
-                    },
-                rows =
-                    (0 until rowsJson.length()).mapNotNull { index ->
-                        val value = rowsJson.getJSONObject(index)
-                        val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
-                        WidgetDoseRow(
-                            medicineId = value.getString("medicineId"),
-                            medicineName = value.getString("medicineName"),
-                            slot = slot,
-                            label = value.getString("label"),
-                            isTaken = value.getBoolean("isTaken"),
-                            checkedAt = value.optNullableString("checkedAt")?.let(Instant::parse),
-                            checkedTimezone = value.optNullableString("checkedTimezone"),
-                            countdownMinutes = value.optNullableInt("countdownMinutes"),
-                            countdown = value.optJSONObject("countdown")?.toCountdownState(),
-                        )
-                    },
+                medicines = decodeMedicines(json.optJSONArray("medicines")),
+                rows = decodeRows(json.optJSONArray("rows")),
                 pendingCountdownActions =
-                    (0 until pendingCountdownActionsJson.length()).mapNotNull { index ->
-                        val value = pendingCountdownActionsJson.getJSONObject(index)
-                        val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
-                        WidgetPendingCountdownAction(
-                            actionId = value.getString("actionId"),
-                            medicineId = value.getString("medicineId"),
-                            slot = slot,
-                            createdAt =
-                                value.optNullableString("createdAt")?.let(Instant::parse)
-                                    ?: Instant.EPOCH,
-                            submitted = value.optBoolean("submitted"),
-                        )
-                    },
-                pendingActions =
-                    (0 until pendingActionsJson.length()).mapNotNull { index ->
-                        val value = pendingActionsJson.getJSONObject(index)
-                        val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
-                        WidgetPendingAction(
-                            actionId = value.getString("actionId"),
-                            medicineId = value.getString("medicineId"),
-                            slot = slot,
-                            createdAt =
-                                value
-                                    .optNullableString("createdAt")
-                                    ?.let(Instant::parse)
-                                    ?: Instant.EPOCH,
-                            submitted = value.optBoolean("submitted"),
-                        )
-                    },
+                    decodePendingCountdownActions(json.optJSONArray("pendingCountdownActions")),
+                pendingActions = decodePendingActions(json.optJSONArray("pendingActions")),
                 fromCache = json.optBoolean("fromCache"),
                 hasPendingWrites = json.optBoolean("hasPendingWrites"),
                 repositoryHasPendingWrites = json.optBoolean("repositoryHasPendingWrites"),
                 errorMessage = json.optNullableString("errorMessage"),
             )
         }.getOrElse { WidgetSnapshot() }
+
+    private fun decodeMedicines(values: JSONArray?): List<WidgetMedicine> {
+        val array = values ?: JSONArray()
+        return (0 until array.length()).map { index ->
+            array.getJSONObject(index).toWidgetMedicine()
+        }
+    }
+
+    private fun JSONObject.toWidgetMedicine(): WidgetMedicine {
+        val name = getString("name")
+        return WidgetMedicine(
+            id = getString("id"),
+            name = name,
+            displayName = optNullableString("displayName") ?: name,
+            morningEnabled = optBoolean("morningEnabled", false),
+            morningLabel = optNullableString("morningLabel") ?: DoseSlot.MORNING.defaultLabel,
+            morningCountdownMinutes = optNullableInt("morningCountdownMinutes"),
+            afternoonEnabled = optBoolean("afternoonEnabled", false),
+            afternoonLabel =
+                optNullableString("afternoonLabel") ?: DoseSlot.AFTERNOON.defaultLabel,
+            afternoonCountdownMinutes = optNullableInt("afternoonCountdownMinutes"),
+            eveningEnabled = optBoolean("eveningEnabled", false),
+            eveningLabel = optNullableString("eveningLabel") ?: DoseSlot.EVENING.defaultLabel,
+            eveningCountdownMinutes = optNullableInt("eveningCountdownMinutes"),
+            nightEnabled = optBoolean("nightEnabled", false),
+            nightLabel = optNullableString("nightLabel") ?: DoseSlot.NIGHT.defaultLabel,
+            nightCountdownMinutes = optNullableInt("nightCountdownMinutes"),
+            supplyEnabled = optBoolean("supplyEnabled", false),
+            supplyRemainingUnits = optNullableDouble("supplyRemainingUnits"),
+            unitsPerDose = optDouble("unitsPerDose", 1.0),
+        )
+    }
+
+    private fun decodeRows(values: JSONArray?): List<WidgetDoseRow> {
+        val array = values ?: JSONArray()
+        return (0 until array.length()).mapNotNull { index ->
+            val value = array.getJSONObject(index)
+            val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
+            WidgetDoseRow(
+                medicineId = value.getString("medicineId"),
+                medicineName = value.getString("medicineName"),
+                slot = slot,
+                label = value.getString("label"),
+                isTaken = value.getBoolean("isTaken"),
+                checkedAt = value.optNullableString("checkedAt")?.let(Instant::parse),
+                checkedTimezone = value.optNullableString("checkedTimezone"),
+                countdownMinutes = value.optNullableInt("countdownMinutes"),
+                countdown = value.optJSONObject("countdown")?.toCountdownState(),
+            )
+        }
+    }
+
+    private fun decodePendingCountdownActions(values: JSONArray?): List<WidgetPendingCountdownAction> {
+        val array = values ?: JSONArray()
+        return (0 until array.length()).mapNotNull { index ->
+            val value = array.getJSONObject(index)
+            val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
+            WidgetPendingCountdownAction(
+                actionId = value.getString("actionId"),
+                medicineId = value.getString("medicineId"),
+                slot = slot,
+                createdAt =
+                    value.optNullableString("createdAt")?.let(Instant::parse) ?: Instant.EPOCH,
+                submitted = value.optBoolean("submitted"),
+            )
+        }
+    }
+
+    private fun decodePendingActions(values: JSONArray?): List<WidgetPendingAction> {
+        val array = values ?: JSONArray()
+        return (0 until array.length()).mapNotNull { index ->
+            val value = array.getJSONObject(index)
+            val slot = DoseSlot.fromWire(value.getString("slot")) ?: return@mapNotNull null
+            WidgetPendingAction(
+                actionId = value.getString("actionId"),
+                medicineId = value.getString("medicineId"),
+                slot = slot,
+                createdAt =
+                    value.optNullableString("createdAt")?.let(Instant::parse) ?: Instant.EPOCH,
+                submitted = value.optBoolean("submitted"),
+            )
+        }
+    }
 
     private fun JSONObject.optNullableString(key: String): String? =
         if (isNull(key) || !has(key)) null else optString(key).takeIf(String::isNotBlank)

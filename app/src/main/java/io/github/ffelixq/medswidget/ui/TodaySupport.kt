@@ -159,6 +159,13 @@ internal fun TodaySummary(state: MainUiState) {
     }
 }
 
+internal fun formatSupplyAmount(value: Double): String =
+    if (value % 1.0 == 0.0) {
+        value.toLong().toString()
+    } else {
+        "%.2f".format(value).trimEnd('0').trimEnd('.')
+    }
+
 @Suppress("FunctionNaming")
 @Composable
 internal fun RefillSupplyDialog(
