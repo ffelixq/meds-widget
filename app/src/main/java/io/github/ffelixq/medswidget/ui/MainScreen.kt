@@ -190,15 +190,18 @@ private fun MedicineCard(
                 medicine.startDate?.isAfter(logicalDay) == true -> {
                     Text("Starts ${medicine.startDate}", style = MaterialTheme.typography.bodyMedium)
                 }
+
                 medicine.endDate?.isBefore(logicalDay) == true -> {
                     Text(
                         "Course completed ${medicine.endDate}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+
                 rows.isEmpty() -> {
                     Text("No doses scheduled today", style = MaterialTheme.typography.bodyMedium)
                 }
+
                 else -> {
                     rows.forEach { row ->
                         DoseCheckRow(
@@ -354,6 +357,7 @@ private fun DoseStatusText(
                 TimeFormatting.compact(context, row.checkedAt, row.checkedTimezone)
             Text("Taken $checkedTime", style = MaterialTheme.typography.bodySmall)
         }
+
         row.isSkipped -> {
             Text(
                 row.skipReason?.let { "Skipped · $it" } ?: "Skipped",
@@ -387,6 +391,7 @@ private fun DoseTrailingActions(
                 }
             }
         }
+
         CountdownDisplayStatus.RUNNING,
         CountdownDisplayStatus.READY,
         -> {
@@ -417,7 +422,10 @@ private fun DoseTrailingActions(
                 }
             }
         }
-        else -> Unit
+
+        else -> {
+            Unit
+        }
     }
     if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
         TextButton(
@@ -501,7 +509,13 @@ private fun PreviewRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            if (row.isTaken) "☑" else if (row.isSkipped) "–" else "☐",
+            if (row.isTaken) {
+                "☑"
+            } else if (row.isSkipped) {
+                "–"
+            } else {
+                "☐"
+            },
             fontSize = spec.checkSp.sp,
             modifier =
                 Modifier.clickable(
@@ -512,13 +526,19 @@ private fun PreviewRow(
         Spacer(Modifier.width(6.dp))
         Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
         when {
-            row.isTaken || row.isSkipped -> Unit
+            row.isTaken || row.isSkipped -> {
+                Unit
+            }
+
             countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
                 TextButton(onClick = onStartCountdown) {
                     Text(countdown.text.orEmpty())
                 }
             }
-            else -> Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
+
+            else -> {
+                Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
+            }
         }
     }
 }

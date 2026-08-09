@@ -732,8 +732,6 @@ private fun parseDate(
         }
 }
 
-private fun Double.toDisplayNumber(): String =
-    if (this % 1.0 == 0.0) toLong().toString() else toString()
+private fun Double.toDisplayNumber(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
 
-private fun formatClockMinutes(minutesAfterMidnight: Int): String =
-    "%02d:%02d".format(minutesAfterMidnight / 60, minutesAfterMidnight % 60)
+private fun formatClockMinutes(minutesAfterMidnight: Int): String = "%02d:%02d".format(minutesAfterMidnight / 60, minutesAfterMidnight % 60)

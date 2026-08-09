@@ -141,6 +141,7 @@ internal fun TodaySummary(state: MainUiState) {
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+
                 state.isCached -> {
                     Text("Showing cached data", style = MaterialTheme.typography.labelMedium)
                 }

@@ -179,33 +179,40 @@ internal class WidgetCountdownHandler(
         parameters: ActionParameters,
         resolveAppWidgetId: suspend () -> Int?,
     ) {
-        val parsed = WidgetActionSupport.parse(parameters)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
+        val parsed =
+            WidgetActionSupport.parse(parameters)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
         recordDiagnostic(WidgetActionDiagnostic.PARAMETERS_VALID)
-        val request = WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
+        val request =
+            WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
         recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_VALID)
 
         val dependencies = dependencies()
         dependencies.refreshTemporalState()
-        val uid = dependencies.currentUid
-            ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
+        val uid =
+            dependencies.currentUid
+                ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.AUTH_AVAILABLE)
         if (!WidgetActionSupport.hasValidConfiguration(request, dependencies, uid)) {
             return recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_INVALID)
         }
         recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_VALID)
 
-        val snapshot = recoverSnapshotIfNeeded(dependencies, uid)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
-        val medicine = WidgetActionSupport.eligibleMedicine(snapshot, request)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
-        val row = WidgetActionSupport.rowFor(snapshot, request)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
-        val duration = row
-            .takeIf { !it.isTaken && it.countdown == null }
-            ?.countdownMinutes
-            ?: return recordDiagnostic(WidgetActionDiagnostic.COUNTDOWN_UNAVAILABLE)
+        val snapshot =
+            recoverSnapshotIfNeeded(dependencies, uid)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+        val medicine =
+            WidgetActionSupport.eligibleMedicine(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        val row =
+            WidgetActionSupport.rowFor(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        val duration =
+            row
+                .takeIf { !it.isTaken && it.countdown == null }
+                ?.countdownMinutes
+                ?: return recordDiagnostic(WidgetActionDiagnostic.COUNTDOWN_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_ELIGIBLE)
 
         val actionId = UUID.randomUUID().toString()
@@ -450,29 +457,35 @@ internal class WidgetCheckHandler(
         parameters: ActionParameters,
         resolveAppWidgetId: suspend () -> Int?,
     ) {
-        val parsed = WidgetActionSupport.parse(parameters)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
+        val parsed =
+            WidgetActionSupport.parse(parameters)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
         recordDiagnostic(WidgetActionDiagnostic.PARAMETERS_VALID)
-        val request = WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
+        val request =
+            WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
         recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_VALID)
 
         val dependencies = dependencies()
         dependencies.refreshTemporalState()
-        val uid = dependencies.currentUid
-            ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
+        val uid =
+            dependencies.currentUid
+                ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.AUTH_AVAILABLE)
         if (!WidgetActionSupport.hasValidConfiguration(request, dependencies, uid)) {
             return recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_INVALID)
         }
         recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_VALID)
 
-        val snapshot = recoverSnapshotIfNeeded(dependencies, uid)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
-        val medicine = WidgetActionSupport.eligibleMedicine(snapshot, request)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
-        val row = WidgetActionSupport.rowFor(snapshot, request)
-            ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        val snapshot =
+            recoverSnapshotIfNeeded(dependencies, uid)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+        val medicine =
+            WidgetActionSupport.eligibleMedicine(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        val row =
+            WidgetActionSupport.rowFor(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
         recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_ELIGIBLE)
 
         val actionId = UUID.randomUUID().toString()
@@ -604,8 +617,7 @@ private class GraphWidgetCheckDependencies(
 
     override suspend fun refreshTemporalState() = graph.prepareTemporalStateForWidgetRender()
 
-    override suspend fun configuration(id: Int): SingleWidgetConfiguration? =
-        graph.configurationStore.get(id)
+    override suspend fun configuration(id: Int): SingleWidgetConfiguration? = graph.configurationStore.get(id)
 
     override suspend fun readSnapshot(): WidgetSnapshot = graph.snapshotStore.read()
 
@@ -778,7 +790,8 @@ private object WidgetActionSupport {
         snapshot: WidgetSnapshot,
         request: WidgetCheckRequest,
     ): WidgetMedicine? =
-        snapshot.medicine(request.medicineId)
+        snapshot
+            .medicine(request.medicineId)
             ?.takeIf { rowFor(snapshot, request) != null }
 
     fun rowFor(

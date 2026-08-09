@@ -130,11 +130,8 @@ internal fun DocumentSnapshot.toSettings(default: UserSettings): UserSettings =
         schemaVersion = getLong("schemaVersion")?.toInt() ?: SCHEMA_VERSION,
     )
 
-private fun DocumentSnapshot.parseRequiredDate(field: String): LocalDate? =
-    getString(field)?.let(::parseLocalDate)
+private fun DocumentSnapshot.parseRequiredDate(field: String): LocalDate? = getString(field)?.let(::parseLocalDate)
 
-private fun parseLocalDate(value: String): LocalDate? =
-    runCatching { LocalDate.parse(value) }.getOrNull()
+private fun parseLocalDate(value: String): LocalDate? = runCatching { LocalDate.parse(value) }.getOrNull()
 
-private fun Timestamp?.toInstantOrEpoch(): Instant =
-    this?.toDate()?.toInstant() ?: Instant.EPOCH
+private fun Timestamp?.toInstantOrEpoch(): Instant = this?.toDate()?.toInstant() ?: Instant.EPOCH

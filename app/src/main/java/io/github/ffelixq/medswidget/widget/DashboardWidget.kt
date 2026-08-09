@@ -84,6 +84,7 @@ internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
             snapshot.isLoading -> {
                 Text("Loading medicines…", style = WidgetTextStyles.body(spec), maxLines = 2)
             }
+
             !snapshot.signedIn -> {
                 Text(
                     text = "Open the app to sign in",
@@ -95,6 +96,7 @@ internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
                     maxLines = 2,
                 )
             }
+
             snapshot.rows.isEmpty() -> {
                 Text(
                     text = "No medicines due today",
@@ -106,6 +108,7 @@ internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
                     maxLines = 2,
                 )
             }
+
             else -> {
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(

@@ -449,8 +449,7 @@ class FirestoreDoseRepository(
     private fun previousActionId(
         action: DoseAction,
         rollbackState: DoseState?,
-    ): String? =
-        if (action == DoseAction.UNDO) rollbackState?.lastActionId else null
+    ): String? = if (action == DoseAction.UNDO) rollbackState?.lastActionId else null
 
     private companion object {
         const val HISTORY_LIMIT = 1000L

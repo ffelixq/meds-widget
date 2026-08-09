@@ -76,8 +76,7 @@ class UnavailableDoseRepository : DoseRepository {
     override fun observeDay(
         uid: String,
         logicalDay: LocalDate,
-    ): Flow<DataEnvelope<List<DoseState>>> =
-        flowOf(DataEnvelope(emptyList(), errorMessage = CONFIGURATION_MESSAGE))
+    ): Flow<DataEnvelope<List<DoseState>>> = flowOf(DataEnvelope(emptyList(), errorMessage = CONFIGURATION_MESSAGE))
 
     override fun observeHistory(uid: String): Flow<DataEnvelope<List<DoseEvent>>> =
         flowOf(DataEnvelope(emptyList(), errorMessage = CONFIGURATION_MESSAGE))

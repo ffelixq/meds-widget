@@ -66,8 +66,14 @@ class MainViewModel internal constructor(
     val state: StateFlow<MainUiState> =
         combine(repositories.auth.session, dependencies.accountDaySnapshot) { session, snapshot ->
             when {
-                session == null -> MainUiState(isLoading = false, errorMessage = "Sign in to view medicines.")
-                snapshot == null || snapshot.ownerUid != session.uid -> MainUiState()
+                session == null -> {
+                    MainUiState(isLoading = false, errorMessage = "Sign in to view medicines.")
+                }
+
+                snapshot == null || snapshot.ownerUid != session.uid -> {
+                    MainUiState()
+                }
+
                 else -> {
                     val rows =
                         DoseRows.build(
@@ -177,7 +183,9 @@ class MainViewModel internal constructor(
     suspend fun saveMedicine(draft: MedicineDraft): ValidationResult {
         val validation = MedicineValidator.validate(draft)
         if (!validation.isValid) return validation
-        val uid = repositories.auth.session.value?.uid ?: return validation
+        val uid =
+            repositories.auth.session.value
+                ?.uid ?: return validation
         val existing = state.value.medicines.firstOrNull { it.id == validation.normalized.id }
         val activeCountdowns =
             state.value.rows
@@ -247,7 +255,9 @@ class MainViewModel internal constructor(
         medicineId: String,
         archived: Boolean = true,
     ) {
-        val uid = repositories.auth.session.value?.uid ?: return
+        val uid =
+            repositories.auth.session.value
+                ?.uid ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
                 state.value.rows
@@ -261,7 +271,9 @@ class MainViewModel internal constructor(
     }
 
     fun deleteMedicine(medicineId: String) {
-        val uid = repositories.auth.session.value?.uid ?: return
+        val uid =
+            repositories.auth.session.value
+                ?.uid ?: return
         viewModelScope.launch {
             dependencies.accountOperationGate.runMutation {
                 state.value.rows
