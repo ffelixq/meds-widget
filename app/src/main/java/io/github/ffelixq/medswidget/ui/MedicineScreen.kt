@@ -59,7 +59,11 @@ private data class SlotEditorState(
     val label: String,
     val countdownMinutes: Int?,
     val reminderMinutes: Int?,
-) : Serializable
+) : Serializable {
+    companion object {
+        private const val serialVersionUID: Long = 1L
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
