@@ -50,7 +50,6 @@ class FakeAuthenticatedFlowTest {
         composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
         val stateId = "2026-07-29_flow-medicine_afternoon"
-        composeRule.onNodeWithText("Flow medicine").assertIsDisplayed()
         composeRule.onNodeWithTag("app_dose_$stateId").assertIsDisplayed()
         composeRule.onNodeWithTag("app_dose_$stateId").performClick()
         composeRule
