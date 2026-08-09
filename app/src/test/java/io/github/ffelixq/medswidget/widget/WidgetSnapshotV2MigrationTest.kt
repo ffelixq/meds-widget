@@ -1,13 +1,19 @@
 package io.github.ffelixq.medswidget.widget
 
+import android.app.Application
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35], application = Application::class)
 class WidgetSnapshotV2MigrationTest {
     @Test
     fun `codec preserves all four slots privacy display and supply metadata`() {
