@@ -21,6 +21,27 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Normalize migration matcher
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/complete_v2_runtime.py')
+          text = path.read_text()
+          old = '''replace_once(
+              snapshot_path,
+              ''' + "'''    private fun JSONObject.optNullableInt(key: String): Int? =\n        if (isNull(key) || !has(key)) null else optInt(key)\n\n'''" + ''',
+              ''' + "'''    private fun JSONObject.optNullableInt(key: String): Int? =\n        if (isNull(key) || !has(key)) null else optInt(key)\n\n    private fun JSONObject.optNullableDouble(key: String): Double? =\n        if (isNull(key) || !has(key)) null else optDouble(key)\n\n'''" + ''',
+          )'''
+          new = '''regex_once(
+              snapshot_path,
+              r"    private fun JSONObject\\.optNullableInt\\(key: String\\): Int\\? =\\s*if \\(isNull\\(key\\) \\|\\| !has\\(key\\)\\) null else optInt\\(key\\)\\n",
+              ''' + "'''    private fun JSONObject.optNullableInt(key: String): Int? =\n        if (isNull(key) || !has(key)) null else optInt(key)\n\n    private fun JSONObject.optNullableDouble(key: String): Double? =\n        if (isNull(key) || !has(key)) null else optDouble(key)\n'''" + ''',
+          )'''
+          if old not in text:
+              raise SystemExit('Expected old matcher not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
       - name: Apply integration patches
         run: python3 scripts/complete_v2_runtime.py
       - name: Format Kotlin sources
@@ -30,5 +51,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app firestore.rules
-          git commit -m "feat: complete V2 reminder supply widget and export runtime"
+          git commit -m "feat: finish V2 widget snapshot migration"
           git push origin HEAD:feature/v2-product-core
