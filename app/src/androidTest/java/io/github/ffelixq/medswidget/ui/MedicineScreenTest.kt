@@ -44,9 +44,9 @@ class MedicineScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("save_medicine").performClick()
+        composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
-        composeRule.onNodeWithText("Medicine name is required.").assertIsDisplayed()
+        composeRule.onNodeWithText("Medicine name is required.").performScrollTo().assertIsDisplayed()
         assertFalse(backCalled)
     }
 
@@ -65,11 +65,11 @@ class MedicineScreenTest {
         }
 
         composeRule.onNodeWithTag("medicine_name").performTextInput("Medicine A")
-        composeRule.onNodeWithTag("afternoon_toggle").performClick()
-        composeRule.onNodeWithTag("night_toggle").performClick()
-        composeRule.onNodeWithTag("save_medicine").performClick()
+        composeRule.onNodeWithTag("afternoon_toggle").performScrollTo().performClick()
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
-        composeRule.onNodeWithText("Enable at least one slot.").assertIsDisplayed()
+        composeRule.onNodeWithText("Enable at least one slot.").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -88,10 +88,12 @@ class MedicineScreenTest {
 
         composeRule
             .onNodeWithTag("afternoon_toggle")
+            .performScrollTo()
             .assertContentDescriptionEquals("Afternoon slot")
             .assertIsOn()
         composeRule
             .onNodeWithTag("night_toggle")
+            .performScrollTo()
             .assertContentDescriptionEquals("Night slot")
             .assertIsOn()
     }
@@ -116,10 +118,10 @@ class MedicineScreenTest {
         }
 
         composeRule.onNodeWithTag("medicine_name").performTextInput("Vitamin D")
-        composeRule.onNodeWithTag("afternoon_label").performTextClearance()
+        composeRule.onNodeWithTag("afternoon_label").performScrollTo().performTextClearance()
         composeRule.onNodeWithTag("afternoon_label").performTextInput("After lunch")
-        composeRule.onNodeWithTag("night_toggle").performClick()
-        composeRule.onNodeWithTag("save_medicine").performClick()
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
         composeRule.waitForIdle()
         assertEquals("Vitamin D", submitted?.name)
@@ -149,8 +151,8 @@ class MedicineScreenTest {
 
         composeRule.onNodeWithTag("medicine_name").performTextInput("Medicine A")
         composeRule.onNodeWithTag("afternoon_countdown_toggle").performScrollTo().performClick()
-        composeRule.onNodeWithText("2h").performClick()
-        composeRule.onNodeWithTag("night_toggle").performClick()
+        composeRule.onNodeWithText("2h").performScrollTo().performClick()
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().performClick()
         composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
         composeRule.waitForIdle()
@@ -178,13 +180,13 @@ class MedicineScreenTest {
 
         composeRule.onNodeWithText("Edit medicine").assertIsDisplayed()
         composeRule.onNodeWithTag("medicine_name").assertTextContains("Existing medicine")
-        composeRule.onNodeWithTag("afternoon_label").assertTextContains("After lunch")
+        composeRule.onNodeWithTag("afternoon_label").performScrollTo().assertTextContains("After lunch")
 
-        composeRule.onNodeWithText("Archive medicine").performClick()
+        composeRule.onNodeWithText("Archive medicine").performScrollTo().performClick()
         assertEquals(medicine.id, archivedId)
         assertEquals(1, backCount)
 
-        composeRule.onNodeWithText("Delete medicine").performClick()
+        composeRule.onNodeWithText("Delete medicine").performScrollTo().performClick()
         composeRule.onNodeWithText("Delete medicine?").assertIsDisplayed()
         assertNull(deletedId)
         composeRule.onNodeWithText("Delete").performClick()
@@ -215,7 +217,7 @@ class MedicineScreenTest {
 
         composeRule.onNodeWithTag("medicine_name").performTextClearance()
         composeRule.onNodeWithTag("medicine_name").performTextInput("Updated medicine")
-        composeRule.onNodeWithTag("night_label").performTextClearance()
+        composeRule.onNodeWithTag("night_label").performScrollTo().performTextClearance()
         composeRule.onNodeWithTag("night_label").performTextInput("At bedtime")
         composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
@@ -241,14 +243,14 @@ class MedicineScreenTest {
             }
         }
         composeRule.onNodeWithTag("medicine_name").performTextInput("Restored medicine")
-        composeRule.onNodeWithTag("afternoon_label").performTextClearance()
+        composeRule.onNodeWithTag("afternoon_label").performScrollTo().performTextClearance()
         composeRule.onNodeWithTag("afternoon_label").performTextInput("Restored lunch")
-        composeRule.onNodeWithTag("night_toggle").performClick()
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().performClick()
 
         restorationTester.emulateSavedInstanceStateRestore()
 
         composeRule.onNodeWithTag("medicine_name").assertTextContains("Restored medicine")
-        composeRule.onNodeWithTag("afternoon_label").assertTextContains("Restored lunch")
-        composeRule.onNodeWithTag("night_toggle").assertIsOff()
+        composeRule.onNodeWithTag("afternoon_label").performScrollTo().assertTextContains("Restored lunch")
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().assertIsOff()
     }
 }
