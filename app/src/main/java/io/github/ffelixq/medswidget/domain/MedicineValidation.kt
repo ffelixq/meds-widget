@@ -214,7 +214,10 @@ private fun normalizeLabel(
     slot: DoseSlot,
 ): String = if (enabled) value.trim() else slot.defaultLabel
 
-private fun invalidPositiveNumber(value: Double?): Boolean = value == null || !value.isFinite() || value <= 0.0 || value > SUPPLY_MAX_UNITS
+private fun invalidPositiveNumber(value: Double?): Boolean {
+    if (value == null) return true
+    return !value.isFinite() || value <= 0.0 || value > SUPPLY_MAX_UNITS
+}
 
 private fun invalidNonNegativeNumber(value: Double?): Boolean =
     value != null && (!value.isFinite() || value < 0.0 || value > SUPPLY_MAX_UNITS)
