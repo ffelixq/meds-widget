@@ -29,13 +29,47 @@ import java.time.LocalDate
 data class WidgetMedicine(
     val id: String,
     val name: String,
+    val displayName: String = name,
+    val morningEnabled: Boolean = false,
+    val morningLabel: String = DoseSlot.MORNING.defaultLabel,
+    val morningCountdownMinutes: Int? = null,
     val afternoonEnabled: Boolean,
     val afternoonLabel: String,
+    val afternoonCountdownMinutes: Int? = null,
+    val eveningEnabled: Boolean = false,
+    val eveningLabel: String = DoseSlot.EVENING.defaultLabel,
+    val eveningCountdownMinutes: Int? = null,
     val nightEnabled: Boolean,
     val nightLabel: String,
-    val afternoonCountdownMinutes: Int? = null,
     val nightCountdownMinutes: Int? = null,
-)
+    val supplyEnabled: Boolean = false,
+    val supplyRemainingUnits: Double? = null,
+    val unitsPerDose: Double = 1.0,
+) {
+    fun isEnabled(slot: DoseSlot): Boolean =
+        when (slot) {
+            DoseSlot.MORNING -> morningEnabled
+            DoseSlot.AFTERNOON -> afternoonEnabled
+            DoseSlot.EVENING -> eveningEnabled
+            DoseSlot.NIGHT -> nightEnabled
+        }
+
+    fun label(slot: DoseSlot): String =
+        when (slot) {
+            DoseSlot.MORNING -> morningLabel
+            DoseSlot.AFTERNOON -> afternoonLabel
+            DoseSlot.EVENING -> eveningLabel
+            DoseSlot.NIGHT -> nightLabel
+        }
+
+    fun countdownMinutes(slot: DoseSlot): Int? =
+        when (slot) {
+            DoseSlot.MORNING -> morningCountdownMinutes
+            DoseSlot.AFTERNOON -> afternoonCountdownMinutes
+            DoseSlot.EVENING -> eveningCountdownMinutes
+            DoseSlot.NIGHT -> nightCountdownMinutes
+        }
+}
 
 data class WidgetDoseRow(
     val medicineId: String,
@@ -529,44 +563,25 @@ class WidgetSnapshotStore(
             if (current.logicalDay == logicalDay) return@edit
             val rows =
                 current.medicines.flatMap { medicine ->
-                    buildList {
-                        if (medicine.afternoonEnabled) {
-                            add(
-                                WidgetDoseRow(
-                                    medicine.id,
-                                    medicine.name,
-                                    DoseSlot.AFTERNOON,
-                                    medicine.afternoonLabel,
-                                    false,
-                                    null,
-                                    null,
-                                    medicine.afternoonCountdownMinutes,
+                    DoseSlot.entries
+                        .filter(medicine::isEnabled)
+                        .map { slot ->
+                            WidgetDoseRow(
+                                medicineId = medicine.id,
+                                medicineName = medicine.displayName,
+                                slot = slot,
+                                label = medicine.label(slot),
+                                isTaken = false,
+                                checkedAt = null,
+                                checkedTimezone = null,
+                                countdownMinutes = medicine.countdownMinutes(slot),
+                                countdown =
                                     current.rows
                                         .firstOrNull {
-                                            it.medicineId == medicine.id && it.slot == DoseSlot.AFTERNOON
+                                            it.medicineId == medicine.id && it.slot == slot
                                         }?.countdown,
-                                ),
                             )
                         }
-                        if (medicine.nightEnabled) {
-                            add(
-                                WidgetDoseRow(
-                                    medicine.id,
-                                    medicine.name,
-                                    DoseSlot.NIGHT,
-                                    medicine.nightLabel,
-                                    false,
-                                    null,
-                                    null,
-                                    medicine.nightCountdownMinutes,
-                                    current.rows
-                                        .firstOrNull {
-                                            it.medicineId == medicine.id && it.slot == DoseSlot.NIGHT
-                                        }?.countdown,
-                                ),
-                            )
-                        }
-                    }
                 }
             val pendingCountdownActions =
                 current.pendingCountdownActions.filter { pending ->
@@ -597,18 +612,31 @@ class WidgetSnapshotStore(
             WidgetMedicine(
                 id = value.id,
                 name = value.name,
+                displayName = value.widgetDisplayName(),
+                morningEnabled = value.morningEnabled,
+                morningLabel = value.morningLabel,
+                morningCountdownMinutes = value.morningCountdownMinutes,
                 afternoonEnabled = value.afternoonEnabled,
                 afternoonLabel = value.afternoonLabel,
                 afternoonCountdownMinutes = value.afternoonCountdownMinutes,
+                eveningEnabled = value.eveningEnabled,
+                eveningLabel = value.eveningLabel,
+                eveningCountdownMinutes = value.eveningCountdownMinutes,
                 nightEnabled = value.nightEnabled,
                 nightLabel = value.nightLabel,
                 nightCountdownMinutes = value.nightCountdownMinutes,
+                supplyEnabled = value.supplyEnabled,
+                supplyRemainingUnits = value.supplyInitialUnits,
+                unitsPerDose = value.unitsPerDose,
             )
 
-        fun fromRow(value: DoseRow): WidgetDoseRow =
+        fun fromRow(
+            value: DoseRow,
+            widgetMedicineName: String? = null,
+        ): WidgetDoseRow =
             WidgetDoseRow(
                 medicineId = value.medicineId,
-                medicineName = value.medicineName,
+                medicineName = widgetMedicineName ?: value.medicineName,
                 slot = value.slot,
                 label = value.label,
                 isTaken = value.isTaken,
@@ -650,12 +678,22 @@ internal object WidgetSnapshotCodec {
                             JSONObject()
                                 .put("id", medicine.id)
                                 .put("name", medicine.name)
+                                .put("displayName", medicine.displayName)
+                                .put("morningEnabled", medicine.morningEnabled)
+                                .put("morningLabel", medicine.morningLabel)
+                                .put("morningCountdownMinutes", medicine.morningCountdownMinutes)
                                 .put("afternoonEnabled", medicine.afternoonEnabled)
                                 .put("afternoonLabel", medicine.afternoonLabel)
                                 .put("afternoonCountdownMinutes", medicine.afternoonCountdownMinutes)
+                                .put("eveningEnabled", medicine.eveningEnabled)
+                                .put("eveningLabel", medicine.eveningLabel)
+                                .put("eveningCountdownMinutes", medicine.eveningCountdownMinutes)
                                 .put("nightEnabled", medicine.nightEnabled)
                                 .put("nightLabel", medicine.nightLabel)
-                                .put("nightCountdownMinutes", medicine.nightCountdownMinutes),
+                                .put("nightCountdownMinutes", medicine.nightCountdownMinutes)
+                                .put("supplyEnabled", medicine.supplyEnabled)
+                                .put("supplyRemainingUnits", medicine.supplyRemainingUnits)
+                                .put("unitsPerDose", medicine.unitsPerDose),
                         )
                     }
                 },
@@ -726,15 +764,34 @@ internal object WidgetSnapshotCodec {
                 medicines =
                     (0 until medicinesJson.length()).map { index ->
                         val value = medicinesJson.getJSONObject(index)
+                        val name = value.getString("name")
                         WidgetMedicine(
                             id = value.getString("id"),
-                            name = value.getString("name"),
-                            afternoonEnabled = value.getBoolean("afternoonEnabled"),
-                            afternoonLabel = value.getString("afternoonLabel"),
+                            name = name,
+                            displayName = value.optNullableString("displayName") ?: name,
+                            morningEnabled = value.optBoolean("morningEnabled", false),
+                            morningLabel =
+                                value.optNullableString("morningLabel")
+                                    ?: DoseSlot.MORNING.defaultLabel,
+                            morningCountdownMinutes = value.optNullableInt("morningCountdownMinutes"),
+                            afternoonEnabled = value.optBoolean("afternoonEnabled", false),
+                            afternoonLabel =
+                                value.optNullableString("afternoonLabel")
+                                    ?: DoseSlot.AFTERNOON.defaultLabel,
                             afternoonCountdownMinutes = value.optNullableInt("afternoonCountdownMinutes"),
-                            nightEnabled = value.getBoolean("nightEnabled"),
-                            nightLabel = value.getString("nightLabel"),
+                            eveningEnabled = value.optBoolean("eveningEnabled", false),
+                            eveningLabel =
+                                value.optNullableString("eveningLabel")
+                                    ?: DoseSlot.EVENING.defaultLabel,
+                            eveningCountdownMinutes = value.optNullableInt("eveningCountdownMinutes"),
+                            nightEnabled = value.optBoolean("nightEnabled", false),
+                            nightLabel =
+                                value.optNullableString("nightLabel")
+                                    ?: DoseSlot.NIGHT.defaultLabel,
                             nightCountdownMinutes = value.optNullableInt("nightCountdownMinutes"),
+                            supplyEnabled = value.optBoolean("supplyEnabled", false),
+                            supplyRemainingUnits = value.optNullableDouble("supplyRemainingUnits"),
+                            unitsPerDose = value.optDouble("unitsPerDose", 1.0),
                         )
                     },
                 rows =
@@ -794,6 +851,8 @@ internal object WidgetSnapshotCodec {
         if (isNull(key) || !has(key)) null else optString(key).takeIf(String::isNotBlank)
 
     private fun JSONObject.optNullableInt(key: String): Int? = if (isNull(key) || !has(key)) null else optInt(key)
+
+    private fun JSONObject.optNullableDouble(key: String): Double? = if (isNull(key) || !has(key)) null else optDouble(key)
 
     private fun CountdownState.toJson(): JSONObject =
         JSONObject()

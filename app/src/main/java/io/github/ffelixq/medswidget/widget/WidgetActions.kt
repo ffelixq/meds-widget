@@ -811,30 +811,25 @@ private object WidgetActionSupport {
             id = medicine.id,
             ownerUid = uid,
             name = medicine.name,
-            morningEnabled = row.slot == DoseSlot.MORNING,
-            morningLabel =
-                if (row.slot == DoseSlot.MORNING) row.label else DoseSlot.MORNING.defaultLabel,
+            morningEnabled = medicine.morningEnabled || row.slot == DoseSlot.MORNING,
+            morningLabel = if (row.slot == DoseSlot.MORNING) row.label else medicine.morningLabel,
             morningCountdownMinutes =
-                if (row.slot == DoseSlot.MORNING) row.countdownMinutes else null,
+                if (row.slot == DoseSlot.MORNING) row.countdownMinutes else medicine.morningCountdownMinutes,
             afternoonEnabled = medicine.afternoonEnabled || row.slot == DoseSlot.AFTERNOON,
-            afternoonLabel =
-                if (row.slot == DoseSlot.AFTERNOON) row.label else medicine.afternoonLabel,
+            afternoonLabel = if (row.slot == DoseSlot.AFTERNOON) row.label else medicine.afternoonLabel,
             afternoonCountdownMinutes =
-                if (row.slot == DoseSlot.AFTERNOON) {
-                    row.countdownMinutes
-                } else {
-                    medicine.afternoonCountdownMinutes
-                },
-            eveningEnabled = row.slot == DoseSlot.EVENING,
-            eveningLabel =
-                if (row.slot == DoseSlot.EVENING) row.label else DoseSlot.EVENING.defaultLabel,
+                if (row.slot == DoseSlot.AFTERNOON) row.countdownMinutes else medicine.afternoonCountdownMinutes,
+            eveningEnabled = medicine.eveningEnabled || row.slot == DoseSlot.EVENING,
+            eveningLabel = if (row.slot == DoseSlot.EVENING) row.label else medicine.eveningLabel,
             eveningCountdownMinutes =
-                if (row.slot == DoseSlot.EVENING) row.countdownMinutes else null,
+                if (row.slot == DoseSlot.EVENING) row.countdownMinutes else medicine.eveningCountdownMinutes,
             nightEnabled = medicine.nightEnabled || row.slot == DoseSlot.NIGHT,
-            nightLabel =
-                if (row.slot == DoseSlot.NIGHT) row.label else medicine.nightLabel,
+            nightLabel = if (row.slot == DoseSlot.NIGHT) row.label else medicine.nightLabel,
             nightCountdownMinutes =
                 if (row.slot == DoseSlot.NIGHT) row.countdownMinutes else medicine.nightCountdownMinutes,
+            supplyEnabled = medicine.supplyEnabled,
+            supplyInitialUnits = medicine.supplyRemainingUnits,
+            unitsPerDose = medicine.unitsPerDose,
             createdAt = Instant.EPOCH,
             updatedAt = Instant.EPOCH,
         )

@@ -303,7 +303,14 @@ class AppGraph(
                 signedIn = true,
                 logicalDay = accountSnapshot.logicalDay,
                 medicines = accountSnapshot.medicines.value.map(WidgetSnapshotStore::fromMedicine),
-                rows = rows.map(WidgetSnapshotStore::fromRow),
+                rows =
+                    rows.map { row ->
+                        val widgetName =
+                            accountSnapshot.medicines.value
+                                .firstOrNull { it.id == row.medicineId }
+                                ?.widgetDisplayName()
+                        WidgetSnapshotStore.fromRow(row, widgetName)
+                    },
                 fromCache =
                     accountSnapshot.medicines.fromCache ||
                         accountSnapshot.doses.fromCache ||
