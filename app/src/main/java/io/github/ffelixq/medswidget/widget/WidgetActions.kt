@@ -491,20 +491,10 @@ internal class WidgetCheckHandler(
         }
         recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_APPLIED)
 
-        try {
-            dependencies.schedulePendingReconciliation()
-            dependencies.updateWidgets()
-            recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
-        } catch (cancellation: CancellationException) {
-            rejectAndRecover(dependencies, uid, actionId, request, cancellation)
-            throw cancellation
-        } catch (failure: Exception) {
-            rejectAndRecover(dependencies, uid, actionId, request, failure)
-            throw failure
-        }
+        renderOptimisticState(dependencies, uid, actionId, request)
 
-        val applied =
-            try {
+        val checkResult =
+            runCatching {
                 dependencies.check(
                     uid = uid,
                     logicalDay = snapshot.logicalDay,
@@ -514,12 +504,13 @@ internal class WidgetCheckHandler(
                     actionId = actionId,
                     occurredAt = checkedAt,
                 )
-            } catch (cancellation: CancellationException) {
-                rejectAndRecover(dependencies, uid, actionId, request, cancellation)
-                throw cancellation
-            } catch (_: Exception) {
-                false
             }
+        val checkFailure = checkResult.exceptionOrNull()
+        if (checkFailure is CancellationException) {
+            rejectAndRecover(dependencies, uid, actionId, request, checkFailure)
+            throw checkFailure
+        }
+        val applied = checkResult.getOrDefault(false)
 
         if (applied) {
             dependencies.clearCountdown(
@@ -535,6 +526,24 @@ internal class WidgetCheckHandler(
             recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED)
             rejectAndRecover(dependencies, uid, actionId, request)
         }
+    }
+
+    private suspend fun renderOptimisticState(
+        dependencies: WidgetCheckDependencies,
+        uid: String,
+        actionId: String,
+        request: WidgetCheckRequest,
+    ) {
+        val failure =
+            runCatching {
+                dependencies.schedulePendingReconciliation()
+                dependencies.updateWidgets()
+                recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
+            }.exceptionOrNull() ?: return
+        if (failure is Exception) {
+            rejectAndRecover(dependencies, uid, actionId, request, failure)
+        }
+        throw failure
     }
 
     private suspend fun recoverSnapshotIfNeeded(
