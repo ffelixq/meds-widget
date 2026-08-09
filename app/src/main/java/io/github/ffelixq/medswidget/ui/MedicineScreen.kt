@@ -326,7 +326,7 @@ fun MedicineScreen(
                     NumberField(
                         value = supplyInitialUnits,
                         onValueChange = { supplyInitialUnits = it },
-                        label = "Starting amount",
+                        label = "Current supply",
                         error = errors["supplyInitialUnits"],
                         tag = "supply_initial",
                         modifier = Modifier.weight(1f),

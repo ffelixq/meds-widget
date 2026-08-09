@@ -66,7 +66,9 @@ class ResetBoundaryWorker(
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result =
         try {
-            MedsApplication.graph(applicationContext).refreshTemporalState()
+            val graph = MedsApplication.graph(applicationContext)
+            graph.refreshTemporalState()
+            graph.refreshReminders()
             Result.success()
         } catch (cancelled: CancellationException) {
             throw cancelled

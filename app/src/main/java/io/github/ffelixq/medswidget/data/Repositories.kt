@@ -68,6 +68,12 @@ interface MedicineRepository {
         uid: String,
         medicineId: String,
     )
+
+    suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    )
 }
 
 interface DoseRepository {

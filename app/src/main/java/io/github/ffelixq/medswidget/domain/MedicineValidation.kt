@@ -183,8 +183,8 @@ object MedicineValidator {
         errors: MutableMap<String, String>,
     ) {
         if (!draft.supplyEnabled) return
-        if (invalidPositiveNumber(draft.supplyInitialUnits)) {
-            errors["supplyInitialUnits"] = "Enter a starting supply greater than 0."
+        if (invalidInventoryNumber(draft.supplyInitialUnits)) {
+            errors["supplyInitialUnits"] = "Current supply must be within the supported range."
         }
         if (invalidPositiveNumber(draft.unitsPerDose)) {
             errors["unitsPerDose"] = "Units per dose must be greater than 0."
@@ -213,6 +213,9 @@ private fun normalizeLabel(
     value: String,
     slot: DoseSlot,
 ): String = if (enabled) value.trim() else slot.defaultLabel
+
+private fun invalidInventoryNumber(value: Double?): Boolean =
+    value == null || !value.isFinite() || value < -SUPPLY_MAX_UNITS || value > SUPPLY_MAX_UNITS
 
 private fun invalidPositiveNumber(value: Double?): Boolean {
     if (value == null) return true

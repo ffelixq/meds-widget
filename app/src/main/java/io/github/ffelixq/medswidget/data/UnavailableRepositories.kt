@@ -70,6 +70,12 @@ class UnavailableMedicineRepository : MedicineRepository {
         uid: String,
         medicineId: String,
     ) = unavailable()
+
+    override suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    ) = unavailable()
 }
 
 class UnavailableDoseRepository : DoseRepository {

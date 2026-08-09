@@ -104,6 +104,12 @@ service cloud.firestore {
         && value <= maxValue;
     }
 
+    function isBoundedNumber(value, maxValue) {
+      return (value is int || value is float)
+        && value >= -maxValue
+        && value <= maxValue;
+    }
+
     function isNullableNonNegativeNumber(value, maxValue) {
       return value == null
         || (
@@ -241,7 +247,7 @@ service cloud.firestore {
         && (
           (
             data.supplyEnabled
-            && isPositiveNumber(data.supplyInitialUnits, 1000000)
+            && isBoundedNumber(data.supplyInitialUnits, 1000000)
             && isNullableNonNegativeNumber(data.lowSupplyThreshold, 1000000)
           )
           || (

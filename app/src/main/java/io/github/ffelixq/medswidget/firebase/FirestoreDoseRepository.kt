@@ -211,6 +211,7 @@ class FirestoreDoseRepository(
                 occurredAt,
                 zone,
                 source,
+                medicine,
             )
             true
         }
@@ -305,6 +306,7 @@ class FirestoreDoseRepository(
                 now,
                 zone,
                 source,
+                medicine,
             )
             true
         }
@@ -317,6 +319,7 @@ class FirestoreDoseRepository(
         occurredAt: Instant,
         timezoneId: String,
         source: CheckSource,
+        medicine: Medicine? = null,
     ) {
         val stateReference =
             FirestorePaths
@@ -369,6 +372,7 @@ class FirestoreDoseRepository(
                 "schemaVersion" to DOSE_SCHEMA_VERSION,
             ),
         )
+        applySupplyAdjustment(batch, state.ownerUid, medicine, action, rollbackState)
         val pendingWrite =
             PendingWrite(
                 state = state,
@@ -379,6 +383,30 @@ class FirestoreDoseRepository(
                 outstandingTicket = outstandingWriteTracker.begin(state.ownerUid),
             )
         dispatchWrite(batch, pendingWrite)
+    }
+
+    private fun applySupplyAdjustment(
+        batch: WriteBatch,
+        uid: String,
+        medicine: Medicine?,
+        action: DoseAction,
+        previous: DoseState?,
+    ) {
+        if (medicine?.supplyEnabled != true || medicine.supplyInitialUnits == null) return
+        val delta =
+            when {
+                action == DoseAction.CHECK -> -medicine.unitsPerDose
+                action == DoseAction.UNDO && previous?.isTaken == true -> medicine.unitsPerDose
+                else -> 0.0
+            }
+        if (delta == 0.0) return
+        batch.update(
+            FirestorePaths.medicines(firestore, uid).document(medicine.id),
+            mapOf(
+                "supplyInitialUnits" to FieldValue.increment(delta),
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ),
+        )
     }
 
     @Suppress("TooGenericExceptionCaught")

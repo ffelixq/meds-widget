@@ -113,6 +113,25 @@ class FirestoreMedicineRepository(
         }
     }
 
+    override suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    ) {
+        require(units.isFinite() && units > 0.0) { "Refill amount must be greater than 0." }
+        dispatchWrite(uid) {
+            FirestorePaths
+                .medicines(firestore, uid)
+                .document(medicineId)
+                .update(
+                    mapOf(
+                        "supplyInitialUnits" to FieldValue.increment(units),
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                )
+        }
+    }
+
     private fun observe(
         uid: String,
         query: Query,

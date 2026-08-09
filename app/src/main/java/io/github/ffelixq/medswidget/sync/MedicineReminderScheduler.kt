@@ -59,6 +59,10 @@ class MedicineReminderScheduler(
         workManager.cancelAllWorkByTag(ownerTag(uid))
     }
 
+    fun cancelAll() {
+        workManager.cancelAllWorkByTag(REMINDER_TAG)
+    }
+
     private fun schedule(
         uid: String,
         medicine: Medicine,
@@ -139,12 +143,14 @@ class MedicineReminderWorker(
     override suspend fun doWork(): Result {
         val uid = inputData.getString(MedicineReminderScheduler.KEY_UID) ?: return Result.success()
         val medicineId = inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_ID) ?: return Result.success()
-        val slot = DoseSlot.fromWire(inputData.getString(MedicineReminderScheduler.KEY_SLOT).orEmpty())
-            ?: return Result.success()
+        val slot =
+            DoseSlot.fromWire(inputData.getString(MedicineReminderScheduler.KEY_SLOT).orEmpty())
+                ?: return Result.success()
         val workName = inputData.getString(MedicineReminderScheduler.KEY_WORK_NAME)
-        val endDate = inputData.getString(MedicineReminderScheduler.KEY_END_DATE)?.let {
-            runCatching { LocalDate.parse(it) }.getOrNull()
-        }
+        val endDate =
+            inputData.getString(MedicineReminderScheduler.KEY_END_DATE)?.let {
+                runCatching { LocalDate.parse(it) }.getOrNull()
+            }
         if (endDate != null && LocalDate.now().isAfter(endDate)) {
             workName?.let { WorkManager.getInstance(applicationContext).cancelUniqueWork(it) }
             return Result.success()
@@ -199,7 +205,8 @@ class MedicineReminderWorker(
         val title = medicineName.ifBlank { "Medicine reminder" }
         val message = label.ifBlank { slot.defaultLabel }
         val notification =
-            NotificationCompat.Builder(context, MedicineReminderScheduler.CHANNEL_ID)
+            NotificationCompat
+                .Builder(context, MedicineReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher)
                 .setContentTitle(title)
                 .setContentText("Time for $message")

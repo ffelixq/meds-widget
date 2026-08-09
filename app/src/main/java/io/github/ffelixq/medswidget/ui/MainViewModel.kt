@@ -251,6 +251,22 @@ class MainViewModel internal constructor(
         }
     }
 
+    fun refillSupply(
+        medicine: Medicine,
+        units: Double,
+    ) {
+        if (!medicine.supplyEnabled || !units.isFinite() || units <= 0.0) return
+        val uid =
+            repositories.auth.session.value
+                ?.uid ?: return
+        viewModelScope.launch {
+            dependencies.accountOperationGate.runMutation {
+                repositories.medicines.refill(uid, medicine.id, units)
+                dependencies.refreshFromRepositories()
+            }
+        }
+    }
+
     fun archiveMedicine(
         medicineId: String,
         archived: Boolean = true,

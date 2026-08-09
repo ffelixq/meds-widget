@@ -68,6 +68,7 @@ fun MainScreen(
     onStartCountdown: (DoseRow, CheckSource) -> Unit = { _, _ -> },
     onCancelCountdown: (DoseRow) -> Unit = {},
     onRestartCountdown: (DoseRow) -> Unit = {},
+    onRefill: (Medicine, Double) -> Unit = { _, _ -> },
     onAdd: () -> Unit,
     onEdit: (Medicine) -> Unit,
     onHistory: () -> Unit,
@@ -76,6 +77,7 @@ fun MainScreen(
     var undoCandidate by remember { mutableStateOf<DoseRow?>(null) }
     var skipCandidate by remember { mutableStateOf<DoseRow?>(null) }
     var skipReason by remember { mutableStateOf("") }
+    var refillCandidate by remember { mutableStateOf<Medicine?>(null) }
 
     Scaffold(
         topBar = {
@@ -127,6 +129,7 @@ fun MainScreen(
                         onStartCountdown = { onStartCountdown(it, CheckSource.APP) },
                         onCancelCountdown = onCancelCountdown,
                         onRestartCountdown = onRestartCountdown,
+                        onRefill = { refillCandidate = medicine },
                     )
                 }
             }
@@ -152,6 +155,16 @@ fun MainScreen(
             onConfirm = {
                 onUndo(row)
                 undoCandidate = null
+            },
+        )
+    }
+    refillCandidate?.let { medicine ->
+        RefillSupplyDialog(
+            medicine = medicine,
+            onDismiss = { refillCandidate = null },
+            onConfirm = { units ->
+                onRefill(medicine, units)
+                refillCandidate = null
             },
         )
     }
@@ -182,10 +195,37 @@ private fun MedicineCard(
     onStartCountdown: (DoseRow) -> Unit,
     onCancelCountdown: (DoseRow) -> Unit,
     onRestartCountdown: (DoseRow) -> Unit,
+    onRefill: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             MedicineHeader(medicine, onEdit)
+            if (medicine.supplyEnabled && medicine.supplyInitialUnits != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        val amount = formatSupplyAmount(medicine.supplyInitialUnits)
+                        Text(
+                            "Supply: $amount ${medicine.supplyUnitName}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        if (
+                            medicine.lowSupplyThreshold != null &&
+                            medicine.supplyInitialUnits <= medicine.lowSupplyThreshold
+                        ) {
+                            Text(
+                                "Low supply",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                    TextButton(onClick = onRefill) { Text("Refill") }
+                }
+            }
             when {
                 medicine.startDate?.isAfter(logicalDay) == true -> {
                     Text("Starts ${medicine.startDate}", style = MaterialTheme.typography.bodyMedium)
@@ -542,3 +582,6 @@ private fun PreviewRow(
         }
     }
 }
+
+private fun formatSupplyAmount(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString() else "%.2f".format(value).trimEnd('0').trimEnd('.')
