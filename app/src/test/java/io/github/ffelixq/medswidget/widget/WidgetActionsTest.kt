@@ -570,4 +570,23 @@ private fun contentSnapshot(): WidgetSnapshot =
                     nightLabel = "Before bed",
                 ),
             ),
+        rows =
+            listOf(
+                WidgetDoseRow(
+                    medicineId = "medicine-a",
+                    medicineName = "Medicine A",
+                    slot = DoseSlot.AFTERNOON,
+                    label = "After lunch",
+                    isTaken = false,
+                    checkedAt = null,
+                ),
+                WidgetDoseRow(
+                    medicineId = "medicine-a",
+                    medicineName = "Medicine A",
+                    slot = DoseSlot.NIGHT,
+                    label = "Before bed",
+                    isTaken = false,
+                    checkedAt = null,
+                ),
+            ),
     )
