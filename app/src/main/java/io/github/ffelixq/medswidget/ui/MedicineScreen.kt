@@ -51,6 +51,7 @@ import io.github.ffelixq.medswidget.domain.MedicineDraft
 import io.github.ffelixq.medswidget.domain.ValidationResult
 import io.github.ffelixq.medswidget.domain.WidgetNameMode
 import kotlinx.coroutines.launch
+import java.io.Serializable
 import java.time.LocalDate
 
 private data class SlotEditorState(
@@ -58,7 +59,7 @@ private data class SlotEditorState(
     val label: String,
     val countdownMinutes: Int?,
     val reminderMinutes: Int?,
-)
+) : Serializable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
@@ -77,7 +78,7 @@ fun MedicineScreen(
     var widgetNameMode by rememberSaveable(medicine?.id) {
         mutableStateOf(medicine?.widgetNameMode ?: WidgetNameMode.FULL)
     }
-    var morning by remember(medicine?.id) {
+    var morning by rememberSaveable(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.morningEnabled ?: false,
@@ -87,7 +88,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var afternoon by remember(medicine?.id) {
+    var afternoon by rememberSaveable(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.afternoonEnabled ?: true,
@@ -97,7 +98,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var evening by remember(medicine?.id) {
+    var evening by rememberSaveable(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.eveningEnabled ?: false,
@@ -107,7 +108,7 @@ fun MedicineScreen(
             ),
         )
     }
-    var night by remember(medicine?.id) {
+    var night by rememberSaveable(medicine?.id) {
         mutableStateOf(
             SlotEditorState(
                 enabled = medicine?.nightEnabled ?: true,
