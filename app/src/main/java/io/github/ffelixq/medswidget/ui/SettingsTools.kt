@@ -112,7 +112,6 @@ private fun requestPin(
     context: Context,
     receiver: Class<*>,
 ) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val manager = AppWidgetManager.getInstance(context)
     if (!manager.isRequestPinAppWidgetSupported) return
     manager.requestPinAppWidget(ComponentName(context, receiver), null, null)
