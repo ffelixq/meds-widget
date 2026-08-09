@@ -62,7 +62,7 @@ class WidgetSnapshotTest {
         val encoded =
             WidgetSnapshotCodec
                 .encode(contentSnapshot())
-                .replace("\"slot\":\"night\"", "\"slot\":\"morning\"")
+                .replace("\"slot\":\"night\"", "\"slot\":\"middayish\"")
 
         val decoded = WidgetSnapshotCodec.decode(encoded)
 
