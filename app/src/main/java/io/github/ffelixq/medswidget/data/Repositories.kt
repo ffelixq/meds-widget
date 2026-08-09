@@ -68,6 +68,12 @@ interface MedicineRepository {
         uid: String,
         medicineId: String,
     )
+
+    suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    ): Unit = throw UnsupportedOperationException("Supply refill is not supported by this repository")
 }
 
 interface DoseRepository {
@@ -86,10 +92,6 @@ interface DoseRepository {
         source: CheckSource,
     ): Boolean
 
-    /**
-     * Correlated check used by a widget's optimistic cache. Implementations that can report
-     * asynchronous write outcomes should preserve [actionId] and [occurredAt].
-     */
     suspend fun checkWithAction(
         uid: String,
         logicalDay: LocalDate,
@@ -99,6 +101,15 @@ interface DoseRepository {
         actionId: String,
         occurredAt: Instant,
     ): Boolean = check(uid, logicalDay, medicine, slot, source)
+
+    suspend fun skip(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        reason: String = "",
+        source: CheckSource = CheckSource.APP,
+    ): Boolean = throw UnsupportedOperationException("Dose skipping is not supported by this repository")
 
     suspend fun undo(
         uid: String,
@@ -110,7 +121,6 @@ interface DoseRepository {
 }
 
 interface CountdownRepository {
-    /** Active timers include timers from an earlier logical day until explicitly resolved. */
     fun observeActive(uid: String): Flow<DataEnvelope<List<CountdownState>>>
 
     @Suppress("LongParameterList")

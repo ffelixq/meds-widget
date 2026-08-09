@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.core.content.FileProvider
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -28,7 +29,11 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.ffelixq.medswidget.AppGraph
 import io.github.ffelixq.medswidget.MedsApplication
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
+import io.github.ffelixq.medswidget.util.MedicationCsvExporter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
     private val graph: AppGraph by lazy { MedsApplication.graph(this) }
@@ -110,6 +115,7 @@ class MainActivity : ComponentActivity() {
                         mainViewModel = mainViewModel,
                         historyViewModel = historyViewModel,
                         settingsViewModel = settingsViewModel,
+                        onExport = ::shareCsvExport,
                         onDeleteGoogle = {
                             requestGoogleCredential(
                                 onToken = { token -> settingsViewModel.deleteAccount(null, token) },
@@ -125,6 +131,40 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         mainViewModel.refreshTemporalState()
+    }
+
+    private fun shareCsvExport() {
+        val uid =
+            graph.repositories.auth.session.value
+                ?.uid ?: return
+        lifecycleScope.launch {
+            val medicines =
+                graph.repositories.medicines
+                    .observeAll(uid)
+                    .first()
+                    .value
+            val history =
+                graph.repositories.doses
+                    .observeHistory(uid)
+                    .first()
+                    .value
+            val directory = File(cacheDir, "exports").apply { mkdirs() }
+            val file = File(directory, "meds-widget-${LocalDate.now()}.csv")
+            file.writeText(MedicationCsvExporter.export(medicines, history))
+            val uri =
+                FileProvider.getUriForFile(
+                    this@MainActivity,
+                    "$packageName.fileprovider",
+                    file,
+                )
+            val shareIntent =
+                Intent(Intent.ACTION_SEND).apply {
+                    type = "text/csv"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            startActivity(Intent.createChooser(shareIntent, "Export Meds Widget data"))
+        }
     }
 
     // google-services creates this resource only for configured builds. A direct R reference
@@ -180,6 +220,7 @@ private fun AppNavigation(
     mainViewModel: MainViewModel,
     historyViewModel: HistoryViewModel,
     settingsViewModel: SettingsViewModel,
+    onExport: () -> Unit,
     onDeleteGoogle: () -> Unit,
 ) {
     val navigation = rememberNavController()
@@ -189,9 +230,11 @@ private fun AppNavigation(
                 state = mainState,
                 onCheck = mainViewModel::check,
                 onUndo = mainViewModel::undo,
+                onSkip = mainViewModel::skip,
                 onStartCountdown = mainViewModel::startCountdown,
                 onCancelCountdown = mainViewModel::cancelCountdown,
                 onRestartCountdown = mainViewModel::restartCountdown,
+                onRefill = mainViewModel::refillSupply,
                 onAdd = { navigation.navigate(Routes.ADD) },
                 onEdit = { navigation.navigate("medicine/${it.id}") },
                 onHistory = { navigation.navigate(Routes.HISTORY) },
@@ -212,6 +255,7 @@ private fun AppNavigation(
                 onSignOut = settingsViewModel::signOut,
                 onDeletePasswordAccount = { settingsViewModel.deleteAccount(it) },
                 onDeleteGoogleAccount = onDeleteGoogle,
+                onExport = onExport,
             )
         }
         composable(Routes.ADD) {
@@ -227,7 +271,10 @@ private fun AppNavigation(
             route = Routes.EDIT,
             arguments = listOf(navArgument("medicineId") { type = NavType.StringType }),
         ) { entry ->
-            val medicine = mainState.medicines.firstOrNull { it.id == entry.arguments?.getString("medicineId") }
+            val medicine =
+                mainState.medicines.firstOrNull {
+                    it.id == entry.arguments?.getString("medicineId")
+                }
             MedicineScreen(
                 medicine = medicine,
                 onBack = navigation::popBackStack,

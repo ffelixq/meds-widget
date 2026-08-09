@@ -89,6 +89,7 @@ fun SettingsScreen(
     onSignOut: () -> Unit,
     onDeletePasswordAccount: (String?) -> Unit,
     onDeleteGoogleAccount: () -> Unit,
+    onExport: () -> Unit,
 ) {
     var hour by rememberSaveable(state.settings.resetMinutesAfterMidnight) {
         mutableStateOf((state.settings.resetMinutesAfterMidnight / 60).toString())
@@ -227,6 +228,8 @@ fun SettingsScreen(
             ) {
                 Text("Delete account", color = MaterialTheme.colorScheme.error)
             }
+
+            SettingsTools(onExport)
 
             Text("Privacy", style = MaterialTheme.typography.titleMedium)
             Text(

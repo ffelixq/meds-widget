@@ -12,18 +12,26 @@ object DoseIds {
 
 enum class DoseCommandDecision {
     APPLY_CHECK,
+    APPLY_SKIP,
     APPLY_UNDO,
-    NO_OP_ALREADY_TAKEN,
+    NO_OP_ALREADY_RESOLVED,
     NO_OP_ALREADY_UNCHECKED,
     REJECT_NON_APP_UNDO,
 }
 
 object DoseActionPolicy {
     fun check(current: DoseState?): DoseCommandDecision =
-        if (current?.isTaken == true) {
-            DoseCommandDecision.NO_OP_ALREADY_TAKEN
+        if (current?.isTaken == true || current?.isSkipped == true) {
+            DoseCommandDecision.NO_OP_ALREADY_RESOLVED
         } else {
             DoseCommandDecision.APPLY_CHECK
+        }
+
+    fun skip(current: DoseState?): DoseCommandDecision =
+        if (current?.isTaken == true || current?.isSkipped == true) {
+            DoseCommandDecision.NO_OP_ALREADY_RESOLVED
+        } else {
+            DoseCommandDecision.APPLY_SKIP
         }
 
     fun undo(
@@ -31,17 +39,9 @@ object DoseActionPolicy {
         source: CheckSource,
     ): DoseCommandDecision =
         when {
-            source != CheckSource.APP -> {
-                DoseCommandDecision.REJECT_NON_APP_UNDO
-            }
-
-            current?.isTaken != true -> {
-                DoseCommandDecision.NO_OP_ALREADY_UNCHECKED
-            }
-
-            else -> {
-                DoseCommandDecision.APPLY_UNDO
-            }
+            source != CheckSource.APP -> DoseCommandDecision.REJECT_NON_APP_UNDO
+            current == null || current.isPending -> DoseCommandDecision.NO_OP_ALREADY_UNCHECKED
+            else -> DoseCommandDecision.APPLY_UNDO
         }
 }
 
@@ -60,7 +60,7 @@ object DoseRows {
                 .mapValues { (_, values) -> values.maxBy(CountdownState::startedAt) }
         return medicines
             .asSequence()
-            .filterNot(Medicine::archived)
+            .filter { it.isActiveOn(logicalDay) }
             .flatMap { medicine ->
                 DoseSlot.entries
                     .asSequence()
@@ -77,10 +77,13 @@ object DoseRows {
                             checkedAt = state?.checkedAt?.takeIf { state.isTaken },
                             checkedTimezone = state?.checkedTimezone?.takeIf { state.isTaken },
                             stateId = stateId,
+                            isSkipped = state?.isSkipped == true,
+                            skippedAt = state?.skippedAt,
+                            skipReason = state?.skipReason,
                             countdownMinutes = medicine.countdownMinutes(slot),
                             countdown =
                                 countdownsBySlot[medicine.id to slot]
-                                    ?.takeUnless { state?.isTaken == true },
+                                    ?.takeUnless { state?.isTaken == true || state?.isSkipped == true },
                         )
                     }
             }.toList()
@@ -90,6 +93,7 @@ object DoseRows {
         CompletionProgress(
             completed = rows.count(DoseRow::isTaken),
             total = rows.size,
+            skipped = rows.count(DoseRow::isSkipped),
         )
 }
 

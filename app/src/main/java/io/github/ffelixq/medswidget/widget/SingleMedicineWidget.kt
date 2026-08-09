@@ -139,7 +139,7 @@ internal fun SingleMedicineWidgetContent(
             else -> {
                 val medicine = requireNotNull(snapshot.medicine(configuration.medicineId))
                 WidgetHeader(
-                    title = DisplayTransform.truncate(medicine.name, 28),
+                    title = DisplayTransform.truncate(medicine.displayName, 28),
                     status = snapshot.compactStatus(),
                     spec = spec,
                 )

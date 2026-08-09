@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission
         android:name="android.permission.FOREGROUND_SERVICE"
@@ -28,6 +29,16 @@
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             tools:node="remove" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/export_file_paths" />
+        </provider>
 
         <activity
             android:name=".widget.SingleWidgetConfigurationActivity"
@@ -69,6 +80,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/all_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.DashboardWidgetReceiver"
+            android:exported="false"
+            android:label="@string/all_widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/dashboard_widget_info" />
         </receiver>
 
         <receiver

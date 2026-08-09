@@ -36,7 +36,7 @@ class HistoryScreenTest {
     }
 
     @Test
-    fun emptyHistoryExplainsThatNoChecksExist() {
+    fun emptyHistoryExplainsThatNoDosesExist() {
         composeRule.setContent {
             UiTestTheme {
                 HistoryScreen(
@@ -46,12 +46,12 @@ class HistoryScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("History").assertIsDisplayed()
-        composeRule.onNodeWithText("No checks have been recorded yet.").assertIsDisplayed()
+        composeRule.onNodeWithText("History & adherence").assertIsDisplayed()
+        composeRule.onNodeWithText("No taken or skipped doses have been recorded yet.").assertIsDisplayed()
     }
 
     @Test
-    fun historyShowsSnapshotSourceTimezoneAndUndoAudit() {
+    fun historyShowsSnapshotSourceAndUndoAudit() {
         val entry =
             HistoryEntry(
                 eventId = "check-1",
@@ -77,7 +77,6 @@ class HistoryScreenTest {
         composeRule.onNodeWithText("Original medicine name").assertIsDisplayed()
         composeRule.onNodeWithText("After lunch").assertIsDisplayed()
         composeRule.onNodeWithText("from 2×2 widget", substring = true).assertIsDisplayed()
-        composeRule.onNodeWithText("Timezone: Asia/Singapore").assertIsDisplayed()
         composeRule.onNodeWithText("Undone", substring = true).assertIsDisplayed()
     }
 

@@ -70,6 +70,12 @@ class UnavailableMedicineRepository : MedicineRepository {
         uid: String,
         medicineId: String,
     ) = unavailable()
+
+    override suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    ) = unavailable()
 }
 
 class UnavailableDoseRepository : DoseRepository {
@@ -86,6 +92,15 @@ class UnavailableDoseRepository : DoseRepository {
         logicalDay: LocalDate,
         medicine: Medicine,
         slot: DoseSlot,
+        source: CheckSource,
+    ): Boolean = unavailable()
+
+    override suspend fun skip(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        reason: String,
         source: CheckSource,
     ): Boolean = unavailable()
 
@@ -139,11 +154,7 @@ class UnavailableSettingsRepository : SettingsRepository {
     override val localSettings = MutableStateFlow(UserSettings())
     override val syncStatus =
         MutableStateFlow(
-            DataEnvelope(
-                value = UserSettings(),
-                fromCache = true,
-                errorMessage = CONFIGURATION_MESSAGE,
-            ),
+            DataEnvelope(value = UserSettings(), fromCache = true, errorMessage = CONFIGURATION_MESSAGE),
         )
 
     override suspend fun activateAccount(uid: String) = Unit
@@ -157,22 +168,12 @@ class UnavailableSettingsRepository : SettingsRepository {
     ) {
         val updated = transform(localSettings.value)
         localSettings.value = updated
-        syncStatus.value =
-            DataEnvelope(
-                value = updated,
-                fromCache = true,
-                errorMessage = CONFIGURATION_MESSAGE,
-            )
+        syncStatus.value = DataEnvelope(value = updated, fromCache = true, errorMessage = CONFIGURATION_MESSAGE)
     }
 
     override suspend fun clear() {
         localSettings.value = UserSettings()
-        syncStatus.value =
-            DataEnvelope(
-                value = UserSettings(),
-                fromCache = true,
-                errorMessage = CONFIGURATION_MESSAGE,
-            )
+        syncStatus.value = DataEnvelope(value = UserSettings(), fromCache = true, errorMessage = CONFIGURATION_MESSAGE)
     }
 }
 

@@ -135,7 +135,7 @@ class WidgetActionsTest {
                     ),
                     actionParametersOf(
                         WidgetActionParameters.MEDICINE_ID to MEDICINE_ID,
-                        WidgetActionParameters.SLOT to "morning",
+                        WidgetActionParameters.SLOT to "middayish",
                         WidgetActionParameters.SOURCE to CheckSource.WIDGET_4X2.wireValue,
                     ),
                     actionParametersOf(
@@ -568,6 +568,25 @@ private fun contentSnapshot(): WidgetSnapshot =
                     afternoonLabel = "After lunch",
                     nightEnabled = true,
                     nightLabel = "Before bed",
+                ),
+            ),
+        rows =
+            listOf(
+                WidgetDoseRow(
+                    medicineId = "medicine-a",
+                    medicineName = "Medicine A",
+                    slot = DoseSlot.AFTERNOON,
+                    label = "After lunch",
+                    isTaken = false,
+                    checkedAt = null,
+                ),
+                WidgetDoseRow(
+                    medicineId = "medicine-a",
+                    medicineName = "Medicine A",
+                    slot = DoseSlot.NIGHT,
+                    label = "Before bed",
+                    isTaken = false,
+                    checkedAt = null,
                 ),
             ),
     )

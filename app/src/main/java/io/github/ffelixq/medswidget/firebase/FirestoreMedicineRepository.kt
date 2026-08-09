@@ -49,12 +49,32 @@ class FirestoreMedicineRepository(
                 "id" to id,
                 "ownerUid" to uid,
                 "name" to draft.name,
+                "nickname" to draft.nickname,
+                "notes" to draft.notes,
+                "widgetNameMode" to draft.widgetNameMode.wireValue,
+                "morningEnabled" to draft.morningEnabled,
+                "morningLabel" to draft.morningLabel,
+                "morningCountdownMinutes" to draft.morningCountdownMinutes,
+                "morningReminderMinutes" to draft.morningReminderMinutes,
                 "afternoonEnabled" to draft.afternoonEnabled,
                 "afternoonLabel" to draft.afternoonLabel,
+                "afternoonCountdownMinutes" to draft.afternoonCountdownMinutes,
+                "afternoonReminderMinutes" to draft.afternoonReminderMinutes,
+                "eveningEnabled" to draft.eveningEnabled,
+                "eveningLabel" to draft.eveningLabel,
+                "eveningCountdownMinutes" to draft.eveningCountdownMinutes,
+                "eveningReminderMinutes" to draft.eveningReminderMinutes,
                 "nightEnabled" to draft.nightEnabled,
                 "nightLabel" to draft.nightLabel,
-                "afternoonCountdownMinutes" to draft.afternoonCountdownMinutes,
                 "nightCountdownMinutes" to draft.nightCountdownMinutes,
+                "nightReminderMinutes" to draft.nightReminderMinutes,
+                "startDate" to draft.startDate?.toString(),
+                "endDate" to draft.endDate?.toString(),
+                "supplyEnabled" to draft.supplyEnabled,
+                "supplyInitialUnits" to draft.supplyInitialUnits,
+                "unitsPerDose" to draft.unitsPerDose,
+                "lowSupplyThreshold" to draft.lowSupplyThreshold,
+                "supplyUnitName" to draft.supplyUnitName,
                 "archived" to false,
                 "updatedAt" to FieldValue.serverTimestamp(),
                 "schemaVersion" to MEDICINE_SCHEMA_VERSION,
@@ -90,6 +110,25 @@ class FirestoreMedicineRepository(
                 .medicines(firestore, uid)
                 .document(medicineId)
                 .delete()
+        }
+    }
+
+    override suspend fun refill(
+        uid: String,
+        medicineId: String,
+        units: Double,
+    ) {
+        require(units.isFinite() && units > 0.0) { "Refill amount must be greater than 0." }
+        dispatchWrite(uid) {
+            FirestorePaths
+                .medicines(firestore, uid)
+                .document(medicineId)
+                .update(
+                    mapOf(
+                        "supplyInitialUnits" to FieldValue.increment(units),
+                        "updatedAt" to FieldValue.serverTimestamp(),
+                    ),
+                )
         }
     }
 

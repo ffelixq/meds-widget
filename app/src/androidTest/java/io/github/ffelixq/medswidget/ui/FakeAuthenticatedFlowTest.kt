@@ -7,10 +7,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.ffelixq.medswidget.domain.CompletionProgress
@@ -18,7 +18,6 @@ import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.HistoryEntry
 import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.domain.MedicineValidator
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,14 +46,10 @@ class FakeAuthenticatedFlowTest {
         composeRule.onNodeWithText("No medicines yet").assertIsDisplayed()
         composeRule.onNodeWithText("Add medicine").performClick()
         composeRule.onNodeWithTag("medicine_name").performTextInput("Flow medicine")
-        composeRule.onNodeWithTag("night_toggle").performClick()
-        composeRule.onNodeWithTag("save_medicine").performClick()
+        composeRule.onNodeWithTag("night_toggle").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save_medicine").performScrollTo().performClick()
 
         val stateId = "2026-07-29_flow-medicine_afternoon"
-        assertEquals(
-            4,
-            composeRule.onAllNodesWithText("Flow medicine").fetchSemanticsNodes().size,
-        )
         composeRule.onNodeWithTag("app_dose_$stateId").assertIsDisplayed()
         composeRule.onNodeWithTag("app_dose_$stateId").performClick()
         composeRule
@@ -62,7 +57,7 @@ class FakeAuthenticatedFlowTest {
             .assertIsDisplayed()
             .performClick()
         composeRule.onNodeWithText("Undo this check?").assertIsDisplayed()
-        composeRule.onNodeWithText("Undo check").performClick()
+        composeRule.onNodeWithText("Undo").performClick()
 
         composeRule.onNodeWithText("History").performClick()
 

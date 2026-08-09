@@ -42,7 +42,7 @@ class DoseLogicTest {
             DoseActionPolicy.check(state(isTaken = false)),
         )
         assertEquals(
-            DoseCommandDecision.NO_OP_ALREADY_TAKEN,
+            DoseCommandDecision.NO_OP_ALREADY_RESOLVED,
             DoseActionPolicy.check(state(isTaken = true)),
         )
     }

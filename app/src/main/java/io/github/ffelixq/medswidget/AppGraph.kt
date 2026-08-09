@@ -27,6 +27,7 @@ import io.github.ffelixq.medswidget.firebase.FirestoreMedicineRepository
 import io.github.ffelixq.medswidget.firebase.FirestoreSettingsRepository
 import io.github.ffelixq.medswidget.sync.AccountOperationGate
 import io.github.ffelixq.medswidget.sync.CountdownRefreshScheduler
+import io.github.ffelixq.medswidget.sync.MedicineReminderScheduler
 import io.github.ffelixq.medswidget.sync.OutstandingWriteTracker
 import io.github.ffelixq.medswidget.sync.ResetBoundaryScheduler
 import io.github.ffelixq.medswidget.sync.WidgetPendingSyncScheduler
@@ -82,6 +83,7 @@ class AppGraph(
     val repositories: RepositoryBundle
     val resetScheduler = ResetBoundaryScheduler(context, clock)
     val countdownRefreshScheduler = CountdownRefreshScheduler(context, clock)
+    val reminderScheduler = MedicineReminderScheduler(context, clock)
     private val mutableTemporalTick = MutableStateFlow(0)
     val temporalTick: StateFlow<Int> = mutableTemporalTick.asStateFlow()
     private val mutableAccountDaySnapshot = MutableStateFlow<AccountDaySnapshot?>(null)
@@ -166,6 +168,7 @@ class AppGraph(
                 session to inForeground
             }.collectLatest { (session, inForeground) ->
                 if (session == null) {
+                    reminderScheduler.cancelAll()
                     mutableAccountDaySnapshot.value = null
                     snapshotStore.clearAccount()
                     widgetUpdater.updateAll()
@@ -300,7 +303,14 @@ class AppGraph(
                 signedIn = true,
                 logicalDay = accountSnapshot.logicalDay,
                 medicines = accountSnapshot.medicines.value.map(WidgetSnapshotStore::fromMedicine),
-                rows = rows.map(WidgetSnapshotStore::fromRow),
+                rows =
+                    rows.map { row ->
+                        val widgetName =
+                            accountSnapshot.medicines.value
+                                .firstOrNull { it.id == row.medicineId }
+                                ?.widgetDisplayName()
+                        WidgetSnapshotStore.fromRow(row, widgetName)
+                    },
                 fromCache =
                     accountSnapshot.medicines.fromCache ||
                         accountSnapshot.doses.fromCache ||
@@ -315,6 +325,7 @@ class AppGraph(
             resolvePendingActions = resolvePendingActions,
         )
         countdownRefreshScheduler.schedule(snapshotStore.read())
+        reminderScheduler.sync(accountSnapshot.ownerUid, accountSnapshot.medicines.value)
     }
 
     private fun handleDoseWriteOutcome(outcome: DoseWriteOutcome) {
@@ -337,6 +348,15 @@ class AppGraph(
 
     suspend fun refreshTemporalState() {
         recomputeTemporalState(updateWidgets = true)
+    }
+
+    suspend fun refreshReminders() {
+        val uid = currentAuthenticatedUid ?: return
+        val medicines =
+            withTimeoutOrNull(10_000L) { repositories.medicines.observeActive(uid).first() }
+                ?.value
+                ?: return
+        reminderScheduler.sync(uid, medicines)
     }
 
     suspend fun prepareTemporalStateForWidgetRender() {

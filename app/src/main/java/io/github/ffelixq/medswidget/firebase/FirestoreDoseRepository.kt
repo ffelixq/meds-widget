@@ -9,6 +9,7 @@ import com.google.firebase.firestore.WriteBatch
 import io.github.ffelixq.medswidget.data.DoseRepository
 import io.github.ffelixq.medswidget.data.DoseWriteOutcome
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.DOSE_SCHEMA_VERSION
 import io.github.ffelixq.medswidget.domain.DataEnvelope
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseActionPolicy
@@ -18,7 +19,6 @@ import io.github.ffelixq.medswidget.domain.DoseIds
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.DoseState
 import io.github.ffelixq.medswidget.domain.Medicine
-import io.github.ffelixq.medswidget.domain.SCHEMA_VERSION
 import io.github.ffelixq.medswidget.sync.OutstandingWriteTracker
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +34,7 @@ import java.util.Date
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+@Suppress("TooManyFunctions")
 class FirestoreDoseRepository(
     private val firestore: FirebaseFirestore,
     private val clock: Clock,
@@ -77,7 +78,9 @@ class FirestoreDoseRepository(
                                         entry.value.logicalDay == logicalDay &&
                                         entry.key !in returnedKeys
                                 }
-                                values.forEach { activeState[actionKey(uid, it.id)] = it }
+                                values.forEach { state ->
+                                    activeState[actionKey(uid, state.id)] = state
+                                }
                                 trySend(
                                     DataEnvelope(
                                         value = values,
@@ -155,13 +158,13 @@ class FirestoreDoseRepository(
         occurredAt: Instant,
     ): Boolean =
         checkWithMetadata(
-            uid = uid,
-            logicalDay = logicalDay,
-            medicine = medicine,
-            slot = slot,
-            source = source,
-            actionId = actionId,
-            occurredAt = occurredAt,
+            uid,
+            logicalDay,
+            medicine,
+            slot,
+            source,
+            actionId,
+            occurredAt,
         )
 
     private suspend fun checkWithMetadata(
@@ -194,11 +197,81 @@ class FirestoreDoseRepository(
                     checkedAt = occurredAt,
                     checkedTimezone = zone,
                     checkedSource = source,
+                    skippedAt = null,
+                    skipReason = null,
                     undoneAt = null,
                     lastActionId = actionId,
                 )
             activeState[stateKey] = state
-            writeAction(state, previous, actionId, DoseAction.CHECK, occurredAt, zone, source)
+            writeAction(
+                DoseWriteRequest(
+                    state = state,
+                    rollbackState = previous,
+                    actionId = actionId,
+                    action = DoseAction.CHECK,
+                    occurredAt = occurredAt,
+                    timezoneId = zone,
+                    source = source,
+                    medicine = medicine,
+                ),
+            )
+            true
+        }
+
+    override suspend fun skip(
+        uid: String,
+        logicalDay: LocalDate,
+        medicine: Medicine,
+        slot: DoseSlot,
+        reason: String,
+        source: CheckSource,
+    ): Boolean =
+        actionMutex.withLock {
+            if (source != CheckSource.APP) return@withLock false
+            val stateId = DoseIds.stateId(logicalDay, medicine.id, slot)
+            val stateKey = actionKey(uid, stateId)
+            val previous = activeState[stateKey]
+            if (DoseActionPolicy.skip(previous) != DoseCommandDecision.APPLY_SKIP) {
+                return@withLock false
+            }
+            val now = clock.instant()
+            val zone = ZoneId.systemDefault().id
+            val actionId = UUID.randomUUID().toString()
+            val normalizedReason =
+                reason
+                    .trim()
+                    .take(MAX_SKIP_REASON_LENGTH)
+                    .ifBlank { null }
+            val state =
+                DoseState(
+                    id = stateId,
+                    ownerUid = uid,
+                    logicalDay = logicalDay,
+                    medicineId = medicine.id,
+                    slot = slot,
+                    labelSnapshot = medicine.label(slot),
+                    medicineNameSnapshot = medicine.name,
+                    isTaken = false,
+                    checkedAt = null,
+                    checkedTimezone = null,
+                    checkedSource = null,
+                    skippedAt = now,
+                    skipReason = normalizedReason,
+                    undoneAt = null,
+                    lastActionId = actionId,
+                )
+            activeState[stateKey] = state
+            writeAction(
+                DoseWriteRequest(
+                    state = state,
+                    rollbackState = previous,
+                    actionId = actionId,
+                    action = DoseAction.SKIP,
+                    occurredAt = now,
+                    timezoneId = zone,
+                    source = source,
+                ),
+            )
             true
         }
 
@@ -213,7 +286,8 @@ class FirestoreDoseRepository(
             val stateId = DoseIds.stateId(logicalDay, medicine.id, slot)
             val stateKey = actionKey(uid, stateId)
             val current = activeState[stateKey]
-            if (DoseActionPolicy.undo(current, source) != DoseCommandDecision.APPLY_UNDO || current == null) {
+            val decision = DoseActionPolicy.undo(current, source)
+            if (decision != DoseCommandDecision.APPLY_UNDO || current == null) {
                 return@withLock false
             }
             val now = clock.instant()
@@ -222,25 +296,55 @@ class FirestoreDoseRepository(
             val updated =
                 current.copy(
                     isTaken = false,
+                    skippedAt = null,
+                    skipReason = null,
                     undoneAt = now,
                     lastActionId = actionId,
                 )
             activeState[stateKey] = updated
-            writeAction(updated, current, actionId, DoseAction.UNDO, now, zone, source)
+            writeAction(
+                DoseWriteRequest(
+                    state = updated,
+                    rollbackState = current,
+                    actionId = actionId,
+                    action = DoseAction.UNDO,
+                    occurredAt = now,
+                    timezoneId = zone,
+                    source = source,
+                    medicine = medicine,
+                ),
+            )
             true
         }
 
-    private fun writeAction(
-        state: DoseState,
-        rollbackState: DoseState?,
-        actionId: String,
-        action: DoseAction,
-        occurredAt: java.time.Instant,
-        timezoneId: String,
-        source: CheckSource,
-    ) {
-        val stateReference = FirestorePaths.doseStates(firestore, state.ownerUid).document(state.id)
-        val eventReference = FirestorePaths.doseEvents(firestore, state.ownerUid).document(actionId)
+    private data class DoseWriteRequest(
+        val state: DoseState,
+        val rollbackState: DoseState?,
+        val actionId: String,
+        val action: DoseAction,
+        val occurredAt: Instant,
+        val timezoneId: String,
+        val source: CheckSource,
+        val medicine: Medicine? = null,
+    )
+
+    private fun writeAction(request: DoseWriteRequest) {
+        val state = request.state
+        val rollbackState = request.rollbackState
+        val actionId = request.actionId
+        val action = request.action
+        val occurredAt = request.occurredAt
+        val timezoneId = request.timezoneId
+        val source = request.source
+        val medicine = request.medicine
+        val stateReference =
+            FirestorePaths
+                .doseStates(firestore, state.ownerUid)
+                .document(state.id)
+        val eventReference =
+            FirestorePaths
+                .doseEvents(firestore, state.ownerUid)
+                .document(actionId)
         val batch = firestore.batch()
         batch.set(
             stateReference,
@@ -255,10 +359,12 @@ class FirestoreDoseRepository(
                 "checkedAt" to state.checkedAt?.let { Timestamp(Date.from(it)) },
                 "checkedTimezone" to state.checkedTimezone,
                 "checkedSource" to state.checkedSource?.wireValue,
+                "skippedAt" to state.skippedAt?.let { Timestamp(Date.from(it)) },
+                "skipReason" to state.skipReason,
                 "undoneAt" to state.undoneAt?.let { Timestamp(Date.from(it)) },
                 "lastActionId" to actionId,
                 "updatedAt" to FieldValue.serverTimestamp(),
-                "schemaVersion" to SCHEMA_VERSION,
+                "schemaVersion" to DOSE_SCHEMA_VERSION,
             ),
         )
         batch.set(
@@ -276,18 +382,13 @@ class FirestoreDoseRepository(
                 "timezoneId" to timezoneId,
                 "source" to source.wireValue,
                 "relatedStateId" to state.id,
-                "previousActionId" to
-                    if (action == DoseAction.UNDO) {
-                        rollbackState?.lastActionId
-                    } else {
-                        null
-                    },
+                "previousActionId" to previousActionId(action, rollbackState),
+                "skipReason" to if (action == DoseAction.SKIP) state.skipReason else null,
                 "syncedAt" to FieldValue.serverTimestamp(),
-                "schemaVersion" to SCHEMA_VERSION,
+                "schemaVersion" to DOSE_SCHEMA_VERSION,
             ),
         )
-        // Firestore persists the batch locally and synchronises it later. Avoid
-        // awaiting server acknowledgement so an offline tap remains immediate.
+        applySupplyAdjustment(batch, state.ownerUid, medicine, action, rollbackState)
         val pendingWrite =
             PendingWrite(
                 state = state,
@@ -300,17 +401,39 @@ class FirestoreDoseRepository(
         dispatchWrite(batch, pendingWrite)
     }
 
+    private fun applySupplyAdjustment(
+        batch: WriteBatch,
+        uid: String,
+        medicine: Medicine?,
+        action: DoseAction,
+        previous: DoseState?,
+    ) {
+        if (medicine?.supplyEnabled != true || medicine.supplyInitialUnits == null) return
+        val delta =
+            when {
+                action == DoseAction.CHECK -> -medicine.unitsPerDose
+                action == DoseAction.UNDO && previous?.isTaken == true -> medicine.unitsPerDose
+                else -> 0.0
+            }
+        if (delta == 0.0) return
+        batch.update(
+            FirestorePaths.medicines(firestore, uid).document(medicine.id),
+            mapOf(
+                "supplyInitialUnits" to FieldValue.increment(delta),
+                "updatedAt" to FieldValue.serverTimestamp(),
+            ),
+        )
+    }
+
     @Suppress("TooGenericExceptionCaught")
     private fun dispatchWrite(
         batch: WriteBatch,
         pendingWrite: PendingWrite,
     ) {
         try {
-            batch
-                .commit()
-                .addOnCompleteListener { completedTask ->
-                    completeWrite(pendingWrite, completedTask.isSuccessful)
-                }
+            batch.commit().addOnCompleteListener { completedTask ->
+                completeWrite(pendingWrite, completedTask.isSuccessful)
+            }
         } catch (error: RuntimeException) {
             completeWrite(pendingWrite, successful = false)
             throw error
@@ -326,32 +449,36 @@ class FirestoreDoseRepository(
                 writeFailures.recordSuccess(pendingWrite.failureOperation)
                 onWriteOutcome(
                     pendingWrite.state.toWriteOutcome(
-                        actionId = pendingWrite.actionId,
-                        action = pendingWrite.action,
-                        successful = true,
+                        pendingWrite.actionId,
+                        pendingWrite.action,
+                        true,
                     ),
                 )
             } else {
                 writeFailures.recordFailure(pendingWrite.failureOperation)
-                val state = pendingWrite.state
-                val stateKey = actionKey(state.ownerUid, state.id)
-                val rollbackState = pendingWrite.rollbackState
-                if (rollbackState == null) {
-                    activeState.remove(stateKey, state)
-                } else {
-                    activeState.replace(stateKey, state, rollbackState)
-                }
+                rollbackOptimisticState(pendingWrite)
                 onWriteOutcome(
-                    state.toWriteOutcome(
-                        actionId = pendingWrite.actionId,
-                        action = pendingWrite.action,
-                        successful = false,
-                        errorMessage = WRITE_FAILURE_MESSAGE,
+                    pendingWrite.state.toWriteOutcome(
+                        pendingWrite.actionId,
+                        pendingWrite.action,
+                        false,
+                        WRITE_FAILURE_MESSAGE,
                     ),
                 )
             }
         } finally {
             outstandingWriteTracker.complete(pendingWrite.outstandingTicket)
+        }
+    }
+
+    private fun rollbackOptimisticState(pendingWrite: PendingWrite) {
+        val state = pendingWrite.state
+        val stateKey = actionKey(state.ownerUid, state.id)
+        val rollbackState = pendingWrite.rollbackState
+        if (rollbackState == null) {
+            activeState.remove(stateKey, state)
+        } else {
+            activeState.replace(stateKey, state, rollbackState)
         }
     }
 
@@ -363,10 +490,17 @@ class FirestoreDoseRepository(
             envelope.copy(errorMessage = failure ?: envelope.errorMessage)
         }
 
+    private fun previousActionId(
+        action: DoseAction,
+        rollbackState: DoseState?,
+    ): String? = if (action == DoseAction.UNDO) rollbackState?.lastActionId else null
+
     private companion object {
-        const val HISTORY_LIMIT = 500L
+        const val HISTORY_LIMIT = 1000L
+        const val MAX_SKIP_REASON_LENGTH = 120
         const val WRITE_FAILURE_MESSAGE =
-            "A dose change could not be synchronised. Check your connection and try again."
+            "A dose change could not be synchronised. " +
+                "Check your connection and try again."
 
         fun actionKey(
             uid: String,

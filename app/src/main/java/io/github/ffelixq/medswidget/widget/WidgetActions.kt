@@ -51,9 +51,7 @@ class CheckDoseAction : ActionCallback {
         WidgetActionDiagnostics.record(WidgetActionDiagnostic.WIDGET_ACTION_RECEIVED)
         try {
             WidgetCheckHandler(
-                dependencies = {
-                    GraphWidgetCheckDependencies(MedsApplication.graph(context))
-                },
+                dependencies = { GraphWidgetCheckDependencies(MedsApplication.graph(context)) },
                 recordDiagnostic = WidgetActionDiagnostics::record,
             ).handle(parameters) {
                 GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
@@ -79,9 +77,7 @@ class StartCountdownAction : ActionCallback {
         WidgetActionDiagnostics.record(WidgetActionDiagnostic.COUNTDOWN_ACTION_RECEIVED)
         try {
             WidgetCountdownHandler(
-                dependencies = {
-                    GraphWidgetCountdownDependencies(MedsApplication.graph(context))
-                },
+                dependencies = { GraphWidgetCountdownDependencies(MedsApplication.graph(context)) },
                 recordDiagnostic = WidgetActionDiagnostics::record,
             ).handle(parameters) {
                 GlanceAppWidgetManager(context).getAppWidgetId(glanceId)
@@ -178,71 +174,65 @@ internal class WidgetCountdownHandler(
     private val recordDiagnostic: (String) -> Unit = {},
     private val dependencies: () -> WidgetCountdownDependencies,
 ) {
-    @Suppress("ReturnCount", "LongMethod", "CyclomaticComplexMethod")
+    @Suppress("ReturnCount", "LongMethod")
     suspend fun handle(
         parameters: ActionParameters,
         resolveAppWidgetId: suspend () -> Int?,
     ) {
         val parsed =
-            parameters.toWidgetCheckRequest()
+            WidgetActionSupport.parse(parameters)
                 ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
         recordDiagnostic(WidgetActionDiagnostic.PARAMETERS_VALID)
         val request =
-            if (parsed.source == CheckSource.WIDGET_2X2) {
-                val resolved = resolveAppWidgetId()
-                if (parsed.appWidgetId != resolved) {
-                    return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
-                }
-                parsed.copy(appWidgetId = resolved)
-            } else {
-                parsed
-            }
+            WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
         recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_VALID)
+
         val dependencies = dependencies()
         dependencies.refreshTemporalState()
-        val uid = dependencies.currentUid ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
+        val uid =
+            dependencies.currentUid
+                ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.AUTH_AVAILABLE)
-        if (!request.hasValidConfiguration(dependencies.asCheckDependencies(), uid)) {
+        if (!WidgetActionSupport.hasValidConfiguration(request, dependencies, uid)) {
             return recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_INVALID)
         }
         recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_VALID)
-        var snapshot = dependencies.readSnapshot()
-        if (!snapshot.belongsTo(uid)) {
-            recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
-            dependencies.recoverFromRepositories()
-            snapshot = dependencies.readSnapshot()
-            if (!snapshot.belongsTo(uid)) return
-        }
+
+        val snapshot =
+            recoverSnapshotIfNeeded(dependencies, uid)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
         val medicine =
-            snapshot.eligibleMedicine(request)
+            WidgetActionSupport.eligibleMedicine(snapshot, request)
                 ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
         val row =
-            snapshot.rows.firstOrNull {
-                it.medicineId == request.medicineId && it.slot == request.slot
-            }
+            WidgetActionSupport.rowFor(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
         val duration =
             row
-                ?.takeIf { !it.isTaken && it.countdown == null }
+                .takeIf { !it.isTaken && it.countdown == null }
                 ?.countdownMinutes
                 ?: return recordDiagnostic(WidgetActionDiagnostic.COUNTDOWN_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_ELIGIBLE)
+
         val actionId = UUID.randomUUID().toString()
         val startedAt = dependencies.startedAt
-        if (
-            !dependencies.markStartedOptimistically(
-                uid,
-                snapshot.logicalDay,
-                request.medicineId,
-                request.slot,
-                duration,
-                request.source,
-                actionId,
-                startedAt,
+        val changed =
+            dependencies.markStartedOptimistically(
+                uid = uid,
+                logicalDay = snapshot.logicalDay,
+                medicineId = request.medicineId,
+                slot = request.slot,
+                durationMinutes = duration,
+                source = request.source,
+                actionId = actionId,
+                startedAt = startedAt,
             )
-        ) {
+        if (!changed) {
             return recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_REJECTED)
         }
         recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_APPLIED)
+
         try {
             dependencies.schedulePendingReconciliation()
             dependencies.scheduleCountdownRefresh()
@@ -250,91 +240,60 @@ internal class WidgetCountdownHandler(
             recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
             val applied =
                 dependencies.start(
-                    uid,
-                    snapshot.logicalDay,
-                    medicine.toDomain(uid),
-                    request.slot,
-                    request.source,
-                    actionId,
-                    startedAt,
-                    duration,
+                    uid = uid,
+                    logicalDay = snapshot.logicalDay,
+                    medicine = WidgetActionSupport.toDomain(medicine, uid, row),
+                    slot = request.slot,
+                    source = request.source,
+                    actionId = actionId,
+                    startedAt = startedAt,
+                    durationMinutes = duration,
                 )
             if (applied) {
                 dependencies.markActionSubmitted(actionId)
                 recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_SUCCEEDED)
             } else {
-                dependencies.rejectOptimisticAction(uid, actionId, request.medicineId, request.slot)
-                dependencies.recoverFromRepositories()
+                rejectAndRecover(dependencies, uid, actionId, request)
                 recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED)
             }
         } catch (cancellation: CancellationException) {
             withContext(NonCancellable) {
-                dependencies.rejectOptimisticAction(uid, actionId, request.medicineId, request.slot)
-                dependencies.recoverFromRepositories()
+                rejectAndRecover(dependencies, uid, actionId, request)
             }
             throw cancellation
         } catch (_: Exception) {
-            dependencies.rejectOptimisticAction(uid, actionId, request.medicineId, request.slot)
-            dependencies.recoverFromRepositories()
+            rejectAndRecover(dependencies, uid, actionId, request)
             recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED)
         }
     }
-}
 
-private fun WidgetCountdownDependencies.asCheckDependencies(): WidgetCheckDependencies =
-    object : WidgetCheckDependencies {
-        override val currentUid: String? get() = this@asCheckDependencies.currentUid
-        override val checkedAt: Instant get() = this@asCheckDependencies.startedAt
-        override val timezoneId: String get() = this@asCheckDependencies.timezoneId
-
-        override suspend fun refreshTemporalState() = this@asCheckDependencies.refreshTemporalState()
-
-        override suspend fun configuration(id: Int) = this@asCheckDependencies.configuration(id)
-
-        override suspend fun readSnapshot() = this@asCheckDependencies.readSnapshot()
-
-        override suspend fun recoverFromRepositories() = this@asCheckDependencies.recoverFromRepositories()
-
-        override suspend fun markTakenOptimistically(
-            uid: String,
-            medicineId: String,
-            slot: DoseSlot,
-            checkedAt: Instant,
-            timezoneId: String,
-            actionId: String,
-        ) = false
-
-        override suspend fun updateWidgets() = this@asCheckDependencies.updateWidgets()
-
-        override fun schedulePendingReconciliation() = this@asCheckDependencies.schedulePendingReconciliation()
-
-        override suspend fun markActionSubmitted(actionId: String) = Unit
-
-        override suspend fun check(
-            uid: String,
-            logicalDay: LocalDate,
-            medicine: Medicine,
-            slot: DoseSlot,
-            source: CheckSource,
-            actionId: String,
-            occurredAt: Instant,
-        ) = false
-
-        override suspend fun clearCountdown(
-            uid: String,
-            medicineId: String,
-            slot: DoseSlot,
-            source: CheckSource,
-            state: CountdownState?,
-        ) = Unit
-
-        override suspend fun rejectOptimisticAction(
-            uid: String,
-            actionId: String,
-            medicineId: String,
-            slot: DoseSlot,
-        ) = Unit
+    private suspend fun recoverSnapshotIfNeeded(
+        dependencies: WidgetCountdownDependencies,
+        uid: String,
+    ): WidgetSnapshot? {
+        var snapshot = dependencies.readSnapshot()
+        if (WidgetActionSupport.belongsTo(snapshot, uid)) return snapshot
+        recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+        dependencies.recoverFromRepositories()
+        snapshot = dependencies.readSnapshot()
+        return snapshot.takeIf { WidgetActionSupport.belongsTo(it, uid) }
     }
+
+    private suspend fun rejectAndRecover(
+        dependencies: WidgetCountdownDependencies,
+        uid: String,
+        actionId: String,
+        request: WidgetCheckRequest,
+    ) {
+        dependencies.rejectOptimisticAction(
+            uid,
+            actionId,
+            request.medicineId,
+            request.slot,
+        )
+        dependencies.recoverFromRepositories()
+    }
+}
 
 @Suppress("TooManyFunctions")
 private class GraphWidgetCountdownDependencies(
@@ -342,8 +301,12 @@ private class GraphWidgetCountdownDependencies(
 ) : WidgetCountdownDependencies {
     override val currentUid: String?
         get() = if (graph.accountOperationGate.isDeletionInProgress) null else graph.currentAuthenticatedUid
-    override val startedAt: Instant get() = graph.clock.instant()
-    override val timezoneId: String get() = ZoneId.systemDefault().id
+
+    override val startedAt: Instant
+        get() = graph.clock.instant()
+
+    override val timezoneId: String
+        get() = ZoneId.systemDefault().id
 
     override suspend fun refreshTemporalState() = graph.prepareTemporalStateForWidgetRender()
 
@@ -430,22 +393,6 @@ private class GraphWidgetCountdownDependencies(
     }
 }
 
-private object WidgetActionDiagnostics {
-    private const val TAG = "MedsWidgetAction"
-
-    fun record(code: String) {
-        if (BuildConfig.DEBUG) {
-            Log.i(TAG, "stage=$code")
-        }
-    }
-
-    fun recordFailure(failure: Exception) {
-        if (BuildConfig.DEBUG) {
-            Log.e(TAG, "reason=${WidgetActionDiagnostic.CALLBACK_FAILED} type=${failure.javaClass.simpleName}")
-        }
-    }
-}
-
 @Suppress("TooManyFunctions")
 internal interface WidgetCheckDependencies {
     val currentUid: String?
@@ -505,25 +452,18 @@ internal class WidgetCheckHandler(
     private val recordDiagnostic: (String) -> Unit = {},
     private val dependencies: () -> WidgetCheckDependencies,
 ) {
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "LongMethod")
     suspend fun handle(
         parameters: ActionParameters,
         resolveAppWidgetId: suspend () -> Int?,
     ) {
-        val parsedRequest =
-            parameters.toWidgetCheckRequest()
+        val parsed =
+            WidgetActionSupport.parse(parameters)
                 ?: return recordDiagnostic(WidgetActionDiagnostic.INVALID_PARAMETERS)
         recordDiagnostic(WidgetActionDiagnostic.PARAMETERS_VALID)
         val request =
-            if (parsedRequest.source == CheckSource.WIDGET_2X2) {
-                val resolvedWidgetId = resolveAppWidgetId()
-                if (parsedRequest.appWidgetId != resolvedWidgetId) {
-                    return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
-                }
-                parsedRequest.copy(appWidgetId = resolvedWidgetId)
-            } else {
-                parsedRequest
-            }
+            WidgetActionSupport.resolveIdentity(parsed, resolveAppWidgetId)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_MISMATCH)
         recordDiagnostic(WidgetActionDiagnostic.WIDGET_ID_VALID)
 
         val dependencies = dependencies()
@@ -532,22 +472,22 @@ internal class WidgetCheckHandler(
             dependencies.currentUid
                 ?: return recordDiagnostic(WidgetActionDiagnostic.AUTH_UNAVAILABLE)
         recordDiagnostic(WidgetActionDiagnostic.AUTH_AVAILABLE)
-        if (!request.hasValidConfiguration(dependencies, uid)) {
+        if (!WidgetActionSupport.hasValidConfiguration(request, dependencies, uid)) {
             return recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_INVALID)
         }
         recordDiagnostic(WidgetActionDiagnostic.CONFIGURATION_VALID)
 
-        var snapshot = dependencies.readSnapshot()
-        if (!snapshot.belongsTo(uid)) {
-            recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
-            dependencies.recoverFromRepositories()
-            snapshot = dependencies.readSnapshot()
-            if (!snapshot.belongsTo(uid)) return
-        }
-        val cachedMedicine =
-            snapshot.eligibleMedicine(request)
+        val snapshot =
+            recoverSnapshotIfNeeded(dependencies, uid)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+        val medicine =
+            WidgetActionSupport.eligibleMedicine(snapshot, request)
+                ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
+        val row =
+            WidgetActionSupport.rowFor(snapshot, request)
                 ?: return recordDiagnostic(WidgetActionDiagnostic.MEDICINE_INELIGIBLE)
         recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_ELIGIBLE)
+
         val actionId = UUID.randomUUID().toString()
         val checkedAt = dependencies.checkedAt
         val changed =
@@ -563,34 +503,101 @@ internal class WidgetCheckHandler(
             return recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_REJECTED)
         }
         recordDiagnostic(WidgetActionDiagnostic.OPTIMISTIC_UPDATE_APPLIED)
-        dependencies.scheduleAndRenderOrRollback(uid, actionId, request)
-        recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
-        val applied =
-            dependencies.submitCheckOrRollback(
-                uid = uid,
-                actionId = actionId,
-                request = request,
-                snapshot = snapshot,
-                medicine = cachedMedicine,
-                checkedAt = checkedAt,
-            )
+
+        renderOptimisticState(dependencies, uid, actionId, request)
+
+        val checkResult =
+            runCatching {
+                dependencies.check(
+                    uid = uid,
+                    logicalDay = snapshot.logicalDay,
+                    medicine = WidgetActionSupport.toDomain(medicine, uid, row),
+                    slot = request.slot,
+                    source = request.source,
+                    actionId = actionId,
+                    occurredAt = checkedAt,
+                )
+            }
+        val checkFailure = checkResult.exceptionOrNull()
+        if (checkFailure is CancellationException) {
+            rejectAndRecover(dependencies, uid, actionId, request, checkFailure)
+            throw checkFailure
+        }
+        val applied = checkResult.getOrDefault(false)
+
         if (applied) {
             dependencies.clearCountdown(
                 uid = uid,
                 medicineId = request.medicineId,
                 slot = request.slot,
                 source = request.source,
-                state =
-                    snapshot.rows
-                        .firstOrNull {
-                            it.medicineId == request.medicineId && it.slot == request.slot
-                        }?.countdown,
+                state = row.countdown,
             )
             dependencies.markActionSubmitted(actionId)
             recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_SUCCEEDED)
         } else {
             recordDiagnostic(WidgetActionDiagnostic.REPOSITORY_WRITE_FAILED)
-            dependencies.rejectAndRecover(uid, actionId, request)
+            rejectAndRecover(dependencies, uid, actionId, request)
+        }
+    }
+
+    private suspend fun renderOptimisticState(
+        dependencies: WidgetCheckDependencies,
+        uid: String,
+        actionId: String,
+        request: WidgetCheckRequest,
+    ) {
+        val failure =
+            runCatching {
+                dependencies.schedulePendingReconciliation()
+                dependencies.updateWidgets()
+                recordDiagnostic(WidgetActionDiagnostic.WIDGET_RENDER_REQUESTED)
+            }.exceptionOrNull() ?: return
+        if (failure is Exception) {
+            rejectAndRecover(dependencies, uid, actionId, request, failure)
+        }
+        throw failure
+    }
+
+    private suspend fun recoverSnapshotIfNeeded(
+        dependencies: WidgetCheckDependencies,
+        uid: String,
+    ): WidgetSnapshot? {
+        var snapshot = dependencies.readSnapshot()
+        if (WidgetActionSupport.belongsTo(snapshot, uid)) return snapshot
+        recordDiagnostic(WidgetActionDiagnostic.SNAPSHOT_MISSING)
+        dependencies.recoverFromRepositories()
+        snapshot = dependencies.readSnapshot()
+        return snapshot.takeIf { WidgetActionSupport.belongsTo(it, uid) }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun rejectAndRecover(
+        dependencies: WidgetCheckDependencies,
+        uid: String,
+        actionId: String,
+        request: WidgetCheckRequest,
+        originalFailure: Throwable? = null,
+    ) {
+        try {
+            withContext(NonCancellable) {
+                try {
+                    dependencies.rejectOptimisticAction(
+                        uid,
+                        actionId,
+                        request.medicineId,
+                        request.slot,
+                    )
+                } finally {
+                    dependencies.recoverFromRepositories()
+                }
+            }
+        } catch (cleanupFailure: Exception) {
+            if (originalFailure != null) {
+                originalFailure.addSuppressed(cleanupFailure)
+            } else {
+                throw cleanupFailure
+            }
         }
     }
 }
@@ -600,12 +607,7 @@ private class GraphWidgetCheckDependencies(
     private val graph: AppGraph,
 ) : WidgetCheckDependencies {
     override val currentUid: String?
-        get() =
-            if (graph.accountOperationGate.isDeletionInProgress) {
-                null
-            } else {
-                graph.currentAuthenticatedUid
-            }
+        get() = if (graph.accountOperationGate.isDeletionInProgress) null else graph.currentAuthenticatedUid
 
     override val checkedAt: Instant
         get() = graph.clock.instant()
@@ -613,9 +615,7 @@ private class GraphWidgetCheckDependencies(
     override val timezoneId: String
         get() = ZoneId.systemDefault().id
 
-    override suspend fun refreshTemporalState() {
-        graph.prepareTemporalStateForWidgetRender()
-    }
+    override suspend fun refreshTemporalState() = graph.prepareTemporalStateForWidgetRender()
 
     override suspend fun configuration(id: Int): SingleWidgetConfiguration? = graph.configurationStore.get(id)
 
@@ -630,21 +630,17 @@ private class GraphWidgetCheckDependencies(
         actionId: String,
     ): Boolean =
         graph.snapshotStore.markTakenOptimistically(
-            expectedUid = uid,
-            medicineId = medicineId,
-            slot = slot,
-            checkedAt = checkedAt,
-            checkedTimezone = timezoneId,
-            actionId = actionId,
+            uid,
+            medicineId,
+            slot,
+            checkedAt,
+            timezoneId,
+            actionId,
         )
 
-    override suspend fun updateWidgets() {
-        graph.widgetUpdater.updateAll()
-    }
+    override suspend fun updateWidgets() = graph.widgetUpdater.updateAll()
 
-    override fun schedulePendingReconciliation() {
-        graph.pendingWidgetSyncScheduler.schedule()
-    }
+    override fun schedulePendingReconciliation() = graph.pendingWidgetSyncScheduler.schedule()
 
     override suspend fun markActionSubmitted(actionId: String) {
         graph.snapshotStore.markActionSubmitted(actionId)
@@ -661,15 +657,33 @@ private class GraphWidgetCheckDependencies(
     ): Boolean =
         graph.accountOperationGate.runMutation {
             graph.repositories.doses.checkWithAction(
-                uid = uid,
-                logicalDay = logicalDay,
-                medicine = medicine,
-                slot = slot,
-                source = source,
-                actionId = actionId,
-                occurredAt = occurredAt,
+                uid,
+                logicalDay,
+                medicine,
+                slot,
+                source,
+                actionId,
+                occurredAt,
             )
         } ?: false
+
+    override suspend fun clearCountdown(
+        uid: String,
+        medicineId: String,
+        slot: DoseSlot,
+        source: CheckSource,
+        state: CountdownState?,
+    ) {
+        graph.accountOperationGate.runMutation {
+            graph.repositories.countdowns.clearForDoseCheck(
+                uid,
+                medicineId,
+                slot,
+                source,
+                state,
+            )
+        }
+    }
 
     override suspend fun rejectOptimisticAction(
         uid: String,
@@ -690,147 +704,140 @@ private class GraphWidgetCheckDependencies(
         )
     }
 
-    override suspend fun clearCountdown(
-        uid: String,
-        medicineId: String,
-        slot: DoseSlot,
-        source: CheckSource,
-        state: CountdownState?,
-    ) {
-        graph.accountOperationGate.runMutation {
-            graph.repositories.countdowns.clearForDoseCheck(uid, medicineId, slot, source, state)
+    override suspend fun recoverFromRepositories() = graph.refreshFromRepositories()
+}
+
+private object WidgetActionDiagnostics {
+    private const val TAG = "MedsWidgetAction"
+
+    fun record(code: String) {
+        if (BuildConfig.DEBUG) Log.i(TAG, "stage=$code")
+    }
+
+    fun recordFailure(failure: Exception) {
+        if (BuildConfig.DEBUG) {
+            Log.e(
+                TAG,
+                "reason=${WidgetActionDiagnostic.CALLBACK_FAILED} " +
+                    "type=${failure.javaClass.simpleName}",
+            )
         }
     }
-
-    override suspend fun recoverFromRepositories() {
-        graph.refreshFromRepositories()
-    }
 }
 
-@Suppress("TooGenericExceptionCaught")
-private suspend fun WidgetCheckDependencies.scheduleAndRenderOrRollback(
-    uid: String,
-    actionId: String,
-    request: WidgetCheckRequest,
-) {
-    try {
-        schedulePendingReconciliation()
-        updateWidgets()
-    } catch (cancellation: CancellationException) {
-        rejectAndRecover(uid, actionId, request, cancellation)
-        throw cancellation
-    } catch (failure: Exception) {
-        rejectAndRecover(uid, actionId, request, failure)
-        throw failure
-    }
-}
-
-@Suppress("TooGenericExceptionCaught")
-private suspend fun WidgetCheckDependencies.submitCheckOrRollback(
-    uid: String,
-    actionId: String,
-    request: WidgetCheckRequest,
-    snapshot: WidgetSnapshot,
-    medicine: WidgetMedicine,
-    checkedAt: Instant,
-): Boolean =
-    try {
-        check(
-            uid = uid,
-            logicalDay = snapshot.logicalDay,
-            medicine = medicine.toDomain(uid),
-            slot = request.slot,
-            source = request.source,
-            actionId = actionId,
-            occurredAt = checkedAt,
-        )
-    } catch (cancellation: CancellationException) {
-        rejectAndRecover(uid, actionId, request, cancellation)
-        throw cancellation
-    } catch (_: Exception) {
-        false
-    }
-
-@Suppress("TooGenericExceptionCaught")
-private suspend fun WidgetCheckDependencies.rejectAndRecover(
-    uid: String,
-    actionId: String,
-    request: WidgetCheckRequest,
-    originalFailure: Throwable? = null,
-) {
-    try {
-        withContext(NonCancellable) {
-            try {
-                rejectOptimisticAction(
-                    uid = uid,
-                    actionId = actionId,
-                    medicineId = request.medicineId,
-                    slot = request.slot,
-                )
-            } finally {
-                recoverFromRepositories()
+private object WidgetActionSupport {
+    fun parse(parameters: ActionParameters): WidgetCheckRequest? {
+        val medicineId =
+            parameters[WidgetActionParameters.MEDICINE_ID]
+                ?.takeIf(String::isNotBlank)
+                ?: return null
+        val slot =
+            parameters[WidgetActionParameters.SLOT]
+                ?.let(DoseSlot::fromWire)
+                ?: return null
+        val source =
+            parameters[WidgetActionParameters.SOURCE]
+                ?.let(CheckSource::fromWire)
+                ?: return null
+        if (source !in supportedWidgetSources) return null
+        val appWidgetId =
+            if (source == CheckSource.WIDGET_2X2) {
+                parameters[WidgetActionParameters.APP_WIDGET_ID]?.takeIf { it > 0 }
+            } else {
+                null
             }
-        }
-    } catch (cleanupFailure: Exception) {
-        if (originalFailure != null) {
-            originalFailure.addSuppressed(cleanupFailure)
-        } else {
-            throw cleanupFailure
-        }
+        return WidgetCheckRequest(medicineId, slot, source, appWidgetId)
+            .takeIf { source != CheckSource.WIDGET_2X2 || appWidgetId != null }
     }
-}
 
-internal fun ActionParameters.toWidgetCheckRequest(): WidgetCheckRequest? {
-    val medicineId =
-        this[WidgetActionParameters.MEDICINE_ID]
-            ?.takeIf(String::isNotBlank)
-            ?: return null
-    val slot = this[WidgetActionParameters.SLOT]?.let(DoseSlot::fromWire) ?: return null
-    val source = this[WidgetActionParameters.SOURCE]?.let(CheckSource::fromWire) ?: return null
-    if (source != CheckSource.WIDGET_2X2 && source != CheckSource.WIDGET_4X2) return null
-    val appWidgetId =
-        if (source == CheckSource.WIDGET_2X2) {
-            this[WidgetActionParameters.APP_WIDGET_ID]?.takeIf { it > 0 }
-        } else {
-            null
+    suspend fun resolveIdentity(
+        request: WidgetCheckRequest,
+        resolveAppWidgetId: suspend () -> Int?,
+    ): WidgetCheckRequest? {
+        if (request.source != CheckSource.WIDGET_2X2) return request
+        val resolved = resolveAppWidgetId()
+        return request.takeIf { request.appWidgetId == resolved }?.copy(appWidgetId = resolved)
+    }
+
+    suspend fun hasValidConfiguration(
+        request: WidgetCheckRequest,
+        dependencies: WidgetCheckDependencies,
+        uid: String,
+    ): Boolean {
+        if (request.source != CheckSource.WIDGET_2X2) return true
+        val widgetId = request.appWidgetId ?: return false
+        val configuration = dependencies.configuration(widgetId) ?: return false
+        return configuration.ownerUid == uid && configuration.medicineId == request.medicineId
+    }
+
+    suspend fun hasValidConfiguration(
+        request: WidgetCheckRequest,
+        dependencies: WidgetCountdownDependencies,
+        uid: String,
+    ): Boolean {
+        if (request.source != CheckSource.WIDGET_2X2) return true
+        val widgetId = request.appWidgetId ?: return false
+        val configuration = dependencies.configuration(widgetId) ?: return false
+        return configuration.ownerUid == uid && configuration.medicineId == request.medicineId
+    }
+
+    fun belongsTo(
+        snapshot: WidgetSnapshot,
+        uid: String,
+    ): Boolean = snapshot.signedIn && snapshot.ownerUid == uid
+
+    fun eligibleMedicine(
+        snapshot: WidgetSnapshot,
+        request: WidgetCheckRequest,
+    ): WidgetMedicine? =
+        snapshot
+            .medicine(request.medicineId)
+            ?.takeIf { rowFor(snapshot, request) != null }
+
+    fun rowFor(
+        snapshot: WidgetSnapshot,
+        request: WidgetCheckRequest,
+    ): WidgetDoseRow? =
+        snapshot.rows.firstOrNull {
+            it.medicineId == request.medicineId && it.slot == request.slot
         }
-    return WidgetCheckRequest(medicineId, slot, source, appWidgetId)
-        .takeIf { source != CheckSource.WIDGET_2X2 || appWidgetId != null }
+
+    fun toDomain(
+        medicine: WidgetMedicine,
+        uid: String,
+        row: WidgetDoseRow,
+    ): Medicine =
+        Medicine(
+            id = medicine.id,
+            ownerUid = uid,
+            name = medicine.name,
+            morningEnabled = medicine.morningEnabled || row.slot == DoseSlot.MORNING,
+            morningLabel = if (row.slot == DoseSlot.MORNING) row.label else medicine.morningLabel,
+            morningCountdownMinutes =
+                if (row.slot == DoseSlot.MORNING) row.countdownMinutes else medicine.morningCountdownMinutes,
+            afternoonEnabled = medicine.afternoonEnabled || row.slot == DoseSlot.AFTERNOON,
+            afternoonLabel = if (row.slot == DoseSlot.AFTERNOON) row.label else medicine.afternoonLabel,
+            afternoonCountdownMinutes =
+                if (row.slot == DoseSlot.AFTERNOON) row.countdownMinutes else medicine.afternoonCountdownMinutes,
+            eveningEnabled = medicine.eveningEnabled || row.slot == DoseSlot.EVENING,
+            eveningLabel = if (row.slot == DoseSlot.EVENING) row.label else medicine.eveningLabel,
+            eveningCountdownMinutes =
+                if (row.slot == DoseSlot.EVENING) row.countdownMinutes else medicine.eveningCountdownMinutes,
+            nightEnabled = medicine.nightEnabled || row.slot == DoseSlot.NIGHT,
+            nightLabel = if (row.slot == DoseSlot.NIGHT) row.label else medicine.nightLabel,
+            nightCountdownMinutes =
+                if (row.slot == DoseSlot.NIGHT) row.countdownMinutes else medicine.nightCountdownMinutes,
+            supplyEnabled = medicine.supplyEnabled,
+            supplyInitialUnits = medicine.supplyRemainingUnits,
+            unitsPerDose = medicine.unitsPerDose,
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+        )
+
+    private val supportedWidgetSources =
+        setOf(
+            CheckSource.WIDGET_2X2,
+            CheckSource.WIDGET_4X2,
+            CheckSource.WIDGET_4X4,
+        )
 }
-
-private suspend fun WidgetCheckRequest.hasValidConfiguration(
-    dependencies: WidgetCheckDependencies,
-    uid: String,
-): Boolean {
-    if (source != CheckSource.WIDGET_2X2) return true
-    val widgetId = appWidgetId ?: return false
-    val configuration = dependencies.configuration(widgetId) ?: return false
-    return configuration.ownerUid == uid && configuration.medicineId == medicineId
-}
-
-private fun WidgetSnapshot.eligibleMedicine(request: WidgetCheckRequest): WidgetMedicine? {
-    val medicine = medicine(request.medicineId) ?: return null
-    val enabled =
-        when (request.slot) {
-            DoseSlot.AFTERNOON -> medicine.afternoonEnabled
-            DoseSlot.NIGHT -> medicine.nightEnabled
-        }
-    return medicine.takeIf { enabled }
-}
-
-private fun WidgetSnapshot.belongsTo(uid: String): Boolean = signedIn && ownerUid == uid
-
-private fun WidgetMedicine.toDomain(uid: String): Medicine =
-    Medicine(
-        id = id,
-        ownerUid = uid,
-        name = name,
-        afternoonEnabled = afternoonEnabled,
-        afternoonLabel = afternoonLabel,
-        afternoonCountdownMinutes = afternoonCountdownMinutes,
-        nightEnabled = nightEnabled,
-        nightLabel = nightLabel,
-        nightCountdownMinutes = nightCountdownMinutes,
-        createdAt = Instant.EPOCH,
-        updatedAt = Instant.EPOCH,
-    )
