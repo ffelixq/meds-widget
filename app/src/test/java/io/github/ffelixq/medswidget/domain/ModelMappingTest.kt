@@ -9,9 +9,10 @@ import org.junit.Test
 class ModelMappingTest {
     @Test
     fun `dose slot wire mappings accept only supported values`() {
-        assertEquals(DoseSlot.AFTERNOON, DoseSlot.fromWire("afternoon"))
-        assertEquals(DoseSlot.NIGHT, DoseSlot.fromWire("night"))
-        assertNull(DoseSlot.fromWire("morning"))
+        DoseSlot.entries.forEach { slot ->
+            assertSame(slot, DoseSlot.fromWire(slot.wireValue))
+        }
+        assertNull(DoseSlot.fromWire("midday"))
         assertNull(DoseSlot.fromWire("NIGHT"))
     }
 
