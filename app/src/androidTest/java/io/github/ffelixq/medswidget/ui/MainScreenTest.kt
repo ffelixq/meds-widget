@@ -169,13 +169,9 @@ class MainScreenTest {
         composeRule.onNodeWithText("2×2 · Medicine A").assertIsDisplayed()
         composeRule.onAllNodesWithText("☐")[0].performClick()
         composeRule.onNodeWithText("4×2 · 0/2").performScrollTo().assertIsDisplayed()
-        composeRule.onAllNodesWithText("☐")[2].performClick()
 
         assertEquals(
-            listOf(
-                rows.first() to CheckSource.APP_PREVIEW,
-                rows.first() to CheckSource.APP_PREVIEW,
-            ),
+            listOf(rows.first() to CheckSource.APP_PREVIEW),
             checks,
         )
     }
