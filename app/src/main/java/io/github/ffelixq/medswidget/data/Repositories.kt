@@ -73,7 +73,7 @@ interface MedicineRepository {
         uid: String,
         medicineId: String,
         units: Double,
-    ) = throw UnsupportedOperationException("Supply refill is not supported by this repository")
+    ): Unit = throw UnsupportedOperationException("Supply refill is not supported by this repository")
 }
 
 interface DoseRepository {
