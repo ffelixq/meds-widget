@@ -110,7 +110,10 @@ object MedicineValidator {
         errors: MutableMap<String, String>,
     ) {
         when {
-            draft.name.isEmpty() -> errors["name"] = "Medicine name is required."
+            draft.name.isEmpty() -> {
+                errors["name"] = "Medicine name is required."
+            }
+
             draft.name.length > MEDICINE_NAME_MAX_LENGTH -> {
                 errors["name"] =
                     "Medicine name must be $MEDICINE_NAME_MAX_LENGTH characters or fewer."
@@ -137,7 +140,10 @@ object MedicineValidator {
         val prefix = slot.wireValue
         val label = labelFor(slot, draft)
         when {
-            label.isEmpty() -> errors["${prefix}Label"] = "Enabled slots need a label."
+            label.isEmpty() -> {
+                errors["${prefix}Label"] = "Enabled slots need a label."
+            }
+
             label.length > SLOT_LABEL_MAX_LENGTH -> {
                 errors["${prefix}Label"] =
                     "Slot labels must be $SLOT_LABEL_MAX_LENGTH characters or fewer."
@@ -211,5 +217,4 @@ private fun normalizeLabel(
 private fun invalidPositiveNumber(value: Double?): Boolean =
     value == null || !value.isFinite() || value <= 0.0 || value > SUPPLY_MAX_UNITS
 
-private fun invalidNonNegativeNumber(value: Double?): Boolean =
-    value != null && (!value.isFinite() || value < 0.0 || value > SUPPLY_MAX_UNITS)
+private fun invalidNonNegativeNumber(value: Double?): Boolean = value != null && (!value.isFinite() || value < 0.0 || value > SUPPLY_MAX_UNITS)
