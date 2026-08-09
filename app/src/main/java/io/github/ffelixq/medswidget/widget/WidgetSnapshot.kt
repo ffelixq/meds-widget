@@ -857,8 +857,6 @@ internal object WidgetSnapshotCodec {
 
     private fun JSONObject.optNullableInt(key: String): Int? = if (isNull(key) || !has(key)) null else optInt(key)
 
-    private fun JSONObject.optNullableDouble(key: String): Double? = if (isNull(key) || !has(key)) null else optDouble(key)
-
     private fun CountdownState.toJson(): JSONObject =
         JSONObject()
             .put("id", id)
@@ -900,3 +898,5 @@ internal object WidgetSnapshotCodec {
             )
         }.getOrNull()
 }
+
+private fun JSONObject.optNullableDouble(key: String): Double? = if (isNull(key) || !has(key)) null else optDouble(key)
