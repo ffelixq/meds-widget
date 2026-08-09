@@ -409,7 +409,13 @@ class SingleMedicineWidgetGlanceTest {
             val longName = "A medicine name that is intentionally much too long"
             val snapshot =
                 contentSnapshot().copy(
-                    medicines = listOf(contentSnapshot().medicines.single().copy(name = longName)),
+                    medicines =
+                        listOf(
+                            contentSnapshot()
+                                .medicines
+                                .single()
+                                .copy(name = longName, displayName = longName),
+                        ),
                 )
             provideComposable {
                 SingleMedicineWidgetContent(
