@@ -167,7 +167,7 @@ class MainScreenTest {
 
         composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("2×2 · Medicine A").assertIsDisplayed()
-        composeRule.onAllNodesWithText("☐")[0].performClick()
+        composeRule.onAllNodesWithText("○")[0].performClick()
         composeRule.onNodeWithText("4×2 · 0/2").performScrollTo().assertIsDisplayed()
 
         assertEquals(
@@ -196,7 +196,7 @@ class MainScreenTest {
         }
 
         composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
-        composeRule.onAllNodesWithText("☑")[0].performClick()
+        composeRule.onAllNodesWithText("✓")[0].performClick()
 
         assertEquals(0, checkCount)
         assertEquals(0, undoCount)
