@@ -167,6 +167,24 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun exportingSensitiveDataRequiresExplicitConfirmation() {
+        var exportCount = 0
+        setSettingsContent(onExport = { exportCount += 1 })
+
+        composeRule.onNodeWithTag("export_csv").performScrollTo().performClick()
+
+        composeRule.onNodeWithText("Export sensitive data?").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("The CSV contains medicine names, notes, dose history", substring = true)
+            .assertIsDisplayed()
+        assertEquals(0, exportCount)
+
+        composeRule.onNodeWithTag("confirm_export").performClick()
+
+        assertEquals(1, exportCount)
+    }
+
+    @Test
     fun accountDeletionProgressDisablesNavigationAndAccountActions() {
         var backCount = 0
         var signOutCount = 0
