@@ -65,4 +65,23 @@ class MedicationCsvExporterTest {
 
         assertTrue(csv.contains("\"Tablet \"\"A\"\"\""))
     }
+
+    @Test
+    fun `export neutralizes spreadsheet formula prefixes`() {
+        val medicine =
+            Medicine(
+                id = "med-3",
+                ownerUid = "user",
+                name = "=1+1",
+                notes = "  @SUM(A1:A2)",
+                morningEnabled = false,
+                afternoonEnabled = true,
+                nightEnabled = false,
+            )
+
+        val csv = MedicationCsvExporter.export(listOf(medicine), emptyList())
+
+        assertTrue(csv.contains("medicine,med-3,'=1+1,"))
+        assertTrue(csv.contains("'  @SUM(A1:A2)"))
+    }
 }
