@@ -34,7 +34,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -43,7 +42,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.Medicine
@@ -55,19 +53,7 @@ import io.github.ffelixq.medswidget.ui.design.AppleGroupedRow
 import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
 import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 import kotlinx.coroutines.launch
-import java.io.Serializable
 import java.time.LocalDate
-
-private data class SlotEditorState(
-    val enabled: Boolean,
-    val label: String,
-    val countdownMinutes: Int?,
-    val reminderMinutes: Int?,
-) : Serializable {
-    companion object {
-        private const val serialVersionUID: Long = 1L
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
@@ -234,9 +220,7 @@ fun MedicineScreen(
         ) {
             AppleLargeTitle(
                 title = if (medicine == null) "Add medicine" else "Edit medicine",
-                subtitle =
-                    "Keep the common routine simple; optional controls stay close to " +
-                        "what they affect.",
+                subtitle = "Set the routine first. Optional timing stays grouped inside each dose.",
             )
 
             AppleCard {
@@ -304,8 +288,8 @@ fun MedicineScreen(
                 AppleSectionHeader(
                     title = "Daily schedule",
                     supportingText =
-                        "Enable any combination. Labels can describe the real routine, " +
-                            "such as After breakfast or Before bed.",
+                        "Each enabled time is its own routine. Open only the timing options " +
+                            "that apply to that dose.",
                 )
                 SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
                 SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
@@ -507,50 +491,6 @@ fun MedicineScreen(
     }
 }
 
-@Suppress("FunctionNaming", "LongParameterList")
-@Composable
-private fun SlotEditor(
-    slot: DoseSlot,
-    state: SlotEditorState,
-    onStateChange: (SlotEditorState) -> Unit,
-    errors: Map<String, String>,
-) {
-    val tag = slot.wireValue
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ToggleRow(
-            title = "${slot.defaultLabel} slot",
-            enabled = state.enabled,
-            onEnabledChange = { onStateChange(state.copy(enabled = it)) },
-            tag = tag,
-        )
-        if (state.enabled) {
-            OutlinedTextField(
-                value = state.label,
-                onValueChange = { onStateChange(state.copy(label = it.take(61))) },
-                label = { Text("Custom label") },
-                singleLine = true,
-                isError = errors["${tag}Label"] != null,
-                supportingText = {
-                    Text(errors["${tag}Label"] ?: "${state.label.length}/60")
-                },
-                modifier = Modifier.fillMaxWidth().testTag("${tag}_label"),
-            )
-            CountdownEditor(
-                minutes = state.countdownMinutes,
-                onMinutesChange = { onStateChange(state.copy(countdownMinutes = it)) },
-                error = errors["${tag}CountdownMinutes"],
-                tag = tag,
-            )
-            ReminderEditor(
-                slot = slot,
-                minutesAfterMidnight = state.reminderMinutes,
-                onMinutesChange = { onStateChange(state.copy(reminderMinutes = it)) },
-                error = errors["${tag}ReminderMinutes"],
-            )
-        }
-    }
-}
-
 @Suppress("FunctionNaming")
 @Composable
 private fun ToggleRow(
@@ -578,154 +518,6 @@ private fun ToggleRow(
             modifier = Modifier.weight(1f),
         )
         Switch(checked = enabled, onCheckedChange = null)
-    }
-}
-
-@Suppress("FunctionNaming", "CyclomaticComplexMethod")
-@Composable
-private fun CountdownEditor(
-    minutes: Int?,
-    onMinutesChange: (Int?) -> Unit,
-    error: String?,
-    tag: String,
-) {
-    val presets = listOf(30, 60, 90, 120)
-    var customMode by rememberSaveable(tag, minutes) {
-        mutableStateOf(minutes != null && minutes !in presets)
-    }
-    val title =
-        minutes
-            ?.let { "Meal countdown · ${CountdownLogic.formatDuration(it)}" }
-            ?: "Meal countdown"
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ToggleRow(
-            title = title,
-            enabled = minutes != null,
-            onEnabledChange = { enabled -> onMinutesChange(if (enabled) 30 else null) },
-            tag = "${tag}_countdown",
-        )
-        if (minutes != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                presets.forEach { preset ->
-                    FilterChip(
-                        selected = minutes == preset && !customMode,
-                        onClick = {
-                            customMode = false
-                            onMinutesChange(preset)
-                        },
-                        label = { Text(CountdownLogic.formatDuration(preset)) },
-                    )
-                }
-            }
-            FilterChip(
-                selected = customMode,
-                onClick = {
-                    customMode = true
-                    if (minutes in presets) onMinutesChange(45)
-                },
-                label = { Text("Custom duration") },
-            )
-            if (customMode) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = (minutes / 60).toString(),
-                        onValueChange = { hours ->
-                            val parsed = hours.filter(Char::isDigit).toIntOrNull() ?: 0
-                            onMinutesChange(parsed * 60 + (minutes % 60))
-                        },
-                        label = { Text("Hours") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag("${tag}_countdown_hours"),
-                    )
-                    OutlinedTextField(
-                        value = (minutes % 60).toString(),
-                        onValueChange = { minutePart ->
-                            val parsed = minutePart.filter(Char::isDigit).toIntOrNull() ?: 0
-                            onMinutesChange((minutes / 60) * 60 + parsed)
-                        },
-                        label = { Text("Minutes") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag("${tag}_countdown_minutes"),
-                    )
-                }
-            }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        }
-    }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-private fun ReminderEditor(
-    slot: DoseSlot,
-    minutesAfterMidnight: Int?,
-    onMinutesChange: (Int?) -> Unit,
-    error: String?,
-) {
-    val tag = slot.wireValue
-    val defaultMinutes =
-        when (slot) {
-            DoseSlot.MORNING -> 8 * 60
-            DoseSlot.AFTERNOON -> 13 * 60
-            DoseSlot.EVENING -> 18 * 60
-            DoseSlot.NIGHT -> 22 * 60
-        }
-    val title =
-        minutesAfterMidnight
-            ?.let(::formatClockMinutes)
-            ?.let { "Reminder · $it" }
-            ?: "Time reminder"
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ToggleRow(
-            title = title,
-            enabled = minutesAfterMidnight != null,
-            onEnabledChange = { onMinutesChange(if (it) defaultMinutes else null) },
-            tag = "${tag}_reminder",
-        )
-        if (minutesAfterMidnight != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = (minutesAfterMidnight / 60).toString().padStart(2, '0'),
-                    onValueChange = { hourText ->
-                        val hour =
-                            hourText
-                                .filter(Char::isDigit)
-                                .toIntOrNull()
-                                ?.coerceIn(0, 23)
-                                ?: 0
-                        onMinutesChange(hour * 60 + minutesAfterMidnight % 60)
-                    },
-                    label = { Text("Hour") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("${tag}_reminder_hour"),
-                )
-                OutlinedTextField(
-                    value = (minutesAfterMidnight % 60).toString().padStart(2, '0'),
-                    onValueChange = { minuteText ->
-                        val minute =
-                            minuteText
-                                .filter(Char::isDigit)
-                                .toIntOrNull()
-                                ?.coerceIn(0, 59)
-                                ?: 0
-                        onMinutesChange((minutesAfterMidnight / 60) * 60 + minute)
-                    },
-                    label = { Text("Minute") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("${tag}_reminder_minute"),
-                )
-            }
-            Text(
-                "Reminder scheduling is device-local; the medicine data still syncs to your account.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        }
     }
 }
 
@@ -769,9 +561,3 @@ private fun parseDate(
 }
 
 private fun Double.toDisplayNumber(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
-
-private fun formatClockMinutes(minutesAfterMidnight: Int): String =
-    "%02d:%02d".format(
-        minutesAfterMidnight / 60,
-        minutesAfterMidnight % 60,
-    )

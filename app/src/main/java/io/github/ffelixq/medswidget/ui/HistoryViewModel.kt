@@ -15,10 +15,12 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import java.time.LocalDate
 import java.time.ZoneId
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
+    val logicalDay: LocalDate = LocalDate.now(),
     val entries: List<HistoryEntry> = emptyList(),
     val sevenDay: AdherenceSummary = AdherenceSummary(0, 0, 0, 0),
     val thirtyDay: AdherenceSummary = AdherenceSummary(0, 0, 0, 0),
@@ -50,6 +52,7 @@ class HistoryViewModel(
                             )
                         HistoryUiState(
                             isLoading = false,
+                            logicalDay = today,
                             entries = HistoryAssembler.assemble(history.value),
                             sevenDay = AdherenceCalculator.summarize(history.value, medicines.value, today, 7),
                             thirtyDay = AdherenceCalculator.summarize(history.value, medicines.value, today, 30),

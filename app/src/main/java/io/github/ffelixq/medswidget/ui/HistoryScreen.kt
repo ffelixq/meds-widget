@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -24,7 +25,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,8 +41,10 @@ import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.HistoryEntry
 import io.github.ffelixq.medswidget.ui.design.AppleCard
 import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
+import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 import io.github.ffelixq.medswidget.util.TimeFormatting
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -78,6 +83,52 @@ private fun HistoryBody(
     modifier: Modifier = Modifier,
 ) {
     var selectedDays by remember { mutableIntStateOf(30) }
+    var selectedDay by rememberSaveable(state.logicalDay) { mutableStateOf(state.logicalDay) }
+    var showCalendar by rememberSaveable { mutableStateOf(false) }
+    val selectedEntries =
+        remember(state.entries, selectedDay) {
+            state.entries.filter { it.logicalDay == selectedDay }
+        }
+
+    HistoryList(
+        state = state,
+        selectedDays = selectedDays,
+        selectedDay = selectedDay,
+        selectedEntries = selectedEntries,
+        onDaysChange = { selectedDays = it },
+        onPrevious = { selectedDay = selectedDay.minusDays(1) },
+        onNext = {
+            if (selectedDay < state.logicalDay) selectedDay = selectedDay.plusDays(1)
+        },
+        onToday = { selectedDay = state.logicalDay },
+        onChooseDate = { showCalendar = true },
+        modifier = modifier,
+    )
+
+    if (showCalendar) {
+        HistoryDatePickerDialog(
+            selectedDay = selectedDay,
+            logicalDay = state.logicalDay,
+            onDateSelected = { selectedDay = it },
+            onDismiss = { showCalendar = false },
+        )
+    }
+}
+
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun HistoryList(
+    state: HistoryUiState,
+    selectedDays: Int,
+    selectedDay: LocalDate,
+    selectedEntries: List<HistoryEntry>,
+    onDaysChange: (Int) -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onToday: () -> Unit,
+    onChooseDate: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val summary =
         when (selectedDays) {
             7 -> state.sevenDay
@@ -92,42 +143,78 @@ private fun HistoryBody(
         item {
             AppleLargeTitle(
                 title = "History & adherence",
-                subtitle = "Review what happened without losing the original audit trail.",
+                subtitle = "Choose a day instead of scrolling through one long audit trail.",
             )
         }
         if (state.isLoading) {
             item { HistoryLoading() }
         } else {
             item {
-                AdherenceCard(
-                    summary = summary,
-                    selectedDays = selectedDays,
-                    onDaysChange = { selectedDays = it },
+                HistoryDateNavigator(
+                    selectedDay = selectedDay,
+                    logicalDay = state.logicalDay,
+                    onPrevious = onPrevious,
+                    onNext = onNext,
+                    onToday = onToday,
+                    onChooseDate = onChooseDate,
                 )
             }
-        }
-        state.errorMessage?.let { message ->
-            item { Text(message, color = MaterialTheme.colorScheme.error) }
-        }
-        if (!state.isLoading && state.entries.isEmpty()) {
+            state.errorMessage?.let { message ->
+                item { Text(message, color = MaterialTheme.colorScheme.error) }
+            }
+            historyActivityItems(state.entries, selectedEntries, selectedDay)
             item {
-                AppleCard {
-                    Text("No taken or skipped doses have been recorded yet.")
-                }
-            }
-        }
-        state.entries.groupBy { it.logicalDay }.forEach { (day, entries) ->
-            item(key = "day_$day") {
-                Text(
-                    day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp, start = 4.dp),
+                AppleSectionHeader(
+                    title = "Trends",
+                    supportingText = "A longer-range view of your current saved schedule.",
                 )
             }
-            entries.forEach { entry ->
-                item(key = entry.eventId) { HistoryEntryCard(entry) }
+            item {
+                AdherenceCard(summary, selectedDays, onDaysChange)
             }
+        }
+    }
+}
+
+private fun LazyListScope.historyActivityItems(
+    allEntries: List<HistoryEntry>,
+    selectedEntries: List<HistoryEntry>,
+    selectedDay: LocalDate,
+) {
+    item {
+        AppleSectionHeader(
+            title = "Activity",
+            supportingText = selectedDay.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)),
+        )
+    }
+    if (selectedEntries.isEmpty()) {
+        item { HistoryEmptyDayCard(hasAnyHistory = allEntries.isNotEmpty()) }
+    } else {
+        item { DaySummary(selectedEntries) }
+        selectedEntries.forEach { entry ->
+            item(key = entry.eventId) { HistoryEntryCard(entry) }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun HistoryEmptyDayCard(hasAnyHistory: Boolean) {
+    AppleCard {
+        Text(
+            if (hasAnyHistory) {
+                "No taken or skipped doses were recorded for this day."
+            } else {
+                "No taken or skipped doses have been recorded yet."
+            },
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        if (hasAnyHistory) {
+            Text(
+                "Use Previous, Next, or Choose date to review another day.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
