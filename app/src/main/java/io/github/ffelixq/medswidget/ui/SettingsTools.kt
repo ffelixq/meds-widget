@@ -49,94 +49,15 @@ internal fun SettingsTools(onExport: () -> Unit) {
         }
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        AppleCard {
-            AppleSectionHeader(
-                title = "Privacy & security",
-                supportingText =
-                    "Health data is account-scoped. Android backups and cleartext traffic are blocked, " +
-                        "and supported devices hide app content from recents previews and third-party overlays.",
-            )
-            AppleStatusPill(
-                text = "Privacy protections active",
-                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
-                contentColor = MaterialTheme.colorScheme.secondary,
-            )
-            Text(
-                "Home-screen widgets are intentionally visible while your phone is unlocked. " +
-                    "Use a nickname or hidden widget name for medicines you want to keep discreet.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        AppleCard {
-            AppleSectionHeader(
-                title = "Reminders",
-                supportingText =
-                    "Set a reminder time inside each medicine slot. Detailed reminder content is private " +
-                        "on the lock screen and reminders stay on this device.",
-            )
-            if (notificationPermissionGranted) {
-                AppleStatusPill(
-                    text = "Notifications enabled",
-                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
-                    contentColor = MaterialTheme.colorScheme.secondary,
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Button(
-                    onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-                ) {
-                    Text("Allow medicine reminders")
-                }
-            } else {
-                Text(
-                    "Notifications are disabled in Android settings.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        AppleCard {
-            AppleSectionHeader(
-                title = "Home-screen widgets",
-                supportingText =
-                    "Pin a widget directly, or add it later from your launcher's widget picker.",
-            )
-            OutlinedButton(
-                onClick = { requestPin(context, SingleMedicineWidgetReceiver::class.java) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Add 2×2 medicine widget")
-            }
-            OutlinedButton(
-                onClick = { requestPin(context, AllMedicinesWidgetReceiver::class.java) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Add 4×2 all-medicines widget")
-            }
-            OutlinedButton(
-                onClick = { requestPin(context, DashboardWidgetReceiver::class.java) },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Add 4×4 dashboard widget")
-            }
-        }
-
-        AppleCard {
-            AppleSectionHeader(
-                title = "Data export",
-                supportingText =
-                    "CSV exports contain medicine names, notes, dose history, skip reasons, and timestamps. " +
-                        "Only share them with people or apps you trust.",
-            )
-            OutlinedButton(
-                onClick = { showExportWarning = true },
-                modifier = Modifier.fillMaxWidth().testTag("export_csv"),
-            ) {
-                Text("Review & export CSV")
-            }
-        }
+        PrivacySecurityCard()
+        ReminderPrivacyCard(
+            permissionGranted = notificationPermissionGranted,
+            onRequestPermission = {
+                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+        )
+        WidgetToolsCard(context)
+        ExportToolsCard(onExport = { showExportWarning = true })
     }
 
     if (showExportWarning) {
@@ -147,6 +68,118 @@ internal fun SettingsTools(onExport: () -> Unit) {
                 onExport()
             },
         )
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun PrivacySecurityCard() {
+    AppleCard {
+        AppleSectionHeader(
+            title = "Privacy & security",
+            supportingText =
+                "Health data is account-scoped. Android backups and cleartext traffic are blocked, " +
+                    "and supported devices hide app content from recents previews and third-party overlays.",
+        )
+        AppleStatusPill(
+            text = "Privacy protections active",
+            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+            contentColor = MaterialTheme.colorScheme.secondary,
+        )
+        Text(
+            "Home-screen widgets are intentionally visible while your phone is unlocked. " +
+                "Use a nickname or hidden widget name for medicines you want to keep discreet.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun ReminderPrivacyCard(
+    permissionGranted: Boolean,
+    onRequestPermission: () -> Unit,
+) {
+    AppleCard {
+        AppleSectionHeader(
+            title = "Reminders",
+            supportingText =
+                "Set a reminder time inside each medicine slot. Detailed reminder content is private " +
+                    "on the lock screen and reminders stay on this device.",
+        )
+        when {
+            permissionGranted -> {
+                AppleStatusPill(
+                    text = "Notifications enabled",
+                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                    contentColor = MaterialTheme.colorScheme.secondary,
+                )
+            }
+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                Button(onClick = onRequestPermission) {
+                    Text("Allow medicine reminders")
+                }
+            }
+
+            else -> {
+                Text(
+                    "Notifications are disabled in Android settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun WidgetToolsCard(context: Context) {
+    AppleCard {
+        AppleSectionHeader(
+            title = "Home-screen widgets",
+            supportingText =
+                "Pin a widget directly, or add it later from your launcher's widget picker.",
+        )
+        OutlinedButton(
+            onClick = { requestPin(context, SingleMedicineWidgetReceiver::class.java) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Add 2×2 medicine widget")
+        }
+        OutlinedButton(
+            onClick = { requestPin(context, AllMedicinesWidgetReceiver::class.java) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Add 4×2 all-medicines widget")
+        }
+        OutlinedButton(
+            onClick = { requestPin(context, DashboardWidgetReceiver::class.java) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Add 4×4 dashboard widget")
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun ExportToolsCard(onExport: () -> Unit) {
+    AppleCard {
+        AppleSectionHeader(
+            title = "Data export",
+            supportingText =
+                "CSV exports contain medicine names, notes, dose history, skip reasons, and timestamps. " +
+                    "Only share them with people or apps you trust.",
+        )
+        OutlinedButton(
+            onClick = onExport,
+            modifier = Modifier.fillMaxWidth().testTag("export_csv"),
+        ) {
+            Text("Review & export CSV")
+        }
     }
 }
 
