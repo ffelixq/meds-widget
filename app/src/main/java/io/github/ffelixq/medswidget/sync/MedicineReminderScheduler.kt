@@ -85,9 +85,7 @@ class MedicineReminderScheduler(
                     workDataOf(
                         KEY_UID to uid,
                         KEY_MEDICINE_ID to medicine.id,
-                        KEY_MEDICINE_NAME to medicine.widgetDisplayName(),
                         KEY_SLOT to slot.wireValue,
-                        KEY_LABEL to medicine.label(slot),
                         KEY_END_DATE to medicine.endDate?.toString(),
                         KEY_WORK_NAME to workName,
                     ),
@@ -106,9 +104,7 @@ class MedicineReminderScheduler(
         internal const val CHANNEL_ID = "medicine-reminders"
         internal const val KEY_UID = "uid"
         internal const val KEY_MEDICINE_ID = "medicine_id"
-        internal const val KEY_MEDICINE_NAME = "medicine_name"
         internal const val KEY_SLOT = "slot"
-        internal const val KEY_LABEL = "label"
         internal const val KEY_END_DATE = "end_date"
         internal const val KEY_WORK_NAME = "work_name"
         private const val MINIMUM_DELAY_MILLIS = 1_000L
@@ -149,12 +145,12 @@ class MedicineReminderWorker(
             }
         } else if (canDeliver(request.uid)) {
             ensureChannel(applicationContext)
+            val content = notificationContent(request)
             showNotification(
                 applicationContext,
                 request.medicineId,
                 request.slot,
-                request.medicineName,
-                request.label,
+                content,
             )
         }
         return Result.success()
@@ -175,9 +171,6 @@ class MedicineReminderWorker(
             uid = uid,
             medicineId = medicineId,
             slot = slot,
-            medicineName =
-                inputData.getString(MedicineReminderScheduler.KEY_MEDICINE_NAME).orEmpty(),
-            label = inputData.getString(MedicineReminderScheduler.KEY_LABEL).orEmpty(),
             endDate = endDate,
             workName = inputData.getString(MedicineReminderScheduler.KEY_WORK_NAME),
         )
@@ -192,15 +185,43 @@ class MedicineReminderWorker(
         return signedIn && notificationsAllowed(applicationContext)
     }
 
+    private suspend fun notificationContent(request: ReminderRequest): ReminderContent {
+        val graph = MedsApplication.graph(applicationContext)
+        val snapshot = graph.snapshotStore.read()
+        if (!snapshot.signedIn || snapshot.ownerUid != request.uid) {
+            return ReminderContent.generic(request.slot)
+        }
+        val medicine = snapshot.medicine(request.medicineId)
+        val row =
+            snapshot.rows.firstOrNull {
+                it.medicineId == request.medicineId && it.slot == request.slot
+            }
+        return ReminderContent(
+            title = medicine?.displayName?.takeIf(String::isNotBlank) ?: "Medicine reminder",
+            message = row?.label?.takeIf(String::isNotBlank) ?: request.slot.defaultLabel,
+        )
+    }
+
     private data class ReminderRequest(
         val uid: String,
         val medicineId: String,
         val slot: DoseSlot,
-        val medicineName: String,
-        val label: String,
         val endDate: LocalDate?,
         val workName: String?,
     )
+
+    private data class ReminderContent(
+        val title: String,
+        val message: String,
+    ) {
+        companion object {
+            fun generic(slot: DoseSlot): ReminderContent =
+                ReminderContent(
+                    title = "Medicine reminder",
+                    message = slot.defaultLabel,
+                )
+        }
+    }
 
     private fun notificationsAllowed(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -225,8 +246,7 @@ class MedicineReminderWorker(
         context: Context,
         medicineId: String,
         slot: DoseSlot,
-        medicineName: String,
-        label: String,
+        content: ReminderContent,
     ) {
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -255,14 +275,12 @@ class MedicineReminderWorker(
                 .setAutoCancel(true)
                 .setContentIntent(openApp)
                 .build()
-        val title = medicineName.ifBlank { "Medicine reminder" }
-        val message = label.ifBlank { slot.defaultLabel }
         val notification =
             NotificationCompat
                 .Builder(context, MedicineReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_meds)
-                .setContentTitle(title)
-                .setContentText("Time for $message")
+                .setContentTitle(content.title)
+                .setContentText("Time for ${content.message}")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
