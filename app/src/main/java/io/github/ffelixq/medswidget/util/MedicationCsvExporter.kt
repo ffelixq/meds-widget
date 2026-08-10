@@ -57,6 +57,9 @@ object MedicationCsvExporter {
 
     private fun neutralizeSpreadsheetFormula(value: String): String {
         val firstMeaningfulCharacter = value.firstOrNull { !it.isWhitespace() }
-        return if (firstMeaningfulCharacter in spreadsheetFormulaPrefixes) "'$value" else value
+        val isFormula =
+            firstMeaningfulCharacter != null &&
+                firstMeaningfulCharacter in spreadsheetFormulaPrefixes
+        return if (isFormula) "'$value" else value
     }
 }
