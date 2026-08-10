@@ -614,7 +614,9 @@ private fun DoseTrailingActions(
                 }
             }
 
-            else -> Unit
+            else -> {
+                Unit
+            }
         }
         if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
             TextButton(
