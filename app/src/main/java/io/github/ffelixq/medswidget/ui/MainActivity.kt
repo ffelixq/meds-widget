@@ -2,6 +2,7 @@ package io.github.ffelixq.medswidget.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -61,6 +62,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        protectSensitiveWindow()
         setContent {
             val authState by authViewModel.state.collectAsStateWithLifecycle()
             val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
@@ -133,6 +135,21 @@ class MainActivity : ComponentActivity() {
         mainViewModel.refreshTemporalState()
     }
 
+    /**
+     * Health data should not be exposed through Android's recents thumbnail or UI overlays.
+     * Normal user-initiated screenshots remain available; this keeps the user in control while
+     * reducing passive disclosure and tapjacking risk.
+     */
+    private fun protectSensitiveWindow() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            window.setHideOverlayWindows(true)
+        }
+        window.decorView.filterTouchesWhenObscured = true
+    }
+
     private fun shareCsvExport() {
         val uid =
             graph.repositories.auth.session.value
@@ -149,6 +166,9 @@ class MainActivity : ComponentActivity() {
                     .first()
                     .value
             val directory = File(cacheDir, "exports").apply { mkdirs() }
+            directory.listFiles()?.forEach { previous ->
+                if (previous.isFile) runCatching { previous.delete() }
+            }
             val file = File(directory, "meds-widget-${LocalDate.now()}.csv")
             file.writeText(MedicationCsvExporter.export(medicines, history))
             val uri =
