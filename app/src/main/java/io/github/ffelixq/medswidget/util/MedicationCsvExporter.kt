@@ -48,7 +48,22 @@ object MedicationCsvExporter {
 
     private fun escape(value: String): String {
         val normalized = value.replace("\r\n", "\n").replace('\r', '\n')
-        if (normalized.none { it == ',' || it == '"' || it == '\n' }) return normalized
-        return "\"${normalized.replace("\"", "\"\"")}\""
+        val spreadsheetSafe = neutralizeSpreadsheetFormula(normalized)
+        if (spreadsheetSafe.none { it == ',' || it == '"' || it == '\n' }) return spreadsheetSafe
+        return "\"${spreadsheetSafe.replace("\"", "\"\"")}\""
+    }
+
+    /**
+     * CSV is often opened in spreadsheet software where user-controlled cells beginning with
+     * formula sigils can be executed as formulas. Prefixing an apostrophe keeps the content
+     * visible while forcing those cells to remain plain text.
+     */
+    private fun neutralizeSpreadsheetFormula(value: String): String {
+        val first = value.firstOrNull() ?: return value
+        return if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t') {
+            "'$value"
+        } else {
+            value
+        }
     }
 }
