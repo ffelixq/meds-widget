@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,11 +39,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.BuildConfig
 import io.github.ffelixq.medswidget.R
 import io.github.ffelixq.medswidget.domain.ThemePreference
+import io.github.ffelixq.medswidget.ui.design.AppleCard
+import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
+import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
+import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 
 @Suppress("FunctionNaming")
 @Composable
@@ -53,26 +59,34 @@ internal fun AccountDeletionProgressScreen() {
     }
     Surface(
         modifier = Modifier.fillMaxSize().testTag("account_deletion_blocking_screen"),
+        color = MaterialTheme.colorScheme.background,
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(32.dp),
+            modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
-                strokeWidth = 3.dp,
-            )
-            Text(
-                "Deleting account…",
-                modifier = Modifier.padding(top = 20.dp),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Text(
-                "Keep this screen open while local and cloud data are cleared.",
-                modifier = Modifier.padding(top = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            AppleCard {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        strokeWidth = 3.dp,
+                    )
+                    Text(
+                        "Deleting account…",
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    Text(
+                        "Keep this screen open while local and cloud data are cleared.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }
@@ -108,9 +122,10 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = {},
                 navigationIcon = {
                     IconButton(
                         onClick = onBack,
@@ -119,6 +134,10 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
+                    ),
             )
         },
     ) { padding ->
@@ -128,132 +147,187 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            AppleLargeTitle(
+                title = "Settings",
+                subtitle = "Personalise the app without changing how your medication history is recorded.",
+            )
+
             if (state.isDeletingAccount) {
+                AppleCard(modifier = Modifier.testTag("account_deletion_progress")) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(strokeWidth = 3.dp)
+                        Column {
+                            Text("Deleting account…", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "Keep this screen open while local and cloud data are cleared.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Daily reset",
+                    supportingText =
+                        "Doses before this local time belong to the previous logical medication day.",
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth().testTag("account_deletion_progress"),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircularProgressIndicator(strokeWidth = 3.dp)
-                    Column {
-                        Text("Deleting account…", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = hour,
+                        onValueChange = { hour = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Hour (0–23)") },
+                        modifier = Modifier.weight(1f).testTag("reset_hour"),
+                        singleLine = true,
+                        enabled = controlsEnabled,
+                    )
+                    OutlinedTextField(
+                        value = minute,
+                        onValueChange = { minute = it.filter(Char::isDigit).take(2) },
+                        label = { Text("Minute") },
+                        modifier = Modifier.weight(1f).testTag("reset_minute"),
+                        singleLine = true,
+                        enabled = controlsEnabled,
+                    )
+                }
+                Button(
+                    enabled = controlsEnabled,
+                    onClick = {
+                        parseResetMinutes(hour, minute)?.let(onResetTime)
+                    },
+                ) { Text("Save reset time") }
+                Text(
+                    "Current timezone: ${state.timezoneId}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Theme",
+                    supportingText = "Follow the phone or choose a fixed appearance.",
+                )
+                ThemePreference.entries.forEach { theme ->
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = state.settings.themePreference == theme,
+                                    enabled = controlsEnabled,
+                                    role = Role.RadioButton,
+                                    onClick = { onTheme(theme) },
+                                ).testTag("theme_${theme.wireValue}")
+                                .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = state.settings.themePreference == theme,
+                            onClick = null,
+                            enabled = controlsEnabled,
+                        )
                         Text(
-                            "Keep this screen open while local and cloud data are cleared.",
-                            style = MaterialTheme.typography.bodySmall,
+                            theme.name.lowercase().replaceFirstChar(Char::uppercase),
+                            style = MaterialTheme.typography.bodyLarge,
                         )
                     }
                 }
             }
-            Text("Daily reset", style = MaterialTheme.typography.titleMedium)
-            Text("Doses before this local time belong to the previous logical medication day.")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = hour,
-                    onValueChange = { hour = it.filter(Char::isDigit).take(2) },
-                    label = { Text("Hour (0–23)") },
-                    modifier = Modifier.weight(1f).testTag("reset_hour"),
-                    singleLine = true,
-                    enabled = controlsEnabled,
-                )
-                OutlinedTextField(
-                    value = minute,
-                    onValueChange = { minute = it.filter(Char::isDigit).take(2) },
-                    label = { Text("Minute") },
-                    modifier = Modifier.weight(1f).testTag("reset_minute"),
-                    singleLine = true,
-                    enabled = controlsEnabled,
-                )
-            }
-            Button(
-                enabled = controlsEnabled,
-                onClick = {
-                    parseResetMinutes(hour, minute)?.let(onResetTime)
-                },
-            ) { Text("Save reset time") }
-            Text("Current timezone: ${state.timezoneId}", style = MaterialTheme.typography.bodySmall)
 
-            Text("Theme", style = MaterialTheme.typography.titleMedium)
-            ThemePreference.entries.forEach { theme ->
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = state.settings.themePreference == theme,
-                                enabled = controlsEnabled,
-                                role = Role.RadioButton,
-                                onClick = { onTheme(theme) },
-                            ).testTag("theme_${theme.wireValue}"),
-                    verticalAlignment = Alignment.CenterVertically,
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Account",
+                    supportingText = state.accountEmail,
+                )
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { displayName = it.take(80) },
+                    label = { Text("Display name") },
+                    modifier = Modifier.fillMaxWidth().testTag("settings_display_name"),
+                    singleLine = true,
+                    enabled = controlsEnabled,
+                )
+                Button(
+                    onClick = { onDisplayName(displayName) },
+                    enabled = controlsEnabled,
                 ) {
-                    RadioButton(
-                        selected = state.settings.themePreference == theme,
-                        onClick = null,
-                        enabled = controlsEnabled,
-                    )
-                    Text(theme.name.lowercase().replaceFirstChar(Char::uppercase))
+                    Text("Save display name")
                 }
-            }
-
-            Text("Account", style = MaterialTheme.typography.titleMedium)
-            state.accountEmail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            OutlinedTextField(
-                value = displayName,
-                onValueChange = { displayName = it.take(80) },
-                label = { Text("Display name") },
-                modifier = Modifier.fillMaxWidth().testTag("settings_display_name"),
-                singleLine = true,
-                enabled = controlsEnabled,
-            )
-            Button(
-                onClick = { onDisplayName(displayName) },
-                enabled = controlsEnabled,
-            ) {
-                Text("Save display name")
-            }
-            OutlinedButton(
-                onClick = onSignOut,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = controlsEnabled,
-            ) {
-                Text("Sign out")
-            }
-            TextButton(
-                onClick = { deleteDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = controlsEnabled,
-            ) {
-                Text("Delete account", color = MaterialTheme.colorScheme.error)
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = controlsEnabled,
+                ) {
+                    Text("Sign out")
+                }
+                TextButton(
+                    onClick = { deleteDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = controlsEnabled,
+                ) {
+                    Text(
+                        "Delete account",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
 
             SettingsTools(onExport)
 
-            Text("Privacy", style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.privacy_summary),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Text("App version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-            when {
-                state.isSyncPending -> {
-                    Text(
-                        "Settings are saved on this device and waiting to synchronise.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
+            AppleCard {
+                AppleSectionHeader(title = "Privacy")
+                Text(
+                    stringResource(R.string.privacy_summary),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "App version ${BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                when {
+                    state.isSyncPending -> {
+                        AppleStatusPill(
+                            text = "Waiting to synchronise",
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            contentColor = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "Settings are saved on this device and waiting to synchronise.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
 
-                state.isCached -> {
-                    Text(
-                        "Showing locally cached settings.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    state.isCached -> {
+                        AppleStatusPill(
+                            text = "Cached settings",
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Showing locally cached settings.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
+                state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+                state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-            state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-            state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 

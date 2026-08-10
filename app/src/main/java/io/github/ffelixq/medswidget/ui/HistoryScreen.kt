@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -21,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,11 +30,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.AdherenceSummary
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.HistoryEntry
+import io.github.ffelixq.medswidget.ui.design.AppleCard
+import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
+import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 import io.github.ffelixq.medswidget.util.TimeFormatting
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -47,14 +51,19 @@ fun HistoryScreen(
     onBack: () -> Unit,
 ) {
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("History & adherence") },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
+                    ),
             )
         },
     ) { padding ->
@@ -77,9 +86,15 @@ private fun HistoryBody(
         }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        item {
+            AppleLargeTitle(
+                title = "History & adherence",
+                subtitle = "Review what happened without losing the original audit trail.",
+            )
+        }
         if (state.isLoading) {
             item { HistoryLoading() }
         } else {
@@ -95,13 +110,19 @@ private fun HistoryBody(
             item { Text(message, color = MaterialTheme.colorScheme.error) }
         }
         if (!state.isLoading && state.entries.isEmpty()) {
-            item { Text("No taken or skipped doses have been recorded yet.") }
+            item {
+                AppleCard {
+                    Text("No taken or skipped doses have been recorded yet.")
+                }
+            }
         }
         state.entries.groupBy { it.logicalDay }.forEach { (day, entries) ->
             item(key = "day_$day") {
                 Text(
                     day.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp, start = 4.dp),
                 )
             }
             entries.forEach { entry ->
@@ -114,13 +135,15 @@ private fun HistoryBody(
 @Suppress("FunctionNaming")
 @Composable
 private fun HistoryLoading() {
-    Row(
-        modifier = Modifier.fillMaxWidth().testTag("history_loading"),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
-        Text("Loading history…", style = MaterialTheme.typography.bodyLarge)
+    AppleCard(modifier = Modifier.testTag("history_loading")) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+            Text("Loading history…", style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 
@@ -128,27 +151,53 @@ private fun HistoryLoading() {
 @Composable
 private fun HistoryEntryCard(entry: HistoryEntry) {
     val context = LocalContext.current
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(entry.medicineName, style = MaterialTheme.typography.titleSmall)
-            Text(entry.label, style = MaterialTheme.typography.bodyMedium)
-            val verb = if (entry.action == DoseAction.SKIP) "Skipped" else "Taken"
-            val eventTime = TimeFormatting.compact(context, entry.checkedAt, entry.checkedTimezone)
-            Text(
-                "$verb $eventTime from ${entry.checkedSource.displayName()}",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            entry.skipReason?.let { reason ->
-                Text("Reason: $reason", style = MaterialTheme.typography.bodySmall)
-            }
-            entry.undoneAt?.let { undoneAt ->
-                val undoTime = TimeFormatting.compact(context, undoneAt, entry.undoTimezone)
+    AppleCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(entry.medicineName, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "Undone $undoTime from ${entry.undoSource?.displayName().orEmpty()}",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
+                    entry.label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            AppleStatusPill(
+                text = if (entry.action == DoseAction.SKIP) "Skipped" else "Taken",
+                containerColor =
+                    if (entry.action == DoseAction.SKIP) {
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+                    } else {
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+                    },
+                contentColor =
+                    if (entry.action == DoseAction.SKIP) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    },
+            )
+        }
+        val verb = if (entry.action == DoseAction.SKIP) "Skipped" else "Taken"
+        val eventTime = TimeFormatting.compact(context, entry.checkedAt, entry.checkedTimezone)
+        Text(
+            "$verb $eventTime from ${entry.checkedSource.displayName()}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        entry.skipReason?.let { reason ->
+            Text("Reason: $reason", style = MaterialTheme.typography.bodySmall)
+        }
+        entry.undoneAt?.let { undoneAt ->
+            val undoTime = TimeFormatting.compact(context, undoneAt, entry.undoTimezone)
+            Text(
+                "Undone $undoTime from ${entry.undoSource?.displayName().orEmpty()}",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
@@ -160,33 +209,50 @@ private fun AdherenceCard(
     selectedDays: Int,
     onDaysChange: (Int) -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Adherence", style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(7, 30, 90).forEach { days ->
-                    FilterChip(
-                        selected = selectedDays == days,
-                        onClick = { onDaysChange(days) },
-                        label = { Text("${days}d") },
-                    )
-                }
+    AppleCard {
+        Text("Adherence", style = MaterialTheme.typography.titleLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(7, 30, 90).forEach { days ->
+                FilterChip(
+                    selected = selectedDays == days,
+                    onClick = { onDaysChange(days) },
+                    label = { Text("${days}d") },
+                )
             }
-            Text(
-                "${"%.1f".format(summary.adherencePercent)}% taken",
-                style = MaterialTheme.typography.headlineMedium,
+        }
+        Text(
+            "${"%.1f".format(summary.adherencePercent)}%",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            "${"%.1f".format(summary.adherencePercent)}% taken",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AppleStatusPill(
+                text = "${summary.taken} taken",
+                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.secondary,
             )
-            Text(
-                "${summary.taken} taken · ${summary.skipped} skipped · " +
-                    "${summary.missed} missed · ${summary.scheduled} due",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "Adherence uses the current saved schedule and course dates. " +
-                    "It is a personal tracking summary, not a clinical measure.",
-                style = MaterialTheme.typography.bodySmall,
+            AppleStatusPill(
+                text = "${summary.skipped} skipped",
+                containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.tertiary,
             )
         }
+        Text(
+            "${summary.taken} taken · ${summary.skipped} skipped · " +
+                "${summary.missed} missed · ${summary.scheduled} due",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Adherence uses the current saved schedule and course dates. " +
+                "It is a personal tracking summary, not a clinical measure.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

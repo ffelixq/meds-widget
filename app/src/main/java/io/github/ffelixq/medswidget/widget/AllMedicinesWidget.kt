@@ -62,7 +62,7 @@ internal fun AllMedicinesWidgetContent(
             GlanceModifier
                 .fillMaxSize()
                 .background(WidgetColors.background)
-                .cornerRadius(18.dp)
+                .cornerRadius(22.dp)
                 .padding(spec.outerPaddingDp.dp),
     ) {
         val progress = CompletionProgress(snapshot.rows.count(WidgetDoseRow::isTaken), snapshot.rows.size)

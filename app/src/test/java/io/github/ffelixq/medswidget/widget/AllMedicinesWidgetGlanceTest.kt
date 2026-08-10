@@ -181,7 +181,7 @@ class AllMedicinesWidgetGlanceTest {
                     it.value.emittable.javaClass.simpleName == "EmittableLazyColumn"
                 },
             ).assertExists()
-            onAllNodes(hasTextEqualTo("☐")).assertCountEquals(12)
+            onAllNodes(hasTextEqualTo("○")).assertCountEquals(12)
             onNode(hasTextEqualTo("Dose 12")).assertExists()
         }
 

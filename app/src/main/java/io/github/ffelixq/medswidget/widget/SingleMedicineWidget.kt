@@ -80,7 +80,7 @@ internal fun SingleMedicineWidgetContent(
             GlanceModifier
                 .fillMaxSize()
                 .background(WidgetColors.background)
-                .cornerRadius(18.dp)
+                .cornerRadius(22.dp)
                 .padding(spec.outerPaddingDp.dp),
     ) {
         when {
@@ -280,7 +280,7 @@ internal fun WidgetDoseRowContent(
             verticalAlignment = androidx.glance.layout.Alignment.CenterVertically,
         ) {
             Text(
-                text = if (row.isTaken) "☑" else "☐",
+                text = if (row.isTaken) "✓" else "○",
                 style = WidgetTextStyles.check(spec),
                 maxLines = 1,
             )
@@ -352,7 +352,11 @@ internal object WidgetTextStyles {
             fontWeight = FontWeight.Bold,
         )
 
-    fun body(spec: WidgetLayoutSpec) = TextStyle(color = WidgetColors.foreground, fontSize = spec.bodySp.sp)
+    fun body(spec: WidgetLayoutSpec) =
+        TextStyle(
+            color = WidgetColors.foreground,
+            fontSize = spec.bodySp.sp,
+        )
 
     fun check(spec: WidgetLayoutSpec) =
         TextStyle(
@@ -361,16 +365,25 @@ internal object WidgetTextStyles {
             fontWeight = FontWeight.Bold,
         )
 
-    fun supporting(spec: WidgetLayoutSpec) = TextStyle(color = WidgetColors.foreground, fontSize = spec.supportingSp.sp)
+    fun supporting(spec: WidgetLayoutSpec) =
+        TextStyle(
+            color = WidgetColors.foreground,
+            fontSize = spec.supportingSp.sp,
+        )
 
     fun countdownReady(spec: WidgetLayoutSpec) =
-        TextStyle(color = WidgetColors.accent, fontSize = spec.supportingSp.sp, fontWeight = FontWeight.Bold)
+        TextStyle(
+            color = WidgetColors.success,
+            fontSize = spec.supportingSp.sp,
+            fontWeight = FontWeight.Bold,
+        )
 }
 
 internal object WidgetColors {
-    val background = ColorProvider(Color(0xFFFFFDF8), Color(0xFF1B1C1A))
-    val foreground = ColorProvider(Color(0xFF1B1C1A), Color(0xFFE4E3DF))
-    val accent = ColorProvider(Color(0xFF256C5A), Color(0xFF82D5BC))
+    val background = ColorProvider(Color(0xFFF2F2F7), Color(0xFF1C1C1E))
+    val foreground = ColorProvider(Color(0xFF111114), Color(0xFFF5F5F7))
+    val accent = ColorProvider(Color(0xFF007AFF), Color(0xFF0A84FF))
+    val success = ColorProvider(Color(0xFF34C759), Color(0xFF30D158))
 }
 
 class SingleMedicineWidgetReceiver : GlanceAppWidgetReceiver() {
