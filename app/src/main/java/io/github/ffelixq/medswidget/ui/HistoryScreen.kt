@@ -85,9 +85,10 @@ private fun HistoryBody(
     var selectedDays by remember { mutableIntStateOf(30) }
     var selectedDay by rememberSaveable(state.logicalDay) { mutableStateOf(state.logicalDay) }
     var showCalendar by rememberSaveable { mutableStateOf(false) }
-    val selectedEntries = remember(state.entries, selectedDay) {
-        state.entries.filter { it.logicalDay == selectedDay }
-    }
+    val selectedEntries =
+        remember(state.entries, selectedDay) {
+            state.entries.filter { it.logicalDay == selectedDay }
+        }
 
     HistoryList(
         state = state,
