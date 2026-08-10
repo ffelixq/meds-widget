@@ -1,6 +1,5 @@
 package io.github.ffelixq.medswidget.ui
 
-import android.Manifest
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -35,6 +34,8 @@ import io.github.ffelixq.medswidget.widget.AllMedicinesWidgetReceiver
 import io.github.ffelixq.medswidget.widget.DashboardWidgetReceiver
 import io.github.ffelixq.medswidget.widget.SingleMedicineWidgetReceiver
 
+private const val NOTIFICATION_PERMISSION = "android.permission.POST_NOTIFICATIONS"
+
 @Suppress("FunctionNaming")
 @Composable
 internal fun SettingsTools(onExport: () -> Unit) {
@@ -53,7 +54,7 @@ internal fun SettingsTools(onExport: () -> Unit) {
         ReminderPrivacyCard(
             permissionGranted = notificationPermissionGranted,
             onRequestPermission = {
-                permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                permissionLauncher.launch(NOTIFICATION_PERMISSION)
             },
         )
         WidgetToolsCard(context)
@@ -218,7 +219,7 @@ private fun notificationsAllowed(context: Context): Boolean =
     NotificationManagerCompat.from(context).areNotificationsEnabled() &&
         (
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                ContextCompat.checkSelfPermission(context, NOTIFICATION_PERMISSION) ==
                 PackageManager.PERMISSION_GRANTED
         )
 
