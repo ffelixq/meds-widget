@@ -131,14 +131,19 @@ private fun PreviewRow(
         Spacer(Modifier.width(8.dp))
         Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
         when {
-            row.isTaken || row.isSkipped -> Unit
+            row.isTaken || row.isSkipped -> {
+                Unit
+            }
+
             countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
                 TextButton(onClick = onStartCountdown) {
                     Text(countdown.text.orEmpty())
                 }
             }
 
-            else -> Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
+            else -> {
+                Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
+            }
         }
     }
 }
@@ -167,18 +172,43 @@ private enum class PreviewTone {
     @Composable
     fun color(): Color =
         when (this) {
-            SECONDARY -> MaterialTheme.colorScheme.secondary
-            ON_SECONDARY -> MaterialTheme.colorScheme.onSecondary
-            TERTIARY -> MaterialTheme.colorScheme.tertiary
-            ON_TERTIARY -> MaterialTheme.colorScheme.onTertiary
-            SURFACE_VARIANT -> MaterialTheme.colorScheme.surfaceVariant
-            ON_SURFACE_VARIANT -> MaterialTheme.colorScheme.onSurfaceVariant
+            SECONDARY -> {
+                MaterialTheme.colorScheme.secondary
+            }
+
+            ON_SECONDARY -> {
+                MaterialTheme.colorScheme.onSecondary
+            }
+
+            TERTIARY -> {
+                MaterialTheme.colorScheme.tertiary
+            }
+
+            ON_TERTIARY -> {
+                MaterialTheme.colorScheme.onTertiary
+            }
+
+            SURFACE_VARIANT -> {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+
+            ON_SURFACE_VARIANT -> {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
         }
 }
 
 private fun previewVisual(row: DoseRow): PreviewVisual =
     when {
-        row.isTaken -> PreviewVisual("✓", PreviewTone.SECONDARY, PreviewTone.ON_SECONDARY)
-        row.isSkipped -> PreviewVisual("–", PreviewTone.TERTIARY, PreviewTone.ON_TERTIARY)
-        else -> PreviewVisual("", PreviewTone.SURFACE_VARIANT, PreviewTone.ON_SURFACE_VARIANT)
+        row.isTaken -> {
+            PreviewVisual("✓", PreviewTone.SECONDARY, PreviewTone.ON_SECONDARY)
+        }
+
+        row.isSkipped -> {
+            PreviewVisual("–", PreviewTone.TERTIARY, PreviewTone.ON_TERTIARY)
+        }
+
+        else -> {
+            PreviewVisual("", PreviewTone.SURFACE_VARIANT, PreviewTone.ON_SURFACE_VARIANT)
+        }
     }
