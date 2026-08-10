@@ -104,6 +104,7 @@ fi
 
 ./scripts/check-forbidden-files.sh
 ./scripts/check-firestore-rules.sh
+bash ./scripts/check-android-security.sh
 
 gradle_max_workers="${MEDS_GRADLE_MAX_WORKERS:-1}"
 if [[ ! "${gradle_max_workers}" =~ ^[1-9][0-9]*$ ]]; then
