@@ -22,18 +22,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.DoseSlot
-import java.io.Serializable
-
-internal data class SlotEditorState(
-    val enabled: Boolean,
-    val label: String,
-    val countdownMinutes: Int?,
-    val reminderMinutes: Int?,
-) : Serializable {
-    companion object {
-        private const val serialVersionUID: Long = 1L
-    }
-}
 
 @Suppress("FunctionNaming", "LongParameterList")
 @Composable
