@@ -48,9 +48,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CountdownDisplay
 import io.github.ffelixq.medswidget.domain.CountdownDisplayStatus
@@ -62,8 +60,6 @@ import io.github.ffelixq.medswidget.ui.design.AppleGroupedRow
 import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
 import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 import io.github.ffelixq.medswidget.util.TimeFormatting
-import io.github.ffelixq.medswidget.widget.WidgetKind
-import io.github.ffelixq.medswidget.widget.WidgetLayoutSpec
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
@@ -106,7 +102,8 @@ fun MainScreen(
                 colors =
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
-                        scrolledContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                        scrolledContainerColor =
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
                     ),
             )
         },
@@ -283,7 +280,10 @@ private fun MedicineCard(
 
             rows.isEmpty() -> {
                 AppleGroupedRow {
-                    Text("No doses scheduled today", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "No doses scheduled today",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
 
@@ -312,7 +312,11 @@ private fun MedicineHeader(
     onEdit: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(vertical = 2.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onEdit)
+                .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -372,7 +376,11 @@ fun DoseCheckRow(
         color = containerColor,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -500,10 +508,11 @@ private fun DoseStatusMark(row: DoseRow) {
                 modifier = Modifier.size(30.dp),
                 shape = CircleShape,
                 color = Color.Transparent,
-                border = androidx.compose.foundation.BorderStroke(
-                    1.5.dp,
-                    MaterialTheme.colorScheme.outline,
-                ),
+                border =
+                    androidx.compose.foundation.BorderStroke(
+                        1.5.dp,
+                        MaterialTheme.colorScheme.outline,
+                    ),
             ) {}
         }
     }
@@ -613,133 +622,6 @@ private fun DoseTrailingActions(
                 modifier = Modifier.testTag("skip_${row.stateId}"),
             ) {
                 Text("Skip", color = MaterialTheme.colorScheme.tertiary)
-            }
-        }
-    }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-private fun WidgetPreviews(
-    state: MainUiState,
-    onCheck: (DoseRow) -> Unit,
-    onStartCountdown: (DoseRow) -> Unit,
-) {
-    val firstMedicine =
-        state.medicines.firstOrNull { medicine ->
-            state.rows.any { it.medicineId == medicine.id }
-        } ?: return
-    val rows = state.rows.filter { it.medicineId == firstMedicine.id }
-    val singleSpec = WidgetLayoutSpec.forSize(DpSize(190.dp, 145.dp), WidgetKind.SINGLE)
-    val allSpec = WidgetLayoutSpec.forSize(DpSize(320.dp, 160.dp), WidgetKind.ALL)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Widget previews", style = MaterialTheme.typography.titleLarge)
-        Text(
-            "Live previews use the same dose actions as the real widgets.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        AppleCard {
-            Text(
-                "2×2 · ${firstMedicine.widgetDisplayName()}",
-                fontSize = singleSpec.titleSp.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            rows.forEach { row ->
-                PreviewRow(
-                    row,
-                    singleSpec,
-                    { onCheck(row) },
-                    { onStartCountdown(row) },
-                )
-            }
-        }
-        AppleCard {
-            Text(
-                "4×2 · ${state.progress.compactDisplay}",
-                fontSize = allSpec.titleSp.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            state.rows.take(4).forEach { row ->
-                val displayName =
-                    state.medicines
-                        .firstOrNull { it.id == row.medicineId }
-                        ?.widgetDisplayName()
-                        ?: "Medicine"
-                Text(
-                    displayName,
-                    fontSize = allSpec.supportingSp.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PreviewRow(
-                    row,
-                    allSpec,
-                    { onCheck(row) },
-                    { onStartCountdown(row) },
-                )
-            }
-        }
-    }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-private fun PreviewRow(
-    row: DoseRow,
-    spec: WidgetLayoutSpec,
-    onCheck: () -> Unit,
-    onStartCountdown: () -> Unit,
-) {
-    val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, Instant.now())
-    Row(
-        modifier = Modifier.fillMaxWidth().height(spec.rowHeightDp.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Surface(
-            modifier =
-                Modifier
-                    .size((spec.checkSp + 10).dp)
-                    .clickable(
-                        enabled = !row.isTaken && !row.isSkipped,
-                        onClick = onCheck,
-                    ),
-            shape = CircleShape,
-            color =
-                when {
-                    row.isTaken -> MaterialTheme.colorScheme.secondary
-                    row.isSkipped -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    when {
-                        row.isTaken -> "✓"
-                        row.isSkipped -> "–"
-                        else -> ""
-                    },
-                    fontSize = spec.bodySp.sp,
-                    color =
-                        when {
-                            row.isTaken -> MaterialTheme.colorScheme.onSecondary
-                            row.isSkipped -> MaterialTheme.colorScheme.onTertiary
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
-        when {
-            row.isTaken || row.isSkipped -> Unit
-            countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
-                TextButton(onClick = onStartCountdown) {
-                    Text(countdown.text.orEmpty())
-                }
-            }
-
-            else -> {
-                Text(countdown.text.orEmpty(), fontSize = spec.supportingSp.sp)
             }
         }
     }
