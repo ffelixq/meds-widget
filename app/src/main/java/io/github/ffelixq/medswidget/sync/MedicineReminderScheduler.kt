@@ -1,6 +1,7 @@
 package io.github.ffelixq.medswidget.sync
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -215,6 +216,7 @@ class MedicineReminderWorker(
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Scheduled reminders for medicines you configure in Meds Widget."
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             },
         )
     }
@@ -240,16 +242,32 @@ class MedicineReminderWorker(
                 Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
+        val publicNotification =
+            NotificationCompat
+                .Builder(context, MedicineReminderScheduler.CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_meds)
+                .setContentTitle("Medicine reminder")
+                .setContentText("Open Meds Widget to view details.")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setLocalOnly(true)
+                .setAutoCancel(true)
+                .setContentIntent(openApp)
+                .build()
         val title = medicineName.ifBlank { "Medicine reminder" }
         val message = label.ifBlank { slot.defaultLabel }
         val notification =
             NotificationCompat
                 .Builder(context, MedicineReminderScheduler.CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher)
+                .setSmallIcon(R.drawable.ic_stat_meds)
                 .setContentTitle(title)
                 .setContentText("Time for $message")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicNotification)
+                .setLocalOnly(true)
                 .setAutoCancel(true)
                 .setContentIntent(openApp)
                 .build()
