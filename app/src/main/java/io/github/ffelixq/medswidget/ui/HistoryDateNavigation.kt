@@ -133,8 +133,7 @@ internal fun HistoryDatePickerDialog(
     val selectableDates =
         remember(latestMillis, logicalDay.year) {
             object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                    utcTimeMillis <= latestMillis
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= latestMillis
 
                 override fun isSelectableYear(year: Int): Boolean = year <= logicalDay.year
             }
