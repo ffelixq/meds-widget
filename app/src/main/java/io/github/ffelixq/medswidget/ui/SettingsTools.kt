@@ -47,9 +47,27 @@ internal fun SettingsTools(onExport: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         AppleCard {
             AppleSectionHeader(
+                title = "Privacy & security",
+                supportingText =
+                    "Health data is account-scoped and protected by Firebase rules. This device also blocks backups, cleartext traffic, recents previews, and third-party overlays where Android supports it.",
+            )
+            AppleStatusPill(
+                text = "Privacy protections active",
+                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.secondary,
+            )
+            Text(
+                "Home-screen widgets are intentionally visible while your phone is unlocked. Use a nickname or hidden widget name for medicines you want to keep discreet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        AppleCard {
+            AppleSectionHeader(
                 title = "Reminders",
                 supportingText =
-                    "Set a reminder time inside each medicine slot. Reminders are scheduled on this device.",
+                    "Set a reminder time inside each medicine slot. Lock-screen previews hide medicine details until your device allows them to be shown.",
             )
             if (notificationPermissionGranted) {
                 AppleStatusPill(
@@ -102,13 +120,13 @@ internal fun SettingsTools(onExport: () -> Unit) {
             AppleSectionHeader(
                 title = "Data export",
                 supportingText =
-                    "Export your medicine setup and dose history as a CSV file you can save or share.",
+                    "CSV exports contain medicine names, notes, and dose history. Only share them with people or apps you trust.",
             )
             OutlinedButton(
                 onClick = onExport,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Export CSV")
+                Text("Review & export CSV")
             }
         }
     }
