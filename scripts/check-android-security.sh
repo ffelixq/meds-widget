@@ -7,6 +7,8 @@ network_config="app/src/main/res/xml/network_security_config.xml"
 backup_rules="app/src/main/res/xml/data_extraction_rules.xml"
 export_paths="app/src/main/res/xml/export_file_paths.xml"
 reminder_source="app/src/main/java/io/github/ffelixq/medswidget/sync/MedicineReminderScheduler.kt"
+main_activity="app/src/main/java/io/github/ffelixq/medswidget/ui/MainActivity.kt"
+widget_config_activity="app/src/main/java/io/github/ffelixq/medswidget/widget/SingleWidgetConfigurationActivity.kt"
 
 fail() {
   echo "error: Android security invariant failed: $1" >&2
@@ -34,8 +36,12 @@ require_literal "$manifest" 'android:fullBackupContent="false"' 'legacy full bac
 require_literal "$manifest" 'android:dataExtractionRules="@xml/data_extraction_rules"' 'data extraction rules must stay attached'
 require_literal "$manifest" 'android:usesCleartextTraffic="false"' 'cleartext traffic must stay disabled'
 require_literal "$manifest" 'android:networkSecurityConfig="@xml/network_security_config"' 'explicit network security config must stay attached'
+require_literal "$manifest" 'android.permission.HIDE_OVERLAY_WINDOWS' 'overlay protection permission must stay declared'
 reject_literal "$manifest" 'android:debuggable="true"' 'production manifest must not enable debuggable'
 reject_literal "$manifest" 'android:testOnly="true"' 'production manifest must not enable testOnly'
+reject_literal "$manifest" 'android.permission.SYSTEM_ALERT_WINDOW' 'the app must not request overlay creation privileges'
+reject_literal "$manifest" 'android.permission.REQUEST_INSTALL_PACKAGES' 'the app must not request package-install privileges'
+reject_literal "$manifest" 'android.permission.MANAGE_EXTERNAL_STORAGE' 'the app must not request all-files access'
 
 exported_true_count="$(grep -Fc 'android:exported="true"' "$manifest")"
 [[ "$exported_true_count" == "2" ]] || fail "only launcher MainActivity and widget configuration may be exported"
@@ -65,5 +71,13 @@ done
 require_literal "$reminder_source" '.setVisibility(NotificationCompat.VISIBILITY_PRIVATE)' 'detailed medicine reminders must stay private on the lock screen'
 require_literal "$reminder_source" '.setPublicVersion(publicNotification)' 'medicine reminders must retain a generic public version'
 require_literal "$reminder_source" '.setLocalOnly(true)' 'medicine reminders must not auto-bridge to companion devices'
+reject_literal "$reminder_source" 'KEY_MEDICINE_NAME' 'WorkManager input must not persist medicine names'
+reject_literal "$reminder_source" 'KEY_LABEL' 'WorkManager input must not persist custom medicine labels'
+
+for activity_source in "$main_activity" "$widget_config_activity"; do
+  require_literal "$activity_source" 'setRecentsScreenshotEnabled(false)' 'health activities must suppress recents thumbnails on supported Android versions'
+  require_literal "$activity_source" 'window.setHideOverlayWindows(true)' 'health activities must block third-party overlays on supported Android versions'
+  require_literal "$activity_source" 'filterTouchesWhenObscured = true' 'health activities must reject obscured touches'
+done
 
 echo "Android security invariants passed."
