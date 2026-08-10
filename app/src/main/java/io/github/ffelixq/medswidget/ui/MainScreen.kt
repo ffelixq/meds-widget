@@ -1,7 +1,9 @@
 package io.github.ffelixq.medswidget.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,22 +13,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,12 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +57,10 @@ import io.github.ffelixq.medswidget.domain.CountdownDisplayStatus
 import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.Medicine
+import io.github.ffelixq.medswidget.ui.design.AppleCard
+import io.github.ffelixq.medswidget.ui.design.AppleGroupedRow
+import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
+import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 import io.github.ffelixq.medswidget.util.TimeFormatting
 import io.github.ffelixq.medswidget.widget.WidgetKind
 import io.github.ffelixq.medswidget.widget.WidgetLayoutSpec
@@ -80,20 +91,33 @@ fun MainScreen(
     var refillCandidate by remember { mutableStateOf<Medicine?>(null) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Today") },
+                title = {},
                 actions = {
-                    TextButton(onClick = onHistory) { Text("History") }
+                    TextButton(onClick = onHistory) {
+                        Text("History", fontWeight = FontWeight.SemiBold)
+                    }
                     IconButton(onClick = onSettings) {
                         Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                     }
                 },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
+                        scrolledContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                    ),
             )
         },
         floatingActionButton = {
             if (!state.isLoading) {
-                FloatingActionButton(onClick = onAdd) {
+                FloatingActionButton(
+                    onClick = onAdd,
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ) {
                     Icon(Icons.Outlined.Add, contentDescription = "Add medicine")
                 }
             }
@@ -101,9 +125,15 @@ fun MainScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            item {
+                AppleLargeTitle(
+                    title = "Today",
+                    subtitle = "Your medication plan, at a glance.",
+                )
+            }
             item { TodaySummary(state) }
             if (!state.isLoading && state.medicines.isEmpty()) {
                 item { EmptyTodayCard(onAdd) }
@@ -197,64 +227,78 @@ private fun MedicineCard(
     onRestartCountdown: (DoseRow) -> Unit,
     onRefill: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            MedicineHeader(medicine, onEdit)
-            if (medicine.supplyEnabled && medicine.supplyInitialUnits != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column {
-                        val amount = formatSupplyAmount(medicine.supplyInitialUnits)
+    AppleCard {
+        MedicineHeader(medicine, onEdit)
+        if (medicine.supplyEnabled && medicine.supplyInitialUnits != null) {
+            AppleGroupedRow {
+                Column(Modifier.weight(1f)) {
+                    val amount = formatSupplyAmount(medicine.supplyInitialUnits)
+                    Text(
+                        "$amount ${medicine.supplyUnitName} remaining",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (
+                        medicine.lowSupplyThreshold != null &&
+                        medicine.supplyInitialUnits <= medicine.lowSupplyThreshold
+                    ) {
                         Text(
-                            "Supply: $amount ${medicine.supplyUnitName}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            "Supply is below your saved threshold",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
                         )
-                        if (
-                            medicine.lowSupplyThreshold != null &&
-                            medicine.supplyInitialUnits <= medicine.lowSupplyThreshold
-                        ) {
-                            Text(
-                                "Low supply",
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
                     }
-                    TextButton(onClick = onRefill) { Text("Refill") }
+                }
+                if (
+                    medicine.lowSupplyThreshold != null &&
+                    medicine.supplyInitialUnits <= medicine.lowSupplyThreshold
+                ) {
+                    AppleStatusPill(
+                        text = "Low",
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                        contentColor = MaterialTheme.colorScheme.error,
+                    )
+                }
+                TextButton(onClick = onRefill) { Text("Refill") }
+            }
+        }
+        when {
+            medicine.startDate?.isAfter(logicalDay) == true -> {
+                AppleGroupedRow {
+                    Text(
+                        "Starts ${medicine.startDate}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
-            when {
-                medicine.startDate?.isAfter(logicalDay) == true -> {
-                    Text("Starts ${medicine.startDate}", style = MaterialTheme.typography.bodyMedium)
-                }
 
-                medicine.endDate?.isBefore(logicalDay) == true -> {
+            medicine.endDate?.isBefore(logicalDay) == true -> {
+                AppleGroupedRow {
                     Text(
                         "Course completed ${medicine.endDate}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+            }
 
-                rows.isEmpty() -> {
+            rows.isEmpty() -> {
+                AppleGroupedRow {
                     Text("No doses scheduled today", style = MaterialTheme.typography.bodyMedium)
                 }
+            }
 
-                else -> {
-                    rows.forEach { row ->
-                        DoseCheckRow(
-                            row = row,
-                            onClick = { onCheck(row) },
-                            onSkip = { onSkip(row) },
-                            onStartCountdown = { onStartCountdown(row) },
-                            onCancelCountdown = { onCancelCountdown(row) },
-                            onRestartCountdown = { onRestartCountdown(row) },
-                            showCountdownManagement = true,
-                            modifier = Modifier.testTag("app_dose_${row.stateId}"),
-                        )
-                    }
+            else -> {
+                rows.forEach { row ->
+                    DoseCheckRow(
+                        row = row,
+                        onClick = { onCheck(row) },
+                        onSkip = { onSkip(row) },
+                        onStartCountdown = { onStartCountdown(row) },
+                        onCancelCountdown = { onCancelCountdown(row) },
+                        onRestartCountdown = { onRestartCountdown(row) },
+                        showCountdownManagement = true,
+                        modifier = Modifier.testTag("app_dose_${row.stateId}"),
+                    )
                 }
             }
         }
@@ -268,21 +312,35 @@ private fun MedicineHeader(
     onEdit: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit).padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(medicine.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                medicine.name,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
             if (medicine.nickname.isNotBlank()) {
-                Text(medicine.nickname, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    medicine.nickname,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
-        Text(
-            "Edit",
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.labelLarge,
-        )
+        Surface(
+            shape = RoundedCornerShape(999.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+        ) {
+            Text(
+                "Edit",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
     }
 }
 
@@ -302,30 +360,39 @@ fun DoseCheckRow(
 ) {
     val liveNow by countdownClock(row, now)
     val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, liveNow)
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    val containerColor =
+        when {
+            row.isTaken -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+            row.isSkipped -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.72f)
+            else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+        }
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = containerColor,
     ) {
-        DosePrimaryContent(
-            row = row,
-            onClick = onClick,
-            allowUndo = allowUndo,
-            modifier = modifier.weight(1f),
-        )
-        if (!row.isTaken && !row.isSkipped) {
-            DoseTrailingActions(
+        Row(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            DosePrimaryContent(
                 row = row,
-                countdown = countdown,
-                onStartCountdown = onStartCountdown,
-                onCancelCountdown = onCancelCountdown,
-                onRestartCountdown = onRestartCountdown,
-                showCountdownManagement = showCountdownManagement,
-                onSkip = onSkip,
+                onClick = onClick,
+                allowUndo = allowUndo,
+                modifier = modifier.weight(1f),
             )
+            if (!row.isTaken && !row.isSkipped) {
+                DoseTrailingActions(
+                    row = row,
+                    countdown = countdown,
+                    onStartCountdown = onStartCountdown,
+                    onCancelCountdown = onCancelCountdown,
+                    onRestartCountdown = onRestartCountdown,
+                    showCountdownManagement = showCountdownManagement,
+                    onSkip = onSkip,
+                )
+            }
         }
     }
 }
@@ -365,7 +432,7 @@ private fun DosePrimaryContent(
     Row(
         modifier =
             modifier
-                .heightIn(min = 48.dp)
+                .heightIn(min = 50.dp)
                 .clickable(
                     enabled = (!row.isTaken && !row.isSkipped) || allowUndo,
                     role = Role.Checkbox,
@@ -376,11 +443,68 @@ private fun DosePrimaryContent(
                 },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = row.isTaken, onCheckedChange = null)
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(row.label, style = MaterialTheme.typography.bodyLarge)
+        DoseStatusMark(row)
+        Spacer(Modifier.width(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                row.label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+            )
             DoseStatusText(row, context)
+        }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun DoseStatusMark(row: DoseRow) {
+    val backgroundColor: Color
+    val foregroundColor: Color
+    val mark: String
+    when {
+        row.isTaken -> {
+            backgroundColor = MaterialTheme.colorScheme.secondary
+            foregroundColor = MaterialTheme.colorScheme.onSecondary
+            mark = "✓"
+        }
+
+        row.isSkipped -> {
+            backgroundColor = MaterialTheme.colorScheme.tertiary
+            foregroundColor = MaterialTheme.colorScheme.onTertiary
+            mark = "–"
+        }
+
+        else -> {
+            backgroundColor = MaterialTheme.colorScheme.surface
+            foregroundColor = MaterialTheme.colorScheme.onSurfaceVariant
+            mark = ""
+        }
+    }
+    Box(
+        modifier =
+            Modifier
+                .size(30.dp)
+                .background(backgroundColor, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (mark.isNotEmpty()) {
+            Text(
+                mark,
+                color = foregroundColor,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        } else {
+            Surface(
+                modifier = Modifier.size(30.dp),
+                shape = CircleShape,
+                color = Color.Transparent,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.5.dp,
+                    MaterialTheme.colorScheme.outline,
+                ),
+            ) {}
         }
     }
 }
@@ -395,7 +519,11 @@ private fun DoseStatusText(
         row.isTaken && row.checkedAt != null -> {
             val checkedTime =
                 TimeFormatting.compact(context, row.checkedAt, row.checkedTimezone)
-            Text("Taken $checkedTime", style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Taken $checkedTime",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         row.isSkipped -> {
@@ -420,26 +548,37 @@ private fun DoseTrailingActions(
     onSkip: (() -> Unit)?,
 ) {
     val context = LocalContext.current
-    when (countdown.status) {
-        CountdownDisplayStatus.NOT_STARTED -> {
-            onStartCountdown?.let { start ->
-                TextButton(
-                    onClick = start,
-                    modifier = Modifier.testTag("start_countdown_${row.stateId}"),
-                ) {
-                    Text(countdown.text.orEmpty())
+    Column(horizontalAlignment = Alignment.End) {
+        when (countdown.status) {
+            CountdownDisplayStatus.NOT_STARTED -> {
+                onStartCountdown?.let { start ->
+                    TextButton(
+                        onClick = start,
+                        modifier = Modifier.testTag("start_countdown_${row.stateId}"),
+                    ) {
+                        Text(countdown.text.orEmpty())
+                    }
                 }
             }
-        }
 
-        CountdownDisplayStatus.RUNNING,
-        CountdownDisplayStatus.READY,
-        -> {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    countdown.text.orEmpty(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
+            CountdownDisplayStatus.RUNNING,
+            CountdownDisplayStatus.READY,
+            -> {
+                val ready = countdown.status == CountdownDisplayStatus.READY
+                AppleStatusPill(
+                    text = countdown.text.orEmpty(),
+                    containerColor =
+                        if (ready) {
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        },
+                    contentColor =
+                        if (ready) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                 )
                 row.countdown?.let { activeCountdown ->
                     val readyTime =
@@ -448,7 +587,11 @@ private fun DoseTrailingActions(
                             activeCountdown.targetAt,
                             activeCountdown.startedTimezone,
                         )
-                    Text("Ready $readyTime", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        "Ready $readyTime",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 if (showCountdownManagement) {
                     Row {
@@ -461,18 +604,16 @@ private fun DoseTrailingActions(
                     }
                 }
             }
-        }
 
-        else -> {
-            Unit
+            else -> Unit
         }
-    }
-    if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier.testTag("skip_${row.stateId}"),
-        ) {
-            Text("Skip")
+        if (onSkip != null && countdown.status != CountdownDisplayStatus.RUNNING) {
+            TextButton(
+                onClick = onSkip,
+                modifier = Modifier.testTag("skip_${row.stateId}"),
+            ) {
+                Text("Skip", color = MaterialTheme.colorScheme.tertiary)
+            }
         }
     }
 }
@@ -496,40 +637,46 @@ private fun WidgetPreviews(
         Text(
             "Live previews use the same dose actions as the real widgets.",
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Text(
-                    "2×2 · ${firstMedicine.widgetDisplayName()}",
-                    fontSize = singleSpec.titleSp.sp,
+        AppleCard {
+            Text(
+                "2×2 · ${firstMedicine.widgetDisplayName()}",
+                fontSize = singleSpec.titleSp.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            rows.forEach { row ->
+                PreviewRow(
+                    row,
+                    singleSpec,
+                    { onCheck(row) },
+                    { onStartCountdown(row) },
                 )
-                rows.forEach { row ->
-                    PreviewRow(
-                        row,
-                        singleSpec,
-                        { onCheck(row) },
-                        { onStartCountdown(row) },
-                    )
-                }
             }
         }
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Text("4×2 · ${state.progress.compactDisplay}", fontSize = allSpec.titleSp.sp)
-                state.rows.take(4).forEach { row ->
-                    val displayName =
-                        state.medicines
-                            .firstOrNull { it.id == row.medicineId }
-                            ?.widgetDisplayName()
-                            ?: "Medicine"
-                    Text(displayName, fontSize = allSpec.supportingSp.sp)
-                    PreviewRow(
-                        row,
-                        allSpec,
-                        { onCheck(row) },
-                        { onStartCountdown(row) },
-                    )
-                }
+        AppleCard {
+            Text(
+                "4×2 · ${state.progress.compactDisplay}",
+                fontSize = allSpec.titleSp.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            state.rows.take(4).forEach { row ->
+                val displayName =
+                    state.medicines
+                        .firstOrNull { it.id == row.medicineId }
+                        ?.widgetDisplayName()
+                        ?: "Medicine"
+                Text(
+                    displayName,
+                    fontSize = allSpec.supportingSp.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                PreviewRow(
+                    row,
+                    allSpec,
+                    { onCheck(row) },
+                    { onStartCountdown(row) },
+                )
             }
         }
     }
@@ -548,28 +695,43 @@ private fun PreviewRow(
         modifier = Modifier.fillMaxWidth().height(spec.rowHeightDp.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            if (row.isTaken) {
-                "☑"
-            } else if (row.isSkipped) {
-                "–"
-            } else {
-                "☐"
-            },
-            fontSize = spec.checkSp.sp,
+        Surface(
             modifier =
-                Modifier.clickable(
-                    enabled = !row.isTaken && !row.isSkipped,
-                    onClick = onCheck,
-                ),
-        )
-        Spacer(Modifier.width(6.dp))
+                Modifier
+                    .size((spec.checkSp + 10).dp)
+                    .clickable(
+                        enabled = !row.isTaken && !row.isSkipped,
+                        onClick = onCheck,
+                    ),
+            shape = CircleShape,
+            color =
+                when {
+                    row.isTaken -> MaterialTheme.colorScheme.secondary
+                    row.isSkipped -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    when {
+                        row.isTaken -> "✓"
+                        row.isSkipped -> "–"
+                        else -> ""
+                    },
+                    fontSize = spec.bodySp.sp,
+                    color =
+                        when {
+                            row.isTaken -> MaterialTheme.colorScheme.onSecondary
+                            row.isSkipped -> MaterialTheme.colorScheme.onTertiary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
         Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
         when {
-            row.isTaken || row.isSkipped -> {
-                Unit
-            }
-
+            row.isTaken || row.isSkipped -> Unit
             countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
                 TextButton(onClick = onStartCountdown) {
                     Text(countdown.text.orEmpty())
