@@ -41,17 +41,17 @@ The codebase already has unusually strong foundations for a small personal app:
 
 ## Findings and remediation
 
-### P1 — Firebase App Check was not integrated
+### P1 — Firebase App Check is not yet enforced
 
-**Risk:** Firestore Security Rules prevent cross-user access, but without app attestation an attacker can more easily automate Firebase calls from a copied/custom client using their own or stolen valid session. Authentication and rules remain the authorization boundary, but App Check adds an important abuse barrier.
+**Risk:** Firestore Security Rules prevent cross-user access, but without app attestation an attacker can more easily automate Firebase calls from a copied/custom client using their own or stolen valid session. Authentication and rules remain the authorization boundary; App Check is an additional abuse barrier rather than a replacement for them.
 
-**Fix in this branch:** add Firebase App Check with the Play Integrity provider to release builds.
+**Decision in this branch:** do not add the Play Integrity dependency before the Firebase Android app is registered for App Check and legitimate signed traffic can be validated. The repository uses strict dependency locking, and weakening that reproducibility control to force an unregistered security dependency into a release would be the wrong tradeoff.
 
-**Important deployment requirement:** client integration alone does not enforce App Check. Register the Android app in Firebase App Check using the release signing SHA-256, configure it for an app distributed outside Google Play, monitor App Check metrics, then enable enforcement for **Cloud Firestore** and **Authentication**. Do not enable enforcement before a legitimate App Distribution build is observed as valid.
+**Required follow-up:** register the Android app in Firebase App Check using the release signing SHA-256, configure Play Integrity for an app distributed outside Google Play, regenerate and commit the dependency lock state with the App Check client dependency, distribute a signed test build, monitor App Check metrics, then enable enforcement for **Cloud Firestore** and **Authentication**.
 
-For the current Firebase-App-Distribution-only channel, Firebase's guidance says `PLAY_RECOGNIZED` and `LICENSED` should not be required, while **Device integrity** is the recommended minimum device integrity level.
+For the current Firebase-App-Distribution-only channel, Firebase guidance says `PLAY_RECOGNIZED` and `LICENSED` should not be required, while **Device integrity** is the recommended minimum device integrity level.
 
-**Status:** client-ready in code; **console enforcement remains a required operational step**.
+**Status:** **open operational hardening item; not falsely claimed as enforced or integrated.** See `APP_CHECK_SETUP.md`.
 
 ### P1 — lock-screen reminder content disclosed medicine details
 
@@ -125,7 +125,6 @@ For the current Firebase-App-Distribution-only channel, Firebase's guidance says
 - enables cleartext network traffic;
 - removes the Network Security Config;
 - removes overlay protection;
-- removes the App Check dependency;
 - introduces high-risk permissions such as external-storage, overlay, SMS, contacts, camera, microphone, broad package visibility, or package-install privileges;
 - forces the production app debuggable;
 - exports an unexpected application component; or
@@ -135,9 +134,9 @@ The existing `check-forbidden-files.sh` invokes this guard, so it runs in the pr
 
 ## Residual risk / deliberately not implemented
 
-### App Check enforcement is not automatic
+### App Check is staged, not silently weakened
 
-The app code can request Play Integrity-backed App Check tokens, but Firebase Console registration and enforcement are separate server-side operations. Do not document App Check as "enforced" until Cloud Firestore and Authentication metrics show valid legitimate traffic and enforcement is enabled.
+App Check requires a coordinated client and Firebase-console rollout. `APP_CHECK_SETUP.md` records the sequence. Do not document it as integrated or enforced until the backend registration exists, the dependency lock is regenerated, signed App Distribution traffic is observed as valid, and enforcement is enabled.
 
 ### No homemade local-data encryption
 
@@ -153,7 +152,7 @@ Screenshots are not globally disabled. A user may legitimately want to show a me
 
 ### Rooted/compromised devices remain outside the trust boundary
 
-A sufficiently compromised Android device can inspect application memory/storage or manipulate the UI despite normal application protections. App Check raises the backend-abuse bar but is not a substitute for authentication, Firestore Rules, or device security.
+A sufficiently compromised Android device can inspect application memory/storage or manipulate the UI despite normal application protections. App Check can later raise the backend-abuse bar but is not a substitute for authentication, Firestore Rules, or device security.
 
 ## App Check activation checklist
 
@@ -161,12 +160,13 @@ A sufficiently compromised Android device can inspect application memory/storage
 2. Register the release signing certificate SHA-256.
 3. Select Play Integrity.
 4. Because this build is distributed through Firebase App Distribution rather than Google Play, configure advanced settings so **PLAY_RECOGNIZED is not required**, **LICENSED is not required**, and minimum device integrity is **Device integrity**.
-5. Install the new signed release through Firebase App Distribution on the real Samsung test device.
-6. Monitor App Check metrics for **Cloud Firestore** and **Authentication**.
-7. Confirm legitimate requests are reported valid.
-8. Enable enforcement for Cloud Firestore first, validate normal medicine/widget/countdown flows, then enable Authentication enforcement.
-9. Repeat physical Samsung tests including offline/reconnect, reboot, real 2×2/4×2/4×4 widget actions, reminders, export, account switching, and deletion.
+5. Add the Play Integrity App Check dependency, regenerate `app/gradle.lockfile` using Gradle's `--write-locks`, and let all protected checks pass.
+6. Distribute that signed release through Firebase App Distribution on the real Samsung test device.
+7. Monitor App Check metrics for **Cloud Firestore** and **Authentication**.
+8. Confirm legitimate requests are reported valid.
+9. Enable enforcement for Cloud Firestore first, validate normal medicine/widget/countdown flows, then enable Authentication enforcement.
+10. Repeat physical Samsung tests including offline/reconnect, reboot, real 2×2/4×2/4×4 widget actions, reminders, export, account switching, and deletion.
 
 ## Review outcome
 
-No P0 finding was identified in this review. The existing authorization model is materially stronger than a typical prototype. The remaining highest-value operational action after this branch is validated and shipped is Firebase App Check registration/metrics/enforcement on the real signed App Distribution build.
+No P0 finding was identified in this review. The existing authorization model is materially stronger than a typical prototype. After this branch, the highest-value open backend hardening item is the staged Firebase App Check rollout described above.
