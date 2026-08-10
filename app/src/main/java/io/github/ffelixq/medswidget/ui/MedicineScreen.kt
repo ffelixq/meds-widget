@@ -16,7 +16,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +26,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +50,10 @@ import io.github.ffelixq.medswidget.domain.Medicine
 import io.github.ffelixq.medswidget.domain.MedicineDraft
 import io.github.ffelixq.medswidget.domain.ValidationResult
 import io.github.ffelixq.medswidget.domain.WidgetNameMode
+import io.github.ffelixq.medswidget.ui.design.AppleCard
+import io.github.ffelixq.medswidget.ui.design.AppleGroupedRow
+import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
+import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 import kotlinx.coroutines.launch
 import java.io.Serializable
 import java.time.LocalDate
@@ -203,14 +207,19 @@ fun MedicineScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(if (medicine == null) "Add medicine" else "Edit medicine") },
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.94f),
+                    ),
             )
         },
     ) { padding ->
@@ -220,195 +229,209 @@ fun MedicineScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Medicine", style = MaterialTheme.typography.titleLarge)
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(101) },
-                label = { Text("Medicine name") },
-                singleLine = true,
-                isError = "name" in errors,
-                supportingText = { Text(errors["name"] ?: "${name.length}/100") },
-                modifier = Modifier.fillMaxWidth().testTag("medicine_name"),
-            )
-            OutlinedTextField(
-                value = nickname,
-                onValueChange = { nickname = it.take(61) },
-                label = { Text("Nickname (optional)") },
-                supportingText = {
-                    Text(errors["nickname"] ?: "Use this for a discreet widget name")
-                },
-                isError = "nickname" in errors,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("medicine_nickname"),
-            )
-            OutlinedTextField(
-                value = notes,
-                onValueChange = { notes = it.take(501) },
-                label = { Text("Notes (optional)") },
-                supportingText = {
-                    Text(errors["notes"] ?: "Personal notes only; not medical advice")
-                },
-                isError = "notes" in errors,
-                minLines = 2,
-                maxLines = 5,
-                modifier = Modifier.fillMaxWidth().testTag("medicine_notes"),
+            AppleLargeTitle(
+                title = if (medicine == null) "Add medicine" else "Edit medicine",
+                subtitle = "Keep the common routine simple; optional controls stay close to what they affect.",
             )
 
-            Text("Widget privacy", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Choose what appears on your unlocked home screen.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WidgetNameMode.entries.forEach { mode ->
-                    FilterChip(
-                        selected = widgetNameMode == mode,
-                        onClick = { widgetNameMode = mode },
-                        label = {
-                            Text(
-                                when (mode) {
-                                    WidgetNameMode.FULL -> "Full name"
-                                    WidgetNameMode.NICKNAME -> "Nickname"
-                                    WidgetNameMode.HIDDEN -> "Hide name"
-                                },
-                            )
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Medicine",
+                    supportingText = "Name it for yourself, then choose what appears on the home screen.",
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(101) },
+                    label = { Text("Medicine name") },
+                    singleLine = true,
+                    isError = "name" in errors,
+                    supportingText = { Text(errors["name"] ?: "${name.length}/100") },
+                    modifier = Modifier.fillMaxWidth().testTag("medicine_name"),
+                )
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it.take(61) },
+                    label = { Text("Nickname (optional)") },
+                    supportingText = {
+                        Text(errors["nickname"] ?: "Use this for a discreet widget name")
+                    },
+                    isError = "nickname" in errors,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("medicine_nickname"),
+                )
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it.take(501) },
+                    label = { Text("Notes (optional)") },
+                    supportingText = {
+                        Text(errors["notes"] ?: "Personal notes only; not medical advice")
+                    },
+                    isError = "notes" in errors,
+                    minLines = 2,
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth().testTag("medicine_notes"),
+                )
+                AppleSectionHeader(
+                    title = "Widget privacy",
+                    supportingText = "Choose what appears on your unlocked home screen.",
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WidgetNameMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = widgetNameMode == mode,
+                            onClick = { widgetNameMode = mode },
+                            label = {
+                                Text(
+                                    when (mode) {
+                                        WidgetNameMode.FULL -> "Full name"
+                                        WidgetNameMode.NICKNAME -> "Nickname"
+                                        WidgetNameMode.HIDDEN -> "Hide name"
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Daily schedule",
+                    supportingText =
+                        "Enable any combination. Labels can describe the real routine, such as After breakfast or Before bed.",
+                )
+                SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
+                SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
+                SlotEditor(DoseSlot.EVENING, evening, { evening = it }, errors)
+                SlotEditor(DoseSlot.NIGHT, night, { night = it }, errors)
+                errors["slots"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Course",
+                    supportingText = "Leave both dates blank for an ongoing medicine.",
+                )
+                OutlinedTextField(
+                    value = startDateText,
+                    onValueChange = { startDateText = it.take(10) },
+                    label = { Text("Start date (YYYY-MM-DD)") },
+                    singleLine = true,
+                    isError = "startDate" in errors,
+                    supportingText = { errors["startDate"]?.let { Text(it) } },
+                    modifier = Modifier.fillMaxWidth().testTag("medicine_start_date"),
+                )
+                OutlinedTextField(
+                    value = endDateText,
+                    onValueChange = { endDateText = it.take(10) },
+                    label = { Text("End date (YYYY-MM-DD)") },
+                    singleLine = true,
+                    isError = "endDate" in errors || "course" in errors,
+                    supportingText = { Text(errors["endDate"] ?: errors["course"].orEmpty()) },
+                    modifier = Modifier.fillMaxWidth().testTag("medicine_end_date"),
+                )
+            }
+
+            AppleCard {
+                AppleSectionHeader(
+                    title = "Supply tracking",
+                    supportingText = "Optional. Supply never blocks you from recording a dose.",
+                )
+                ToggleRow(
+                    title = "Track remaining supply",
+                    enabled = supplyEnabled,
+                    onEnabledChange = { supplyEnabled = it },
+                    tag = "supply",
+                )
+                if (supplyEnabled) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField(
+                            value = supplyInitialUnits,
+                            onValueChange = { supplyInitialUnits = it },
+                            label = "Current supply",
+                            error = errors["supplyInitialUnits"],
+                            tag = "supply_initial",
+                            modifier = Modifier.weight(1f),
+                        )
+                        NumberField(
+                            value = unitsPerDose,
+                            onValueChange = { unitsPerDose = it },
+                            label = "Per dose",
+                            error = errors["unitsPerDose"],
+                            tag = "units_per_dose",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NumberField(
+                            value = lowSupplyThreshold,
+                            onValueChange = { lowSupplyThreshold = it },
+                            label = "Low at (optional)",
+                            error = errors["lowSupplyThreshold"],
+                            tag = "low_supply_threshold",
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = supplyUnitName,
+                            onValueChange = { supplyUnitName = it.take(31) },
+                            label = { Text("Unit") },
+                            singleLine = true,
+                            isError = "supplyUnitName" in errors,
+                            modifier = Modifier.weight(1f).testTag("supply_unit_name"),
+                        )
+                    }
+                }
+            }
+
+            AppleCard {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = onBack,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        enabled = !isSaving,
+                        onClick = {
+                            val draft = buildDraft() ?: return@Button
+                            val runningDurationChanged =
+                                medicine != null &&
+                                    activeCountdowns.any { countdown ->
+                                        draft.isSlotEnabled(countdown.slot) &&
+                                            draft.countdownMinutes(countdown.slot) !=
+                                            medicine.countdownMinutes(countdown.slot)
+                                    }
+                            if (runningDurationChanged) {
+                                pendingCountdownDraft = draft
+                            } else {
+                                save(draft)
+                            }
                         },
-                    )
+                        modifier = Modifier.weight(1f).testTag("save_medicine"),
+                    ) {
+                        Text("Save")
+                    }
                 }
-            }
-
-            HorizontalDivider()
-            Text("Daily schedule", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Enable any combination. Labels can describe the real routine, " +
-                    "such as After breakfast or Before bed.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
-            SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
-            SlotEditor(DoseSlot.EVENING, evening, { evening = it }, errors)
-            SlotEditor(DoseSlot.NIGHT, night, { night = it }, errors)
-            errors["slots"]?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-            HorizontalDivider()
-            Text("Course", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "Leave both dates blank for an ongoing medicine.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            OutlinedTextField(
-                value = startDateText,
-                onValueChange = { startDateText = it.take(10) },
-                label = { Text("Start date (YYYY-MM-DD)") },
-                singleLine = true,
-                isError = "startDate" in errors,
-                supportingText = { errors["startDate"]?.let { Text(it) } },
-                modifier = Modifier.fillMaxWidth().testTag("medicine_start_date"),
-            )
-            OutlinedTextField(
-                value = endDateText,
-                onValueChange = { endDateText = it.take(10) },
-                label = { Text("End date (YYYY-MM-DD)") },
-                singleLine = true,
-                isError = "endDate" in errors || "course" in errors,
-                supportingText = { Text(errors["endDate"] ?: errors["course"].orEmpty()) },
-                modifier = Modifier.fillMaxWidth().testTag("medicine_end_date"),
-            )
-
-            HorizontalDivider()
-            Text("Supply tracking", style = MaterialTheme.typography.titleLarge)
-            ToggleRow(
-                title = "Track remaining supply",
-                enabled = supplyEnabled,
-                onEnabledChange = { supplyEnabled = it },
-                tag = "supply",
-            )
-            if (supplyEnabled) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NumberField(
-                        value = supplyInitialUnits,
-                        onValueChange = { supplyInitialUnits = it },
-                        label = "Current supply",
-                        error = errors["supplyInitialUnits"],
-                        tag = "supply_initial",
-                        modifier = Modifier.weight(1f),
-                    )
-                    NumberField(
-                        value = unitsPerDose,
-                        onValueChange = { unitsPerDose = it },
-                        label = "Per dose",
-                        error = errors["unitsPerDose"],
-                        tag = "units_per_dose",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    NumberField(
-                        value = lowSupplyThreshold,
-                        onValueChange = { lowSupplyThreshold = it },
-                        label = "Low at (optional)",
-                        error = errors["lowSupplyThreshold"],
-                        tag = "low_supply_threshold",
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = supplyUnitName,
-                        onValueChange = { supplyUnitName = it.take(31) },
-                        label = { Text("Unit") },
-                        singleLine = true,
-                        isError = "supplyUnitName" in errors,
-                        modifier = Modifier.weight(1f).testTag("supply_unit_name"),
-                    )
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Cancel")
-                }
-                Button(
-                    enabled = !isSaving,
-                    onClick = {
-                        val draft = buildDraft() ?: return@Button
-                        val runningDurationChanged =
-                            medicine != null &&
-                                activeCountdowns.any { countdown ->
-                                    draft.isSlotEnabled(countdown.slot) &&
-                                        draft.countdownMinutes(countdown.slot) !=
-                                        medicine.countdownMinutes(countdown.slot)
-                                }
-                        if (runningDurationChanged) {
-                            pendingCountdownDraft = draft
-                        } else {
-                            save(draft)
-                        }
-                    },
-                    modifier = Modifier.weight(1f).testTag("save_medicine"),
-                ) {
-                    Text("Save")
-                }
-            }
-            if (medicine != null) {
-                OutlinedButton(
-                    onClick = {
-                        onArchive(medicine.id)
-                        onBack()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Archive medicine")
-                }
-                TextButton(
-                    onClick = { deleteDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Delete medicine", color = MaterialTheme.colorScheme.error)
+                if (medicine != null) {
+                    OutlinedButton(
+                        onClick = {
+                            onArchive(medicine.id)
+                            onBack()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Archive medicine")
+                    }
+                    TextButton(
+                        onClick = { deleteDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Delete medicine", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
@@ -530,10 +553,9 @@ private fun ToggleRow(
     onEnabledChange: (Boolean) -> Unit,
     tag: String,
 ) {
-    Row(
+    AppleGroupedRow(
         modifier =
             Modifier
-                .fillMaxWidth()
                 .testTag("${tag}_toggle")
                 .toggleable(
                     value = enabled,
@@ -543,10 +565,8 @@ private fun ToggleRow(
                     contentDescription = title
                     role = Role.Switch
                 },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         Switch(checked = enabled, onCheckedChange = null)
     }
 }
@@ -692,6 +712,7 @@ private fun ReminderEditor(
             Text(
                 "Reminder scheduling is device-local; the medicine data still syncs to your account.",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
