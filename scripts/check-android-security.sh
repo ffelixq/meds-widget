@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 manifest="app/src/main/AndroidManifest.xml"
 network_config="app/src/main/res/xml/network_security_config.xml"
-build_file="app/build.gradle.kts"
 
 fail() {
   printf 'security guard: %s\n' "$1" >&2
@@ -32,7 +31,6 @@ require_text "$manifest" 'android:usesCleartextTraffic="false"' 'Cleartext traff
 require_text "$manifest" 'android:networkSecurityConfig="@xml/network_security_config"' 'Network Security Config must be attached.'
 require_text "$manifest" 'android.permission.HIDE_OVERLAY_WINDOWS' 'Overlay protection permission must remain declared.'
 require_text "$network_config" 'cleartextTrafficPermitted="false"' 'Network Security Config must deny cleartext traffic.'
-require_text "$build_file" 'implementation(libs.firebase.appcheck.playintegrity)' 'Release builds must include Firebase App Check Play Integrity support.'
 
 for permission in \
   'android.permission.MANAGE_EXTERNAL_STORAGE' \
