@@ -132,7 +132,7 @@ private fun PreviewRow(
         Text(row.label, fontSize = spec.bodySp.sp, modifier = Modifier.weight(1f))
         when {
             row.isTaken || row.isSkipped -> {
-                Unit
+                // Completed rows intentionally have no trailing preview action.
             }
 
             countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
@@ -209,6 +209,6 @@ private fun previewVisual(row: DoseRow): PreviewVisual =
         }
 
         else -> {
-            PreviewVisual("", PreviewTone.SURFACE_VARIANT, PreviewTone.ON_SURFACE_VARIANT)
+            PreviewVisual("○", PreviewTone.SURFACE_VARIANT, PreviewTone.ON_SURFACE_VARIANT)
         }
     }
