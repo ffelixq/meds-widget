@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +44,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.CountdownState
@@ -234,9 +237,7 @@ fun MedicineScreen(
         ) {
             AppleLargeTitle(
                 title = if (medicine == null) "Add medicine" else "Edit medicine",
-                subtitle =
-                    "Keep the common routine simple; optional controls stay close to " +
-                        "what they affect.",
+                subtitle = "Set the routine first. Optional timing stays grouped inside each dose.",
             )
 
             AppleCard {
@@ -304,8 +305,8 @@ fun MedicineScreen(
                 AppleSectionHeader(
                     title = "Daily schedule",
                     supportingText =
-                        "Enable any combination. Labels can describe the real routine, " +
-                            "such as After breakfast or Before bed.",
+                        "Each enabled time is its own routine. Open only the timing options " +
+                            "that apply to that dose.",
                 )
                 SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
                 SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
@@ -516,37 +517,94 @@ private fun SlotEditor(
     errors: Map<String, String>,
 ) {
     val tag = slot.wireValue
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ToggleRow(
-            title = "${slot.defaultLabel} slot",
-            enabled = state.enabled,
-            onEnabledChange = { onStateChange(state.copy(enabled = it)) },
-            tag = tag,
-        )
-        if (state.enabled) {
-            OutlinedTextField(
-                value = state.label,
-                onValueChange = { onStateChange(state.copy(label = it.take(61))) },
-                label = { Text("Custom label") },
-                singleLine = true,
-                isError = errors["${tag}Label"] != null,
-                supportingText = {
-                    Text(errors["${tag}Label"] ?: "${state.label.length}/60")
-                },
-                modifier = Modifier.fillMaxWidth().testTag("${tag}_label"),
-            )
-            CountdownEditor(
-                minutes = state.countdownMinutes,
-                onMinutesChange = { onStateChange(state.copy(countdownMinutes = it)) },
-                error = errors["${tag}CountdownMinutes"],
-                tag = tag,
-            )
-            ReminderEditor(
-                slot = slot,
-                minutesAfterMidnight = state.reminderMinutes,
-                onMinutesChange = { onStateChange(state.copy(reminderMinutes = it)) },
-                error = errors["${tag}ReminderMinutes"],
-            )
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("${tag}_schedule_card"),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag("${tag}_toggle")
+                        .toggleable(
+                            value = state.enabled,
+                            role = Role.Switch,
+                            onValueChange = { onStateChange(state.copy(enabled = it)) },
+                        ).semantics(mergeDescendants = true) {
+                            contentDescription = "${slot.defaultLabel} slot"
+                            role = Role.Switch
+                        },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        slot.defaultLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (state.enabled) "Included in the daily routine" else "Not scheduled",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = state.enabled, onCheckedChange = null)
+            }
+
+            if (state.enabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Dose label",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = state.label,
+                        onValueChange = { onStateChange(state.copy(label = it.take(61))) },
+                        label = { Text("Label shown for this dose") },
+                        singleLine = true,
+                        isError = errors["${tag}Label"] != null,
+                        supportingText = {
+                            Text(errors["${tag}Label"] ?: "${state.label.length}/60")
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("${tag}_label"),
+                    )
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        "Optional timing",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        "Use these only when this dose depends on a meal or a specific clock time.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                CountdownEditor(
+                    minutes = state.countdownMinutes,
+                    onMinutesChange = { onStateChange(state.copy(countdownMinutes = it)) },
+                    error = errors["${tag}CountdownMinutes"],
+                    tag = tag,
+                )
+                ReminderEditor(
+                    slot = slot,
+                    minutesAfterMidnight = state.reminderMinutes,
+                    onMinutesChange = { onStateChange(state.copy(reminderMinutes = it)) },
+                    error = errors["${tag}ReminderMinutes"],
+                )
+            }
         }
     }
 }
@@ -593,65 +651,114 @@ private fun CountdownEditor(
     var customMode by rememberSaveable(tag, minutes) {
         mutableStateOf(minutes != null && minutes !in presets)
     }
-    val title =
-        minutes
-            ?.let { "Meal countdown · ${CountdownLogic.formatDuration(it)}" }
-            ?: "Meal countdown"
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ToggleRow(
-            title = title,
-            enabled = minutes != null,
-            onEnabledChange = { enabled -> onMinutesChange(if (enabled) 30 else null) },
-            tag = "${tag}_countdown",
-        )
-        if (minutes != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                presets.forEach { preset ->
-                    FilterChip(
-                        selected = minutes == preset && !customMode,
-                        onClick = {
-                            customMode = false
-                            onMinutesChange(preset)
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("${tag}_countdown_group"),
+        shape = RoundedCornerShape(14.dp),
+        color =
+            if (minutes != null) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag("${tag}_countdown_toggle")
+                        .toggleable(
+                            value = minutes != null,
+                            role = Role.Switch,
+                            onValueChange = { enabled ->
+                                onMinutesChange(if (enabled) 30 else null)
+                            },
+                        ).semantics(mergeDescendants = true) {
+                            contentDescription = "After-meal countdown"
+                            role = Role.Switch
                         },
-                        label = { Text(CountdownLogic.formatDuration(preset)) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        "After-meal countdown",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        minutes?.let {
+                            "Duration ${CountdownLogic.formatDuration(it)} · start it after eating"
+                        } ?: "Start a timer after eating; it never marks the dose as taken.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Switch(checked = minutes != null, onCheckedChange = null)
             }
-            FilterChip(
-                selected = customMode,
-                onClick = {
-                    customMode = true
-                    if (minutes in presets) onMinutesChange(45)
-                },
-                label = { Text("Custom duration") },
-            )
-            if (customMode) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = (minutes / 60).toString(),
-                        onValueChange = { hours ->
-                            val parsed = hours.filter(Char::isDigit).toIntOrNull() ?: 0
-                            onMinutesChange(parsed * 60 + (minutes % 60))
-                        },
-                        label = { Text("Hours") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag("${tag}_countdown_hours"),
-                    )
-                    OutlinedTextField(
-                        value = (minutes % 60).toString(),
-                        onValueChange = { minutePart ->
-                            val parsed = minutePart.filter(Char::isDigit).toIntOrNull() ?: 0
-                            onMinutesChange((minutes / 60) * 60 + parsed)
-                        },
-                        label = { Text("Minutes") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f).testTag("${tag}_countdown_minutes"),
-                    )
+
+            if (minutes != null) {
+                Text(
+                    "Countdown duration",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    presets.forEach { preset ->
+                        FilterChip(
+                            selected = minutes == preset && !customMode,
+                            onClick = {
+                                customMode = false
+                                onMinutesChange(preset)
+                            },
+                            label = { Text(CountdownLogic.formatDuration(preset)) },
+                        )
+                    }
                 }
+                FilterChip(
+                    selected = customMode,
+                    onClick = {
+                        customMode = true
+                        if (minutes in presets) onMinutesChange(45)
+                    },
+                    label = { Text("Custom duration") },
+                )
+                if (customMode) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = (minutes / 60).toString(),
+                            onValueChange = { hours ->
+                                val parsed = hours.filter(Char::isDigit).toIntOrNull() ?: 0
+                                onMinutesChange(parsed * 60 + (minutes % 60))
+                            },
+                            label = { Text("Hours") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("${tag}_countdown_hours"),
+                        )
+                        OutlinedTextField(
+                            value = (minutes % 60).toString(),
+                            onValueChange = { minutePart ->
+                                val parsed = minutePart.filter(Char::isDigit).toIntOrNull() ?: 0
+                                onMinutesChange((minutes / 60) * 60 + parsed)
+                            },
+                            label = { Text("Minutes") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).testTag("${tag}_countdown_minutes"),
+                        )
+                    }
+                }
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
     }
 }
@@ -672,59 +779,105 @@ private fun ReminderEditor(
             DoseSlot.EVENING -> 18 * 60
             DoseSlot.NIGHT -> 22 * 60
         }
-    val title =
-        minutesAfterMidnight
-            ?.let(::formatClockMinutes)
-            ?.let { "Reminder · $it" }
-            ?: "Time reminder"
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ToggleRow(
-            title = title,
-            enabled = minutesAfterMidnight != null,
-            onEnabledChange = { onMinutesChange(if (it) defaultMinutes else null) },
-            tag = "${tag}_reminder",
-        )
-        if (minutesAfterMidnight != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = (minutesAfterMidnight / 60).toString().padStart(2, '0'),
-                    onValueChange = { hourText ->
-                        val hour =
-                            hourText
-                                .filter(Char::isDigit)
-                                .toIntOrNull()
-                                ?.coerceIn(0, 23)
-                                ?: 0
-                        onMinutesChange(hour * 60 + minutesAfterMidnight % 60)
-                    },
-                    label = { Text("Hour") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("${tag}_reminder_hour"),
-                )
-                OutlinedTextField(
-                    value = (minutesAfterMidnight % 60).toString().padStart(2, '0'),
-                    onValueChange = { minuteText ->
-                        val minute =
-                            minuteText
-                                .filter(Char::isDigit)
-                                .toIntOrNull()
-                                ?.coerceIn(0, 59)
-                                ?: 0
-                        onMinutesChange((minutesAfterMidnight / 60) * 60 + minute)
-                    },
-                    label = { Text("Minute") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f).testTag("${tag}_reminder_minute"),
-                )
+    val formattedTime = minutesAfterMidnight?.let(::formatClockMinutes)
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("${tag}_reminder_group"),
+        shape = RoundedCornerShape(14.dp),
+        color =
+            if (minutesAfterMidnight != null) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.07f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag("${tag}_reminder_toggle")
+                        .toggleable(
+                            value = minutesAfterMidnight != null,
+                            role = Role.Switch,
+                            onValueChange = {
+                                onMinutesChange(if (it) defaultMinutes else null)
+                            },
+                        ).semantics(mergeDescendants = true) {
+                            contentDescription = "Time reminder"
+                            role = Role.Switch
+                        },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        "Time reminder",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        formattedTime?.let { "Device reminder at $it" }
+                            ?: "Get a device-local reminder at a specific clock time.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = minutesAfterMidnight != null, onCheckedChange = null)
             }
-            Text(
-                "Reminder scheduling is device-local; the medicine data still syncs to your account.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+            if (minutesAfterMidnight != null) {
+                Text(
+                    "Reminder time",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = (minutesAfterMidnight / 60).toString().padStart(2, '0'),
+                        onValueChange = { hourText ->
+                            val hour =
+                                hourText
+                                    .filter(Char::isDigit)
+                                    .toIntOrNull()
+                                    ?.coerceIn(0, 23)
+                                    ?: 0
+                            onMinutesChange(hour * 60 + minutesAfterMidnight % 60)
+                        },
+                        label = { Text("Hour") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("${tag}_reminder_hour"),
+                    )
+                    OutlinedTextField(
+                        value = (minutesAfterMidnight % 60).toString().padStart(2, '0'),
+                        onValueChange = { minuteText ->
+                            val minute =
+                                minuteText
+                                    .filter(Char::isDigit)
+                                    .toIntOrNull()
+                                    ?.coerceIn(0, 59)
+                                    ?: 0
+                            onMinutesChange((minutesAfterMidnight / 60) * 60 + minute)
+                        },
+                        label = { Text("Minute") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("${tag}_reminder_minute"),
+                    )
+                }
+                Text(
+                    "This reminder stays on this device; the medicine schedule still syncs.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
         }
     }
 }
