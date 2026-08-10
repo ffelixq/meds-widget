@@ -25,6 +25,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import io.github.ffelixq.medswidget.ui.design.AppleCard
+import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
+import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
 import io.github.ffelixq.medswidget.widget.AllMedicinesWidgetReceiver
 import io.github.ffelixq.medswidget.widget.DashboardWidgetReceiver
 import io.github.ffelixq.medswidget.widget.SingleMedicineWidgetReceiver
@@ -41,61 +44,72 @@ internal fun SettingsTools(onExport: () -> Unit) {
             notificationPermissionGranted = granted
         }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Reminders", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Set a reminder time inside each medicine slot. Reminders are scheduled on this device.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        if (notificationPermissionGranted) {
-            Text("Notifications are enabled.", style = MaterialTheme.typography.bodySmall)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Button(
-                onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
-            ) {
-                Text("Allow medicine reminders")
-            }
-        } else {
-            Text(
-                "Notifications are disabled in Android settings.",
-                style = MaterialTheme.typography.bodySmall,
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        AppleCard {
+            AppleSectionHeader(
+                title = "Reminders",
+                supportingText =
+                    "Set a reminder time inside each medicine slot. Reminders are scheduled on this device.",
             )
+            if (notificationPermissionGranted) {
+                AppleStatusPill(
+                    text = "Notifications enabled",
+                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                    contentColor = MaterialTheme.colorScheme.secondary,
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                Button(
+                    onClick = { permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+                ) {
+                    Text("Allow medicine reminders")
+                }
+            } else {
+                Text(
+                    "Notifications are disabled in Android settings.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
-        Text("Home-screen widgets", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Pin a widget directly, or add it later from your launcher's widget picker.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedButton(
-            onClick = { requestPin(context, SingleMedicineWidgetReceiver::class.java) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add 2×2 medicine widget")
-        }
-        OutlinedButton(
-            onClick = { requestPin(context, AllMedicinesWidgetReceiver::class.java) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add 4×2 all-medicines widget")
-        }
-        OutlinedButton(
-            onClick = { requestPin(context, DashboardWidgetReceiver::class.java) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add 4×4 dashboard widget")
+        AppleCard {
+            AppleSectionHeader(
+                title = "Home-screen widgets",
+                supportingText =
+                    "Pin a widget directly, or add it later from your launcher's widget picker.",
+            )
+            OutlinedButton(
+                onClick = { requestPin(context, SingleMedicineWidgetReceiver::class.java) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Add 2×2 medicine widget")
+            }
+            OutlinedButton(
+                onClick = { requestPin(context, AllMedicinesWidgetReceiver::class.java) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Add 4×2 all-medicines widget")
+            }
+            OutlinedButton(
+                onClick = { requestPin(context, DashboardWidgetReceiver::class.java) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Add 4×4 dashboard widget")
+            }
         }
 
-        Text("Data export", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Export your medicine setup and dose history as a CSV file you can save or share.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedButton(
-            onClick = onExport,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Export CSV")
+        AppleCard {
+            AppleSectionHeader(
+                title = "Data export",
+                supportingText =
+                    "Export your medicine setup and dose history as a CSV file you can save or share.",
+            )
+            OutlinedButton(
+                onClick = onExport,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Export CSV")
+            }
         }
     }
 }
