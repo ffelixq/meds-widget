@@ -46,7 +46,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = buildVersionCode
-        versionName = "2.0.0"
+        versionName = "2.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -157,7 +157,6 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
-    implementation(libs.firebase.appcheck.playintegrity)
 
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)
