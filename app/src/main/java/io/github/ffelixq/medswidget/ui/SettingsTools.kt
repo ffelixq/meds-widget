@@ -49,7 +49,9 @@ internal fun SettingsTools(onExport: () -> Unit) {
             AppleSectionHeader(
                 title = "Privacy & security",
                 supportingText =
-                    "Health data is account-scoped and protected by Firebase rules. This device also blocks backups, cleartext traffic, recents previews, and third-party overlays where Android supports it.",
+                    "Health data is account-scoped and protected by Firebase rules. " +
+                        "This device also blocks backups, cleartext traffic, recents previews, " +
+                        "and third-party overlays where Android supports it.",
             )
             AppleStatusPill(
                 text = "Privacy protections active",
@@ -57,7 +59,8 @@ internal fun SettingsTools(onExport: () -> Unit) {
                 contentColor = MaterialTheme.colorScheme.secondary,
             )
             Text(
-                "Home-screen widgets are intentionally visible while your phone is unlocked. Use a nickname or hidden widget name for medicines you want to keep discreet.",
+                "Home-screen widgets are intentionally visible while your phone is unlocked. " +
+                    "Use a nickname or hidden widget name for medicines you want to keep discreet.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -67,7 +70,8 @@ internal fun SettingsTools(onExport: () -> Unit) {
             AppleSectionHeader(
                 title = "Reminders",
                 supportingText =
-                    "Set a reminder time inside each medicine slot. Lock-screen previews hide medicine details until your device allows them to be shown.",
+                    "Set a reminder time inside each medicine slot. " +
+                        "Lock-screen previews hide medicine details until your device allows them to be shown.",
             )
             if (notificationPermissionGranted) {
                 AppleStatusPill(
@@ -120,7 +124,8 @@ internal fun SettingsTools(onExport: () -> Unit) {
             AppleSectionHeader(
                 title = "Data export",
                 supportingText =
-                    "CSV exports contain medicine names, notes, and dose history. Only share them with people or apps you trust.",
+                    "CSV exports contain medicine names, notes, and dose history. " +
+                        "Only share them with people or apps you trust.",
             )
             OutlinedButton(
                 onClick = onExport,
