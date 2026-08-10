@@ -62,3 +62,4 @@ if [[ -s "${findings_file}" ]]; then
 fi
 
 echo "Forbidden tracked-file check passed."
+bash "${script_directory}/check-android-security.sh"
