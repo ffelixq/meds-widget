@@ -5,6 +5,7 @@ import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseEvent
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.Medicine
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -64,5 +65,39 @@ class MedicationCsvExporterTest {
         val csv = MedicationCsvExporter.export(listOf(medicine), emptyList())
 
         assertTrue(csv.contains("\"Tablet \"\"A\"\"\""))
+    }
+
+    @Test
+    fun `export neutralizes spreadsheet formula prefixes in user controlled fields`() {
+        val dangerousNames =
+            listOf(
+                "=HYPERLINK(\"https://example.invalid\")",
+                "+SUM(1,1)",
+                "-1+2",
+                "@SUM(1,1)",
+                "\t=1+1",
+            )
+        val medicines =
+            dangerousNames.mapIndexed { index, name ->
+                Medicine(
+                    id = "med-$index",
+                    ownerUid = "user",
+                    name = name,
+                    morningEnabled = false,
+                    afternoonEnabled = true,
+                    nightEnabled = false,
+                )
+            }
+
+        val csv = MedicationCsvExporter.export(medicines, emptyList())
+
+        dangerousNames.forEach { dangerous ->
+            assertFalse(csv.lineSequence().any { line -> line.startsWith("medicine,") && line.contains(",$dangerous,") })
+        }
+        assertTrue(csv.contains("'=HYPERLINK"))
+        assertTrue(csv.contains("'+SUM"))
+        assertTrue(csv.contains("'-1+2"))
+        assertTrue(csv.contains("'@SUM"))
+        assertTrue(csv.contains("'\t=1+1"))
     }
 }
