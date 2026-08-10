@@ -1,4 +1,6 @@
 <resources>
-    <color name="accent">#256C5A</color>
-    <color name="accent_dark">#82D5BC</color>
+    <color name="accent">#007AFF</color>
+    <color name="accent_dark">#0A84FF</color>
+    <color name="ic_launcher_background">#007AFF</color>
+    <color name="ic_launcher_check">#34C759</color>
 </resources>
