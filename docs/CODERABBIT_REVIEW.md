@@ -8,7 +8,7 @@ This file is intentionally short; the detailed threat model and remediation evid
 
 ## P1 — high
 
-- **Firebase App Check absent:** client integration added with Play Integrity. Firebase Console registration, metrics validation, and Firestore/Authentication enforcement remain operational steps.
+- **Firebase App Check not enforced:** intentionally staged as a follow-up because it needs Firebase Console registration plus a reviewed Gradle lockfile update before client rollout. Authentication + strict Firestore Rules remain the current authorization boundary.
 - **Medication details on lock screen / WorkManager storage:** private notification visibility/public fallback added; medicine names and custom labels removed from scheduled WorkManager input.
 
 ## P2 — medium
@@ -27,4 +27,4 @@ This file is intentionally short; the detailed threat model and remediation evid
 
 ## Review posture
 
-Authentication + strict Firestore Rules remain the authorization boundary. App Check, Android window protections, network policy, R8, CodeQL, Gitleaks, dependency review, and device protections are defense in depth. The project does not claim resistance to a fully rooted/compromised device or a user who intentionally exports/shares their data.
+Authentication + strict Firestore Rules remain the authorization boundary. Android window protections, network policy, R8, CodeQL, Gitleaks, dependency review, and device protections are defense in depth. App Check is the highest-value open backend-abuse hardening step and must not be described as integrated or enforced until its staged rollout is complete. The project does not claim resistance to a fully rooted/compromised device or a user who intentionally exports/shares their data.
