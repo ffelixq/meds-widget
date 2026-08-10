@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Activity recents protection is applied programmatically so it can be tested per API level. -->
+</resources>
