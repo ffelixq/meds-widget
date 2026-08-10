@@ -7,8 +7,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.FirebaseApp
-import com.google.firebase.appcheck.FirebaseAppCheck
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 class MedsApplication :
     Application(),
@@ -19,16 +17,7 @@ class MedsApplication :
 
     override fun onCreate() {
         super<Application>.onCreate()
-        val firebaseApp = runCatching { FirebaseApp.initializeApp(this) }.getOrNull()
-        if (firebaseApp != null && BuildConfig.FIREBASE_CONFIGURED && !BuildConfig.DEBUG) {
-            runCatching {
-                FirebaseAppCheck
-                    .getInstance()
-                    .installAppCheckProviderFactory(
-                        PlayIntegrityAppCheckProviderFactory.getInstance(),
-                    )
-            }
-        }
+        runCatching { FirebaseApp.initializeApp(this) }
         graph = AppGraph(this)
         graph.start()
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
