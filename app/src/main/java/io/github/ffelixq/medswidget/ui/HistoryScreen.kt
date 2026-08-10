@@ -159,15 +159,19 @@ private fun HistoryList(
                     onChooseDate = onChooseDate,
                 )
             }
+            state.errorMessage?.let { message ->
+                item { Text(message, color = MaterialTheme.colorScheme.error) }
+            }
+            historyActivityItems(state.entries, selectedEntries, selectedDay)
+            item {
+                AppleSectionHeader(
+                    title = "Trends",
+                    supportingText = "A longer-range view of your current saved schedule.",
+                )
+            }
             item {
                 AdherenceCard(summary, selectedDays, onDaysChange)
             }
-        }
-        state.errorMessage?.let { message ->
-            item { Text(message, color = MaterialTheme.colorScheme.error) }
-        }
-        if (!state.isLoading) {
-            historyActivityItems(state.entries, selectedEntries, selectedDay)
         }
     }
 }
