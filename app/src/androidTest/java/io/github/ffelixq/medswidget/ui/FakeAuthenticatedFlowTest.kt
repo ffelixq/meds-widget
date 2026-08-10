@@ -155,7 +155,12 @@ class FakeAuthenticatedFlowTest {
 
             FakeRoute.HISTORY -> {
                 HistoryScreen(
-                    state = HistoryUiState(isLoading = false, entries = history),
+                    state =
+                        HistoryUiState(
+                            isLoading = false,
+                            logicalDay = day,
+                            entries = history,
+                        ),
                     onBack = { route = FakeRoute.MAIN },
                 )
             }
