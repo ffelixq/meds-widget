@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AppleLargeTitle(
     title: String,
-    subtitle: String? = null,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -59,8 +59,8 @@ fun AppleLargeTitle(
 @Composable
 fun AppleSectionHeader(
     title: String,
-    supportingText: String? = null,
     modifier: Modifier = Modifier,
+    supportingText: String? = null,
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
