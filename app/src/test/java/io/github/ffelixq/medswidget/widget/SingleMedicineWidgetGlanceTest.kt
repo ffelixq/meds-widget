@@ -297,7 +297,7 @@ class SingleMedicineWidgetGlanceTest {
 
             onNode(hasText("After lunch")).assertExists()
             onNode(hasText("Before bed")).assertDoesNotExist()
-            onAllNodes(hasTextEqualTo("☐")).assertCountEquals(1)
+            onAllNodes(hasTextEqualTo("○")).assertCountEquals(1)
         }
 
     @Test
@@ -315,7 +315,7 @@ class SingleMedicineWidgetGlanceTest {
 
             onNode(hasText("After lunch")).assertDoesNotExist()
             onNode(hasText("Before bed")).assertExists()
-            onAllNodes(hasTextEqualTo("☐")).assertCountEquals(1)
+            onAllNodes(hasTextEqualTo("○")).assertCountEquals(1)
         }
 
     @Test
