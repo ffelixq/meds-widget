@@ -234,13 +234,16 @@ fun MedicineScreen(
         ) {
             AppleLargeTitle(
                 title = if (medicine == null) "Add medicine" else "Edit medicine",
-                subtitle = "Keep the common routine simple; optional controls stay close to what they affect.",
+                subtitle =
+                    "Keep the common routine simple; optional controls stay close to " +
+                        "what they affect.",
             )
 
             AppleCard {
                 AppleSectionHeader(
                     title = "Medicine",
-                    supportingText = "Name it for yourself, then choose what appears on the home screen.",
+                    supportingText =
+                        "Name it for yourself, then choose what appears on the home screen.",
                 )
                 OutlinedTextField(
                     value = name,
@@ -301,7 +304,8 @@ fun MedicineScreen(
                 AppleSectionHeader(
                     title = "Daily schedule",
                     supportingText =
-                        "Enable any combination. Labels can describe the real routine, such as After breakfast or Before bed.",
+                        "Enable any combination. Labels can describe the real routine, " +
+                            "such as After breakfast or Before bed.",
                 )
                 SlotEditor(DoseSlot.MORNING, morning, { morning = it }, errors)
                 SlotEditor(DoseSlot.AFTERNOON, afternoon, { afternoon = it }, errors)
@@ -330,7 +334,9 @@ fun MedicineScreen(
                     label = { Text("End date (YYYY-MM-DD)") },
                     singleLine = true,
                     isError = "endDate" in errors || "course" in errors,
-                    supportingText = { Text(errors["endDate"] ?: errors["course"].orEmpty()) },
+                    supportingText = {
+                        Text(errors["endDate"] ?: errors["course"].orEmpty())
+                    },
                     modifier = Modifier.fillMaxWidth().testTag("medicine_end_date"),
                 )
             }
@@ -566,7 +572,11 @@ private fun ToggleRow(
                     role = Role.Switch
                 },
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
         Switch(checked = enabled, onCheckedChange = null)
     }
 }
@@ -758,7 +768,8 @@ private fun parseDate(
         }
 }
 
-private fun Double.toDisplayNumber(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
+private fun Double.toDisplayNumber(): String =
+    if (this % 1.0 == 0.0) toLong().toString() else toString()
 
 private fun formatClockMinutes(minutesAfterMidnight: Int): String =
     "%02d:%02d".format(
