@@ -4,6 +4,8 @@ import io.github.ffelixq.medswidget.domain.DoseEvent
 import io.github.ffelixq.medswidget.domain.Medicine
 
 object MedicationCsvExporter {
+    private val spreadsheetFormulaPrefixes = setOf('=', '+', '-', '@')
+
     fun export(
         medicines: List<Medicine>,
         events: List<DoseEvent>,
@@ -48,7 +50,13 @@ object MedicationCsvExporter {
 
     private fun escape(value: String): String {
         val normalized = value.replace("\r\n", "\n").replace('\r', '\n')
-        if (normalized.none { it == ',' || it == '"' || it == '\n' }) return normalized
-        return "\"${normalized.replace("\"", "\"\"")}\""
+        val safeValue = neutralizeSpreadsheetFormula(normalized)
+        if (safeValue.none { it == ',' || it == '"' || it == '\n' }) return safeValue
+        return "\"${safeValue.replace("\"", "\"\"")}\""
+    }
+
+    private fun neutralizeSpreadsheetFormula(value: String): String {
+        val firstMeaningfulCharacter = value.firstOrNull { !it.isWhitespace() }
+        return if (firstMeaningfulCharacter in spreadsheetFormulaPrefixes) "'$value" else value
     }
 }
