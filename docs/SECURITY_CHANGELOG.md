@@ -2,7 +2,6 @@
 
 ## 2026-08-10
 
-- Added Firebase App Check Play Integrity client support for configured release builds.
 - Added an HTTPS-only Network Security Config.
 - Added Android overlay/tapjacking and recents-thumbnail protections.
 - Made medicine reminder notifications private on the lock screen.
@@ -11,5 +10,6 @@
 - Added an Android security regression guard to protected CI.
 - Clarified widget/export privacy in Settings.
 - Added adaptive/themed launcher assets and a dedicated monochrome notification icon.
+- Documented Firebase App Check/Play Integrity as the next staged backend-abuse hardening step instead of weakening dependency locking or falsely claiming enforcement before Firebase registration.
 
-Server-side App Check enforcement is intentionally not listed as complete until Firebase Console metrics confirm legitimate signed App Distribution traffic and enforcement is explicitly enabled for Cloud Firestore and Authentication.
+App Check remains deliberately open until Firebase Console registration, a reviewed dependency-lock regeneration, signed-device metric validation, and explicit Cloud Firestore/Authentication enforcement are completed.
