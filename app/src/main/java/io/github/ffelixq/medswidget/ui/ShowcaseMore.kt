@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,7 +72,11 @@ internal fun ShowcaseMoreScreen(
             )
         }
         if (state.rows.isEmpty()) {
-            item { AppleCard { Text("Add a medicine to preview your widgets.") } }
+            item {
+                AppleCard {
+                    Text("Add a medicine to preview your widgets.")
+                }
+            }
         } else {
             item {
                 WidgetPreviews(
@@ -114,10 +118,13 @@ private fun ShowcaseMoreLink(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(42.dp).background(
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    CircleShape,
-                ),
+                modifier =
+                    Modifier
+                        .size(42.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            CircleShape,
+                        ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -135,7 +142,7 @@ private fun ShowcaseMoreLink(
                 )
             }
             Icon(
-                Icons.Outlined.KeyboardArrowRight,
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
