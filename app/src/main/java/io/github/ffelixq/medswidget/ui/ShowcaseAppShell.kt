@@ -2,9 +2,9 @@ package io.github.ffelixq.medswidget.ui
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -130,33 +130,44 @@ private fun ShowcaseTabContent(
     onOpenSettings: () -> Unit,
 ) {
     when (selectedTab) {
-        ShowcaseTab.TODAY -> ShowcaseTodayScreen(
-            state = mainState,
-            contentPadding = contentPadding,
-            onCheck = onCheck,
-            onStartCountdown = onStartCountdown,
-            onOpenDose = onOpenDose,
-            onAdd = onAdd,
-        )
-        ShowcaseTab.HISTORY -> ShowcaseHistoryScreen(
-            state = historyState,
-            contentPadding = contentPadding,
-            onOpenDetailedHistory = onOpenDetailedHistory,
-        )
-        ShowcaseTab.MEDICINES -> ShowcaseMedicinesScreen(
-            state = mainState,
-            contentPadding = contentPadding,
-            onAdd = onAdd,
-            onEdit = onEdit,
-            onRefill = onRefill,
-        )
-        ShowcaseTab.MORE -> ShowcaseMoreScreen(
-            state = mainState,
-            contentPadding = contentPadding,
-            onOpenSettings = onOpenSettings,
-            onCheckPreview = { onCheck(it, CheckSource.APP_PREVIEW) },
-            onStartCountdownPreview = { onStartCountdown(it, CheckSource.APP_PREVIEW) },
-        )
+        ShowcaseTab.TODAY -> {
+            ShowcaseTodayScreen(
+                state = mainState,
+                contentPadding = contentPadding,
+                onCheck = onCheck,
+                onStartCountdown = onStartCountdown,
+                onOpenDose = onOpenDose,
+                onAdd = onAdd,
+            )
+        }
+
+        ShowcaseTab.HISTORY -> {
+            ShowcaseHistoryScreen(
+                state = historyState,
+                contentPadding = contentPadding,
+                onOpenDetailedHistory = onOpenDetailedHistory,
+            )
+        }
+
+        ShowcaseTab.MEDICINES -> {
+            ShowcaseMedicinesScreen(
+                state = mainState,
+                contentPadding = contentPadding,
+                onAdd = onAdd,
+                onEdit = onEdit,
+                onRefill = onRefill,
+            )
+        }
+
+        ShowcaseTab.MORE -> {
+            ShowcaseMoreScreen(
+                state = mainState,
+                contentPadding = contentPadding,
+                onOpenSettings = onOpenSettings,
+                onCheckPreview = { onCheck(it, CheckSource.APP_PREVIEW) },
+                onStartCountdownPreview = { onStartCountdown(it, CheckSource.APP_PREVIEW) },
+            )
+        }
     }
 }
 
@@ -176,12 +187,13 @@ internal fun ShowcaseBottomBar(
                 onClick = { onSelected(tab) },
                 icon = {
                     Icon(
-                        imageVector = when (tab) {
-                            ShowcaseTab.TODAY -> Icons.Outlined.Home
-                            ShowcaseTab.HISTORY -> Icons.Outlined.List
-                            ShowcaseTab.MEDICINES -> Icons.Outlined.Add
-                            ShowcaseTab.MORE -> Icons.Outlined.MoreVert
-                        },
+                        imageVector =
+                            when (tab) {
+                                ShowcaseTab.TODAY -> Icons.Outlined.Home
+                                ShowcaseTab.HISTORY -> Icons.AutoMirrored.Outlined.List
+                                ShowcaseTab.MEDICINES -> Icons.Outlined.Add
+                                ShowcaseTab.MORE -> Icons.Outlined.MoreVert
+                            },
                         contentDescription = null,
                     )
                 },
