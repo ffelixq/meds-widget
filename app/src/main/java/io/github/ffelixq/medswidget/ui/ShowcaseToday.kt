@@ -32,8 +32,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,9 +47,6 @@ import io.github.ffelixq.medswidget.ui.design.AppleCard
 import io.github.ffelixq.medswidget.ui.design.AppleLargeTitle
 import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
-import kotlinx.coroutines.delay
-import java.time.Duration
-import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 @Suppress("FunctionNaming", "LongParameterList")
@@ -420,21 +415,4 @@ private fun ShowcaseAllDoneCard() {
             }
         }
     }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-internal fun showcaseCountdown(row: DoseRow): CountdownDisplay {
-    val now by produceState(initialValue = Instant.now(), row.countdown?.targetAt) {
-        while (row.countdown != null) {
-            val remaining = Duration.between(Instant.now(), row.countdown.targetAt)
-            if (remaining.isNegative || remaining.isZero) {
-                value = Instant.now()
-                break
-            }
-            delay(minOf(remaining.toMillis().coerceAtLeast(1_000L), 60_000L))
-            value = Instant.now()
-        }
-    }
-    return CountdownLogic.display(row.countdownMinutes, row.countdown, now)
 }
