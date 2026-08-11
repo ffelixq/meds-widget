@@ -16,8 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -102,7 +102,9 @@ internal fun ShowcaseHistoryScreen(
                     onClick = onOpenDetailedHistory,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                ) { Text("Open detailed history") }
+                ) {
+                    Text("Open detailed history")
+                }
             }
         }
     }
@@ -142,11 +144,12 @@ private fun ShowcaseAdherenceCard(
 @Suppress("FunctionNaming")
 @Composable
 private fun ShowcaseHistoryRow(entry: HistoryEntry) {
-    val status = when {
-        entry.isUndone -> "Undone"
-        entry.isSkipped -> "Skipped"
-        else -> "Taken"
-    }
+    val status =
+        when {
+            entry.isUndone -> "Undone"
+            entry.isSkipped -> "Skipped"
+            else -> "Taken"
+        }
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -168,16 +171,18 @@ private fun ShowcaseHistoryRow(entry: HistoryEntry) {
         }
         AppleStatusPill(
             text = status,
-            containerColor = when {
-                entry.isUndone -> MaterialTheme.colorScheme.surfaceVariant
-                entry.isSkipped -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
-                else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
-            },
-            contentColor = when {
-                entry.isUndone -> MaterialTheme.colorScheme.onSurfaceVariant
-                entry.isSkipped -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.secondary
-            },
+            containerColor =
+                when {
+                    entry.isUndone -> MaterialTheme.colorScheme.surfaceVariant
+                    entry.isSkipped -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+                    else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f)
+                },
+            contentColor =
+                when {
+                    entry.isUndone -> MaterialTheme.colorScheme.onSurfaceVariant
+                    entry.isSkipped -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.secondary
+                },
         )
     }
 }
@@ -213,8 +218,16 @@ internal fun ShowcaseMedicinesScreen(
             }
         }
         when {
-            state.isLoading -> item { AppleCard { Text("Loading medicines…") } }
-            state.medicines.isEmpty() -> item { ShowcaseEmptyMedicines(onAdd) }
+            state.isLoading -> {
+                item {
+                    AppleCard { Text("Loading medicines…") }
+                }
+            }
+
+            state.medicines.isEmpty() -> {
+                item { ShowcaseEmptyMedicines(onAdd) }
+            }
+
             else -> {
                 state.medicines.forEach { medicine ->
                     item(key = medicine.id) {
@@ -274,7 +287,7 @@ private fun ShowcaseMedicineCard(
                 }
             }
             Icon(
-                Icons.Outlined.KeyboardArrowRight,
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -291,7 +304,9 @@ private fun ShowcaseMedicineCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = { onRefill(medicine) }) { Text("Refill") }
+                TextButton(onClick = { onRefill(medicine) }) {
+                    Text("Refill")
+                }
             }
         }
     }
@@ -301,10 +316,13 @@ private fun ShowcaseMedicineCard(
 @Composable
 private fun ShowcaseMedicineGlyph() {
     Box(
-        modifier = Modifier.size(46.dp).background(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-            CircleShape,
-        ),
+        modifier =
+            Modifier
+                .size(46.dp)
+                .background(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    CircleShape,
+                ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -325,6 +343,8 @@ private fun ShowcaseEmptyMedicines(onAdd: () -> Unit) {
             "Add a medicine, choose its slots, and it will appear on Today and your widgets.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add medicine") }
+        Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
+            Text("Add medicine")
+        }
     }
 }
