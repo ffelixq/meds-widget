@@ -1,5 +1,6 @@
 package io.github.ffelixq.medswidget.ui
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Home
@@ -12,11 +13,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.Medicine
@@ -72,54 +74,23 @@ fun ShowcaseAppShell(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                ShowcaseBottomBar(
-                    selected = selectedTab,
-                    onSelected = { selectedTabName = it.name },
-                )
+                ShowcaseBottomBar(selectedTab) { selectedTabName = it.name }
             },
         ) { padding ->
-            when (selectedTab) {
-                ShowcaseTab.TODAY -> {
-                    ShowcaseTodayScreen(
-                        state = mainState,
-                        contentPadding = padding,
-                        onCheck = onCheck,
-                        onStartCountdown = onStartCountdown,
-                        onOpenDose = { selectedDoseId = it.stateId },
-                        onAdd = onAdd,
-                    )
-                }
-
-                ShowcaseTab.HISTORY -> {
-                    ShowcaseHistoryScreen(
-                        state = historyState,
-                        contentPadding = padding,
-                        onOpenDetailedHistory = onOpenDetailedHistory,
-                    )
-                }
-
-                ShowcaseTab.MEDICINES -> {
-                    ShowcaseMedicinesScreen(
-                        state = mainState,
-                        contentPadding = padding,
-                        onAdd = onAdd,
-                        onEdit = onEdit,
-                        onRefill = { refillCandidate = it },
-                    )
-                }
-
-                ShowcaseTab.MORE -> {
-                    ShowcaseMoreScreen(
-                        state = mainState,
-                        contentPadding = padding,
-                        onOpenSettings = onOpenSettings,
-                        onCheckPreview = { onCheck(it, CheckSource.APP_PREVIEW) },
-                        onStartCountdownPreview = {
-                            onStartCountdown(it, CheckSource.APP_PREVIEW)
-                        },
-                    )
-                }
-            }
+            ShowcaseTabContent(
+                selectedTab = selectedTab,
+                mainState = mainState,
+                historyState = historyState,
+                contentPadding = padding,
+                onCheck = onCheck,
+                onStartCountdown = onStartCountdown,
+                onOpenDose = { selectedDoseId = it.stateId },
+                onRefill = { refillCandidate = it },
+                onAdd = onAdd,
+                onEdit = onEdit,
+                onOpenDetailedHistory = onOpenDetailedHistory,
+                onOpenSettings = onOpenSettings,
+            )
         }
     }
 
@@ -149,6 +120,53 @@ fun ShowcaseAppShell(
     }
 }
 
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun ShowcaseTabContent(
+    selectedTab: ShowcaseTab,
+    mainState: MainUiState,
+    historyState: HistoryUiState,
+    contentPadding: PaddingValues,
+    onCheck: (DoseRow, CheckSource) -> Unit,
+    onStartCountdown: (DoseRow, CheckSource) -> Unit,
+    onOpenDose: (DoseRow) -> Unit,
+    onRefill: (Medicine) -> Unit,
+    onAdd: () -> Unit,
+    onEdit: (Medicine) -> Unit,
+    onOpenDetailedHistory: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    when (selectedTab) {
+        ShowcaseTab.TODAY -> ShowcaseTodayScreen(
+            state = mainState,
+            contentPadding = contentPadding,
+            onCheck = onCheck,
+            onStartCountdown = onStartCountdown,
+            onOpenDose = onOpenDose,
+            onAdd = onAdd,
+        )
+        ShowcaseTab.HISTORY -> ShowcaseHistoryScreen(
+            state = historyState,
+            contentPadding = contentPadding,
+            onOpenDetailedHistory = onOpenDetailedHistory,
+        )
+        ShowcaseTab.MEDICINES -> ShowcaseMedicinesScreen(
+            state = mainState,
+            contentPadding = contentPadding,
+            onAdd = onAdd,
+            onEdit = onEdit,
+            onRefill = onRefill,
+        )
+        ShowcaseTab.MORE -> ShowcaseMoreScreen(
+            state = mainState,
+            contentPadding = contentPadding,
+            onOpenSettings = onOpenSettings,
+            onCheckPreview = { onCheck(it, CheckSource.APP_PREVIEW) },
+            onStartCountdownPreview = { onStartCountdown(it, CheckSource.APP_PREVIEW) },
+        )
+    }
+}
+
 @Suppress("FunctionNaming")
 @Composable
 internal fun ShowcaseBottomBar(
@@ -157,7 +175,7 @@ internal fun ShowcaseBottomBar(
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-        tonalElevation = androidx.compose.ui.unit.dp(0f),
+        tonalElevation = 0.dp,
     ) {
         ShowcaseTab.entries.forEach { tab ->
             NavigationBarItem(
@@ -165,13 +183,12 @@ internal fun ShowcaseBottomBar(
                 onClick = { onSelected(tab) },
                 icon = {
                     Icon(
-                        imageVector =
-                            when (tab) {
-                                ShowcaseTab.TODAY -> Icons.Outlined.Home
-                                ShowcaseTab.HISTORY -> Icons.Outlined.List
-                                ShowcaseTab.MEDICINES -> Icons.Outlined.Add
-                                ShowcaseTab.MORE -> Icons.Outlined.MoreVert
-                            },
+                        imageVector = when (tab) {
+                            ShowcaseTab.TODAY -> Icons.Outlined.Home
+                            ShowcaseTab.HISTORY -> Icons.Outlined.List
+                            ShowcaseTab.MEDICINES -> Icons.Outlined.Add
+                            ShowcaseTab.MORE -> Icons.Outlined.MoreVert
+                        },
                         contentDescription = null,
                     )
                 },
