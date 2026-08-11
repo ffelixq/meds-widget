@@ -18,9 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -74,8 +74,14 @@ internal fun ShowcaseTodayScreen(
         item { ShowcaseProgressCard(state) }
         item {
             when {
-                state.isLoading -> ShowcaseLoadingCard("Loading your medicines…")
-                state.medicines.isEmpty() -> ShowcaseEmptyToday(onAdd)
+                state.isLoading -> {
+                    ShowcaseLoadingCard("Loading your medicines…")
+                }
+
+                state.medicines.isEmpty() -> {
+                    ShowcaseEmptyToday(onAdd)
+                }
+
                 nextDose != null -> {
                     ShowcaseHeroDoseCard(
                         row = nextDose,
@@ -84,7 +90,10 @@ internal fun ShowcaseTodayScreen(
                         onOpenDose = { onOpenDose(nextDose) },
                     )
                 }
-                state.rows.isNotEmpty() -> ShowcaseAllDoneCard()
+
+                state.rows.isNotEmpty() -> {
+                    ShowcaseAllDoneCard()
+                }
             }
         }
         if (state.rows.isNotEmpty()) {
@@ -154,16 +163,21 @@ private fun ShowcaseProgressCard(state: MainUiState) {
             )
         }
         when {
-            state.hasPendingWrites -> Text(
-                "Syncing changes…",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            state.isCached -> Text(
-                "Showing cached data",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            state.hasPendingWrites -> {
+                Text(
+                    "Syncing changes…",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            state.isCached -> {
+                Text(
+                    "Showing cached data",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }
@@ -193,13 +207,17 @@ private fun ShowcaseHeroDoseCard(
                 onClick = onTake,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 shape = RoundedCornerShape(14.dp),
-            ) { Text("Take now") }
+            ) {
+                Text("Take now")
+            }
             if (countdown.status == CountdownDisplayStatus.NOT_STARTED) {
                 OutlinedButton(
                     onClick = onStartCountdown,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
-                ) { Text(countdown.text ?: "Start timer") }
+                ) {
+                    Text(countdown.text ?: "Start timer")
+                }
             }
         }
     }
@@ -231,7 +249,10 @@ private fun ShowcaseHeroHeader(
             )
         }
         IconButton(onClick = onOpenDose) {
-            Icon(Icons.Outlined.KeyboardArrowRight, contentDescription = "Dose details")
+            Icon(
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = "Dose details",
+            )
         }
     }
 }
@@ -249,11 +270,12 @@ private fun ShowcaseHeroCountdown(
             Text(
                 countdown.text.orEmpty(),
                 style = MaterialTheme.typography.headlineLarge,
-                color = if (countdown.status == CountdownDisplayStatus.READY) {
-                    MaterialTheme.colorScheme.secondary
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
+                color =
+                    if (countdown.status == CountdownDisplayStatus.READY) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
             )
             Text(
                 if (countdown.status == CountdownDisplayStatus.READY) {
@@ -265,17 +287,21 @@ private fun ShowcaseHeroCountdown(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
         CountdownDisplayStatus.NOT_STARTED -> {
             Text(
                 "Wait ${CountdownLogic.formatDuration(row.countdownMinutes ?: 1)} before taking",
                 style = MaterialTheme.typography.titleMedium,
             )
         }
-        else -> Text(
-            "Next dose",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+
+        else -> {
+            Text(
+                "Next dose",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -289,7 +315,11 @@ private fun ShowcaseDoseListRow(
 ) {
     val countdown = showcaseCountdown(row)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 10.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpen)
+                .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -309,26 +339,42 @@ private fun ShowcaseDoseListRow(
             )
         }
         when {
-            row.isTaken -> AppleStatusPill(
-                "Taken",
-                MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
-                MaterialTheme.colorScheme.secondary,
-            )
-            row.isSkipped -> AppleStatusPill(
-                "Skipped",
-                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
-                MaterialTheme.colorScheme.tertiary,
-            )
+            row.isTaken -> {
+                AppleStatusPill(
+                    "Taken",
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f),
+                    MaterialTheme.colorScheme.secondary,
+                )
+            }
+
+            row.isSkipped -> {
+                AppleStatusPill(
+                    "Skipped",
+                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+                    MaterialTheme.colorScheme.tertiary,
+                )
+            }
+
             countdown.status == CountdownDisplayStatus.RUNNING ||
-                countdown.status == CountdownDisplayStatus.READY -> AppleStatusPill(
+                countdown.status == CountdownDisplayStatus.READY -> {
+                AppleStatusPill(
                     countdown.text.orEmpty(),
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                     MaterialTheme.colorScheme.primary,
                 )
-            countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
-                TextButton(onClick = onStartCountdown) { Text(countdown.text ?: "Start") }
             }
-            else -> TextButton(onClick = onTake) { Text("Take") }
+
+            countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
+                TextButton(onClick = onStartCountdown) {
+                    Text(countdown.text ?: "Start")
+                }
+            }
+
+            else -> {
+                TextButton(onClick = onTake) {
+                    Text("Take")
+                }
+            }
         }
     }
 }
@@ -336,27 +382,33 @@ private fun ShowcaseDoseListRow(
 @Suppress("FunctionNaming")
 @Composable
 private fun ShowcaseStatusDot(row: DoseRow) {
-    val background = when {
-        row.isTaken -> MaterialTheme.colorScheme.secondary
-        row.isSkipped -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
+    val background =
+        when {
+            row.isTaken -> MaterialTheme.colorScheme.secondary
+            row.isSkipped -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.surfaceVariant
+        }
     Box(
         modifier = Modifier.size(34.dp).background(background, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         when {
-            row.isTaken -> Icon(
-                Icons.Outlined.Check,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSecondary,
-                modifier = Modifier.size(20.dp),
-            )
-            row.isSkipped -> Text(
-                "–",
-                color = MaterialTheme.colorScheme.onTertiary,
-                fontWeight = FontWeight.Bold,
-            )
+            row.isTaken -> {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            row.isSkipped -> {
+                Text(
+                    "–",
+                    color = MaterialTheme.colorScheme.onTertiary,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }
@@ -400,7 +452,10 @@ private fun ShowcaseAllDoneCard() {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(46.dp).background(MaterialTheme.colorScheme.secondary, CircleShape),
+                modifier =
+                    Modifier
+                        .size(46.dp)
+                        .background(MaterialTheme.colorScheme.secondary, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White)
