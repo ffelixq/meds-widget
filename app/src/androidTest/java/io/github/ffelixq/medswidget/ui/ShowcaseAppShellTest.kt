@@ -21,7 +21,7 @@ class ShowcaseAppShellTest {
     fun widgetPreviewsLiveInMoreInsteadOfToday() {
         setContent()
 
-        composeRule.onNodeWithText("Today").assertIsDisplayed()
+        composeRule.onNodeWithText("0 of 2").assertIsDisplayed()
         composeRule.onAllNodesWithText("Widget previews").assertCountEquals(0)
 
         composeRule.onNodeWithText("More").performClick()
