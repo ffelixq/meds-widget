@@ -106,21 +106,23 @@ private fun ShowcaseDetailHeader(
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        val status = when {
-            row.isTaken -> "Taken"
-            row.isSkipped -> "Skipped"
-            countdown.status == CountdownDisplayStatus.READY -> "Ready"
-            countdown.status == CountdownDisplayStatus.RUNNING -> countdown.text.orEmpty()
-            else -> "Pending"
-        }
+        val status =
+            when {
+                row.isTaken -> "Taken"
+                row.isSkipped -> "Skipped"
+                countdown.status == CountdownDisplayStatus.READY -> "Ready"
+                countdown.status == CountdownDisplayStatus.RUNNING -> countdown.text.orEmpty()
+                else -> "Pending"
+            }
         Text(
             status,
             style = MaterialTheme.typography.titleMedium,
-            color = when {
-                row.isTaken -> MaterialTheme.colorScheme.secondary
-                row.isSkipped -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.primary
-            },
+            color =
+                when {
+                    row.isTaken -> MaterialTheme.colorScheme.secondary
+                    row.isSkipped -> MaterialTheme.colorScheme.tertiary
+                    else -> MaterialTheme.colorScheme.primary
+                },
         )
     }
 }
@@ -138,14 +140,18 @@ private fun ShowcaseDetailPrimaryActions(
             onClick = onUndo,
             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
             shape = RoundedCornerShape(14.dp),
-        ) { Text("Undo") }
+        ) {
+            Text("Undo")
+        }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Button(
                 onClick = onCheck,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
                 shape = RoundedCornerShape(14.dp),
-            ) { Text("Take now") }
+            ) {
+                Text("Take now")
+            }
             TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) {
                 Text("Skip dose")
             }
@@ -174,6 +180,7 @@ private fun ShowcaseTimerCard(
                     Text(countdown.text ?: "Start timer")
                 }
             }
+
             CountdownDisplayStatus.RUNNING,
             CountdownDisplayStatus.READY,
             -> {
@@ -191,7 +198,10 @@ private fun ShowcaseTimerCard(
                     }
                 }
             }
-            else -> Unit
+
+            else -> {
+                Unit
+            }
         }
     }
 }
@@ -199,11 +209,12 @@ private fun ShowcaseTimerCard(
 @Suppress("FunctionNaming")
 @Composable
 private fun ShowcaseDetailStatusCircle(row: DoseRow) {
-    val color = when {
-        row.isTaken -> MaterialTheme.colorScheme.secondary
-        row.isSkipped -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
-    }
+    val color =
+        when {
+            row.isTaken -> MaterialTheme.colorScheme.secondary
+            row.isSkipped -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.primary
+        }
     Box(
         modifier = Modifier.size(118.dp).background(color.copy(alpha = 0.16f), CircleShape),
         contentAlignment = Alignment.Center,
