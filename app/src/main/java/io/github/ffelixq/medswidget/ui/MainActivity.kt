@@ -254,6 +254,7 @@ private fun AppNavigation(
                 onStartCountdown = mainViewModel::startCountdown,
                 onCancelCountdown = mainViewModel::cancelCountdown,
                 onRestartCountdown = mainViewModel::restartCountdown,
+                onRefill = mainViewModel::refillSupply,
                 onAdd = { navigation.navigate(Routes.ADD) },
                 onEdit = { navigation.navigate("medicine/${it.id}") },
                 onOpenDetailedHistory = { navigation.navigate(Routes.HISTORY) },
