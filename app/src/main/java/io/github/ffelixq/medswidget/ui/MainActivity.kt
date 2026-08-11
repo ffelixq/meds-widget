@@ -244,8 +244,10 @@ private fun AppNavigation(
     val navigation = rememberNavController()
     NavHost(navController = navigation, startDestination = Routes.MAIN) {
         composable(Routes.MAIN) {
-            MainScreen(
-                state = mainState,
+            val historyState by historyViewModel.state.collectAsStateWithLifecycle()
+            ShowcaseAppShell(
+                mainState = mainState,
+                historyState = historyState,
                 onCheck = mainViewModel::check,
                 onUndo = mainViewModel::undo,
                 onSkip = mainViewModel::skip,
@@ -255,8 +257,8 @@ private fun AppNavigation(
                 onRefill = mainViewModel::refillSupply,
                 onAdd = { navigation.navigate(Routes.ADD) },
                 onEdit = { navigation.navigate("medicine/${it.id}") },
-                onHistory = { navigation.navigate(Routes.HISTORY) },
-                onSettings = { navigation.navigate(Routes.SETTINGS) },
+                onOpenDetailedHistory = { navigation.navigate(Routes.HISTORY) },
+                onOpenSettings = { navigation.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.HISTORY) {
