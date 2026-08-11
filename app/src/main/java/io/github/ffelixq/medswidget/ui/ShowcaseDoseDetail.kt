@@ -174,34 +174,27 @@ private fun ShowcaseTimerCard(
             supportingText =
                 "Configured for ${CountdownLogic.formatDuration(row.countdownMinutes ?: 1)}.",
         )
-        when (countdown.status) {
-            CountdownDisplayStatus.NOT_STARTED -> {
-                Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-                    Text(countdown.text ?: "Start timer")
+        if (countdown.status == CountdownDisplayStatus.NOT_STARTED) {
+            Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                Text(countdown.text ?: "Start timer")
+            }
+        } else if (
+            countdown.status == CountdownDisplayStatus.RUNNING ||
+            countdown.status == CountdownDisplayStatus.READY
+        ) {
+            Text(
+                countdown.text.orEmpty(),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
+                    Text("Cancel")
+                }
+                OutlinedButton(onClick = onRestart, modifier = Modifier.weight(1f)) {
+                    Text("Restart")
                 }
             }
-
-            CountdownDisplayStatus.RUNNING,
-            CountdownDisplayStatus.READY,
-            -> {
-                Text(
-                    countdown.text.orEmpty(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) {
-                        Text("Cancel")
-                    }
-                    OutlinedButton(onClick = onRestart, modifier = Modifier.weight(1f)) {
-                        Text("Restart")
-                    }
-                }
-            }
-
-            CountdownDisplayStatus.NONE,
-            CountdownDisplayStatus.TAKEN,
-            -> Unit
         }
     }
 }
