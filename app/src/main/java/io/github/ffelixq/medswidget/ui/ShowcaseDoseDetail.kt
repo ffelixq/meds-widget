@@ -199,9 +199,9 @@ private fun ShowcaseTimerCard(
                 }
             }
 
-            else -> {
-                Unit
-            }
+            CountdownDisplayStatus.NONE,
+            CountdownDisplayStatus.TAKEN,
+            -> Unit
         }
     }
 }
