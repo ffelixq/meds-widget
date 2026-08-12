@@ -11,18 +11,21 @@ internal fun widgetDoseKey(
 ): String = "$medicineId|${slot.wireValue}"
 
 internal suspend fun AppGraph.skippedWidgetDoseKeys(snapshot: WidgetSnapshot): Set<String> {
-    val uid = snapshot.ownerUid ?: return emptySet()
-    if (!snapshot.signedIn) return emptySet()
-    return withTimeoutOrNull(STATE_READ_TIMEOUT_MILLIS) {
-        repositories.doses
-            .observeDay(uid, snapshot.logicalDay)
-            .first()
-            .value
-            .asSequence()
-            .filter { it.isSkipped }
-            .map { widgetDoseKey(it.medicineId, it.slot) }
-            .toSet()
-    }.orEmpty()
+    val uid = snapshot.ownerUid
+    return if (!snapshot.signedIn || uid == null) {
+        emptySet()
+    } else {
+        withTimeoutOrNull(STATE_READ_TIMEOUT_MILLIS) {
+            repositories.doses
+                .observeDay(uid, snapshot.logicalDay)
+                .first()
+                .value
+                .asSequence()
+                .filter { it.isSkipped }
+                .map { widgetDoseKey(it.medicineId, it.slot) }
+                .toSet()
+        }.orEmpty()
+    }
 }
 
 private const val STATE_READ_TIMEOUT_MILLIS = 1_500L
