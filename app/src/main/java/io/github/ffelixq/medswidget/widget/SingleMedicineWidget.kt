@@ -230,11 +230,19 @@ internal fun WidgetDoseRowContent(
     val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, now)
     val countdownAction =
         when (countdown.status) {
-            CountdownDisplayStatus.NOT_STARTED -> actionRunCallback<StartCountdownAction>(parameters)
+            CountdownDisplayStatus.NOT_STARTED -> {
+                actionRunCallback<StartCountdownAction>(parameters)
+            }
+
             CountdownDisplayStatus.RUNNING,
             CountdownDisplayStatus.READY,
-            -> actionStartActivity(Intent(context, MainActivity::class.java))
-            else -> null
+            -> {
+                actionStartActivity(Intent(context, MainActivity::class.java))
+            }
+
+            else -> {
+                null
+            }
         }
     val accessibilityLabel = widgetAccessibilityLabel(row, countdown)
     Row(
@@ -292,7 +300,11 @@ internal fun WidgetDoseRowContent(
                 )
             }
         }
-        if (!row.isTaken && countdownAction != null && countdown.status == CountdownDisplayStatus.NOT_STARTED) {
+        if (
+            !row.isTaken &&
+            countdownAction != null &&
+            countdown.status == CountdownDisplayStatus.NOT_STARTED
+        ) {
             Spacer(GlanceModifier.width(4.dp))
             Text(
                 text = "START TIMER",
@@ -314,10 +326,21 @@ private fun widgetStatusText(
     countdown: CountdownDisplay,
 ): String =
     when {
-        row.isTaken -> "TAKEN"
-        countdown.status == CountdownDisplayStatus.READY -> "TAKE NOW"
-        countdown.status == CountdownDisplayStatus.RUNNING -> "WAIT ${countdown.text.orEmpty()}"
-        else -> "NOT RECORDED"
+        row.isTaken -> {
+            "TAKEN"
+        }
+
+        countdown.status == CountdownDisplayStatus.READY -> {
+            "TAKE NOW"
+        }
+
+        countdown.status == CountdownDisplayStatus.RUNNING -> {
+            "WAIT ${countdown.text.orEmpty()}"
+        }
+
+        else -> {
+            "NOT RECORDED"
+        }
     }
 
 private fun widgetAccessibilityLabel(
@@ -326,11 +349,21 @@ private fun widgetAccessibilityLabel(
 ): String {
     val status =
         when {
-            row.isTaken -> "taken; open the app for details"
-            countdown.status == CountdownDisplayStatus.READY -> "you can take it now; tap to mark as taken"
-            countdown.status == CountdownDisplayStatus.RUNNING ->
+            row.isTaken -> {
+                "taken; open the app for details"
+            }
+
+            countdown.status == CountdownDisplayStatus.READY -> {
+                "you can take it now; tap to mark as taken"
+            }
+
+            countdown.status == CountdownDisplayStatus.RUNNING -> {
                 "wait ${countdown.text.orEmpty()}; tap to mark as taken if you already took it"
-            else -> "not recorded as taken; tap to mark as taken"
+            }
+
+            else -> {
+                "not recorded as taken; tap to mark as taken"
+            }
         }
     return "${row.medicineName}, ${row.label}, $status"
 }
