@@ -202,7 +202,7 @@ internal fun WidgetHeader(
     }
 }
 
-@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 @Composable
 @androidx.glance.GlanceComposable
 internal fun WidgetDoseRowContent(
@@ -348,13 +348,15 @@ private fun widgetStatusModifier(
     countdownAction: androidx.glance.action.Action?,
     isSkipped: Boolean,
 ): GlanceModifier {
+    val completed = row.isTaken || isSkipped
     val opensTimerDetails =
         countdown.status == CountdownDisplayStatus.RUNNING ||
             countdown.status == CountdownDisplayStatus.READY
-    return if (!row.isTaken && !isSkipped && countdownAction != null && opensTimerDetails) {
+    val canOpenTimerDetails = !completed && countdownAction != null
+    return if (canOpenTimerDetails && opensTimerDetails) {
         GlanceModifier
             .semantics { contentDescription = "Open ${row.label} wait timer details" }
-            .clickable(countdownAction)
+            .clickable(requireNotNull(countdownAction))
     } else {
         GlanceModifier
     }
