@@ -8,13 +8,17 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.ffelixq.medswidget.domain.ThemePreference
+import io.github.ffelixq.medswidget.ui.AppTextSize
 
 private val AppleBlue = Color(0xFF007AFF)
 private val AppleBlueDark = Color(0xFF0A84FF)
@@ -175,6 +179,7 @@ private val AppleShapes =
 @Composable
 fun MedsWidgetTheme(
     preference: ThemePreference = ThemePreference.SYSTEM,
+    textSize: AppTextSize = AppTextSize.SYSTEM,
     content: @Composable () -> Unit,
 ) {
     val dark =
@@ -183,10 +188,19 @@ fun MedsWidgetTheme(
             ThemePreference.LIGHT -> false
             ThemePreference.DARK -> true
         }
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        typography = AppleTypography,
-        shapes = AppleShapes,
-        content = content,
-    )
+    val currentDensity = LocalDensity.current
+    val accessibleFontScale =
+        (currentDensity.fontScale * textSize.fontScaleMultiplier).coerceAtMost(MAX_FONT_SCALE)
+    CompositionLocalProvider(
+        LocalDensity provides Density(currentDensity.density, accessibleFontScale),
+    ) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkColors else LightColors,
+            typography = AppleTypography,
+            shapes = AppleShapes,
+            content = content,
+        )
+    }
 }
+
+private const val MAX_FONT_SCALE = 2.0f
