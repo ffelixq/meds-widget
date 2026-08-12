@@ -102,7 +102,10 @@ internal fun ShowcaseDoseDetailScreen(
 
 @Suppress("FunctionNaming")
 @Composable
-private fun ShowcaseDetailHeader(row: DoseRow, countdown: CountdownDisplay) {
+private fun ShowcaseDetailHeader(
+    row: DoseRow,
+    countdown: CountdownDisplay,
+) {
     val status =
         when {
             row.isTaken -> "Taken"
@@ -123,8 +126,16 @@ private fun ShowcaseDetailHeader(row: DoseRow, countdown: CountdownDisplay) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ShowcaseDetailStatusCircle(row)
-        Text(row.medicineName, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(row.label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            row.medicineName,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            row.label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(
             status,
             style = MaterialTheme.typography.titleLarge,
@@ -175,7 +186,10 @@ private fun ShowcaseDetailPrimaryActions(
             }
             TextButton(
                 onClick = onSkip,
-                modifier = Modifier.fillMaxWidth().heightIn(min = if (patientMode) 58.dp else 52.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = if (patientMode) 58.dp else 52.dp),
             ) {
                 Text("I am not taking this dose")
             }
@@ -199,7 +213,10 @@ private fun ShowcaseTimerCard(
         )
         when (countdown.status) {
             CountdownDisplayStatus.NOT_STARTED -> {
-                Button(onClick = onStart, modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp)) {
+                Button(
+                    onClick = onStart,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+                ) {
                     Text(countdown.text ?: "Start wait timer")
                 }
             }
@@ -227,12 +244,21 @@ private fun ShowcaseTimerCard(
 
 @Suppress("FunctionNaming")
 @Composable
-private fun ShowcaseTimerControls(onCancel: () -> Unit, onRestart: () -> Unit) {
+private fun ShowcaseTimerControls(
+    onCancel: () -> Unit,
+    onRestart: () -> Unit,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f).heightIn(min = 54.dp)) {
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+        ) {
             Text("Cancel timer")
         }
-        OutlinedButton(onClick = onRestart, modifier = Modifier.weight(1f).heightIn(min = 54.dp)) {
+        OutlinedButton(
+            onClick = onRestart,
+            modifier = Modifier.weight(1f).heightIn(min = 54.dp),
+        ) {
             Text("Restart")
         }
     }
@@ -256,7 +282,12 @@ private fun ShowcaseDetailStatusCircle(row: DoseRow) {
             contentAlignment = Alignment.Center,
         ) {
             if (row.isTaken) {
-                Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(48.dp),
+                )
             } else {
                 Text(
                     if (row.isSkipped) "–" else "Rx",
@@ -271,27 +302,47 @@ private fun ShowcaseDetailStatusCircle(row: DoseRow) {
 
 @Suppress("FunctionNaming")
 @Composable
-private fun ShowcaseDetailsCard(row: DoseRow, medicine: Medicine?, patientMode: Boolean) {
+private fun ShowcaseDetailsCard(
+    row: DoseRow,
+    medicine: Medicine?,
+    patientMode: Boolean,
+) {
     val context = LocalContext.current
     AppleCard {
         AppleSectionHeader(title = if (patientMode) "Notes" else "Details")
         if (!patientMode) {
             ShowcaseDetailLine("Time of day", row.slot.defaultLabel)
             row.checkedAt?.let {
-                ShowcaseDetailLine("Taken at", TimeFormatting.compact(context, it, row.checkedTimezone))
+                ShowcaseDetailLine(
+                    "Taken at",
+                    TimeFormatting.compact(context, it, row.checkedTimezone),
+                )
             }
-            row.skippedAt?.let { ShowcaseDetailLine("Not taken at", TimeFormatting.compact(context, it)) }
-            row.countdownMinutes?.let { ShowcaseDetailLine("Wait timer", CountdownLogic.formatDuration(it)) }
+            row.skippedAt?.let {
+                ShowcaseDetailLine("Not taken at", TimeFormatting.compact(context, it))
+            }
+            row.countdownMinutes?.let {
+                ShowcaseDetailLine("Wait timer", CountdownLogic.formatDuration(it))
+            }
         }
-        medicine?.notes?.takeIf(String::isNotBlank)?.let { ShowcaseDetailLine("Notes", it) }
+        medicine?.notes?.takeIf(String::isNotBlank)?.let {
+            ShowcaseDetailLine("Notes", it)
+        }
     }
 }
 
 @Suppress("FunctionNaming")
 @Composable
-private fun ShowcaseDetailLine(label: String, value: String) {
+private fun ShowcaseDetailLine(
+    label: String,
+    value: String,
+) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
 }
