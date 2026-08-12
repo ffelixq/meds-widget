@@ -209,3 +209,86 @@ Every item below is also **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION**:
 18. Cross midnight and a custom logical-day reset with a running timer; confirm
     it stays associated with its originating logical day and is not silently
     reused for the new day.
+
+## V2.2 patient accessibility addendum
+
+Every item below is also **REQUIRES_PHYSICAL_SAMSUNG_VALIDATION** for the signed
+`2.2.0` release candidate. Automation may support these checks but must not be
+reported as a substitute for the physical-device evidence.
+
+1. Upgrade from the latest installed 2.1.x release to 2.2.0 without clearing
+   app data. Confirm medicines, history, settings, widget configurations,
+   countdowns, reminders, and account state survive the upgrade.
+2. Open **Settings > Easy to use**, select **Patient mode**, and confirm the
+   main navigation contains only **Today**, **History**, and **More**. Confirm
+   medicine editing, Widget Studio, and other caregiver tools are not in the
+   patient's normal daily navigation.
+3. Switch back to **Caregiver mode** and confirm **Medicines** and the advanced
+   management surfaces return without changing medicine or dose data. Switch
+   to Patient mode again for the remaining accessibility checks.
+4. On Patient Today, verify the next medicine is visually dominant and the
+   primary **I TOOK IT** target can be activated comfortably with one thumb.
+   Repeat several times while intentionally tapping near the target edges to
+   check for accidental neighbouring actions.
+5. Record a dose with **I TOOK IT**. Confirm there is immediate haptic/visual
+   confirmation and a visible **Undo** opportunity. Use Undo once and verify
+   the dose returns to pending while history preserves the audit trail.
+6. Open **Remind me later** and exercise the 15-minute, 30-minute, and 1-hour
+   choices. Verify each creates one reminder, does not mark the medicine taken,
+   and does not create duplicate reminders after reopening the app.
+7. Configure a short wait timer. Verify Patient mode uses plain-language states
+   such as **Wait ...** and **You can take it now**, and that reaching zero does
+   not automatically mark the dose taken.
+8. Mark a dose **I am not taking this dose** / **I did not take it** in the app.
+   Confirm the app describes the state without suggesting a replacement dose,
+   double dose, catch-up dose, or other medical action.
+9. With that same skipped dose, inspect the 2×2, 4×2, and 4×4 widgets. Confirm
+   they show **NOT TAKEN**, do not offer the check callback or Start Timer for
+   that row, and tapping the row opens the app to change the record.
+10. Turn on Android **TalkBack**. Navigate Patient Today, History, More, the
+    Easy-to-use settings, reminder choices, and dose-detail controls. Confirm
+    each actionable control is announced with a meaningful label/state and no
+    essential action is exposed only as an unlabeled icon.
+11. With TalkBack still enabled, traverse real home-screen widgets. Confirm dose
+    rows announce medicine, slot, state, and expected action for **TAKEN**,
+    **NOT RECORDED**, **WAIT**, **TAKE NOW**, and **NOT TAKEN** states.
+12. Turn on **Voice Access** where available. Confirm the major Patient-mode
+    actions can be selected without precise tapping and that duplicate/ambiguous
+    labels do not make the primary medication workflow impractical.
+13. Test the app's **Phone setting**, **Large**, and **Extra Large** text modes.
+    Then increase Android system font size up to the device's 200% maximum.
+    Confirm text reflows vertically instead of clipping or shrinking essential
+    controls, and all Patient-mode actions remain reachable by scrolling.
+14. At Extra Large/200% text, repeat Today, dose detail, History, More, account
+    deletion progress, Patient/Caregiver switching, and reminder selection.
+    Confirm no important control becomes permanently hidden below or behind
+    another element.
+15. Repeat the primary workflow using only one hand and deliberately imprecise
+    taps to approximate reduced dexterity/tremor. Confirm primary and secondary
+    actions have adequate separation and that accidental medicine recording can
+    be corrected from the app.
+16. Test light and dark themes plus Samsung high-contrast/accessibility display
+    options that are available on the device. Confirm **TAKEN**, **NOT TAKEN**,
+    pending, wait, and ready states remain understandable without colour alone.
+17. Resize the 2×2, 4×2, and 4×4 widgets through every One UI size the launcher
+    permits while Patient mode and large system text are enabled. Confirm
+    status words remain legible, rows remain reachable, and no action target is
+    clipped into another target.
+18. Reboot the Samsung phone with Patient mode, large text, active widgets, and
+    at least one scheduled reminder. After unlock, confirm Patient mode remains
+    selected, text preference remains selected, widgets recover, and reminder
+    behaviour remains sane without duplicate notifications.
+19. Test offline mode: record one medicine, start one countdown, and schedule
+    one remind-later action while connectivity is unavailable where supported.
+    Reconnect and confirm the dose/countdown cloud state converges without
+    changing the local accessibility preferences or duplicating the reminder.
+20. Perform a final plain-language review with TalkBack off and on. Confirm the
+    daily workflow never labels an unrecorded or overdue dose with instructions
+    to compensate medically; ambiguous states remain **Not recorded yet** or an
+    equivalent factual tracking state until the user records an action.
+
+Record PASS/FAIL/BLOCKED evidence for all V2.2 addendum steps with the exact
+signed APK version code, commit SHA, APK SHA-256, Samsung model, Android/One UI
+version, accessibility settings used, and tester/date. Keep
+**REQUIRES_PHYSICAL_SAMSUNG_VALIDATION** until these checks are completed on the
+actual release candidate.
