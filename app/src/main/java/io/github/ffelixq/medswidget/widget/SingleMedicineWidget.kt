@@ -259,11 +259,12 @@ internal fun WidgetDoseRowContent(
                 }
             }
         }
-    val startsTimerInline =
-        source == CheckSource.WIDGET_2X2 &&
-            !completed &&
+    val canStartCountdown =
+        !completed &&
             countdownAction != null &&
             countdown.status == CountdownDisplayStatus.NOT_STARTED
+    val startsTimerInline = source == CheckSource.WIDGET_2X2 && canStartCountdown
+    val showsTrailingTimerAction = canStartCountdown && !startsTimerInline
     val accessibilityLabel = widgetAccessibilityLabel(row, countdown, isSkipped)
     Row(
         modifier =
@@ -338,12 +339,7 @@ internal fun WidgetDoseRowContent(
                 )
             }
         }
-        if (
-            !startsTimerInline &&
-            !completed &&
-            countdownAction != null &&
-            countdown.status == CountdownDisplayStatus.NOT_STARTED
-        ) {
+        if (showsTrailingTimerAction) {
             Spacer(GlanceModifier.width(4.dp))
             Text(
                 text = "START TIMER",
@@ -352,7 +348,7 @@ internal fun WidgetDoseRowContent(
                         .height(rowHeightDp.dp)
                         .padding(horizontal = 6.dp, vertical = 8.dp)
                         .semantics { contentDescription = "Start ${row.label} wait timer" }
-                        .clickable(countdownAction),
+                        .clickable(requireNotNull(countdownAction)),
                 style = WidgetTextStyles.supporting(spec),
                 maxLines = 1,
             )
