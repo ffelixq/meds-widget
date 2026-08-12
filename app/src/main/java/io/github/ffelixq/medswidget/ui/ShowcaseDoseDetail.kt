@@ -220,6 +220,7 @@ private fun ShowcaseTimerCard(
                     Text(countdown.text ?: "Start wait timer")
                 }
             }
+
             CountdownDisplayStatus.RUNNING -> {
                 Text(
                     "Wait ${countdown.text.orEmpty()}",
@@ -228,6 +229,7 @@ private fun ShowcaseTimerCard(
                 )
                 ShowcaseTimerControls(onCancel, onRestart)
             }
+
             CountdownDisplayStatus.READY -> {
                 Text(
                     "You can take it now",
@@ -237,7 +239,10 @@ private fun ShowcaseTimerCard(
                 )
                 ShowcaseTimerControls(onCancel, onRestart)
             }
-            else -> Unit
+
+            else -> {
+                Unit
+            }
         }
     }
 }
