@@ -62,15 +62,8 @@ internal fun ShowcaseMoreScreen(
         }
         item {
             ShowcaseMoreLink(
-                title = "Settings & appearance",
-                subtitle = "Theme, daily reset time, account, reminders, and export",
-                onClick = onOpenSettings,
-            )
-        }
-        item {
-            ShowcaseMoreLink(
-                title = "Privacy & security",
-                subtitle = "Review lock-screen, export, widget, network, and account protections",
+                title = "Settings, privacy & account",
+                subtitle = "Theme, daily reset, account, privacy, reminders, and export",
                 onClick = onOpenSettings,
             )
         }
