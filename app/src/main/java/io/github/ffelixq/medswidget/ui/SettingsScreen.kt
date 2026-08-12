@@ -86,7 +86,7 @@ internal fun AccountDeletionProgressScreen() {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Suppress("FunctionNaming", "LongMethod", "LongParameterList")
+@Suppress("FunctionNaming", "LongMethod", "LongParameterList", "UNUSED_PARAMETER")
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
@@ -145,13 +145,7 @@ fun SettingsScreen(
         ) {
             AppleLargeTitle(
                 title = "Settings",
-                subtitle = "Accessibility, appearance, account, privacy, and advanced setup.",
-            )
-
-            AccessibilityControlsCard(
-                state = accessibilityState,
-                onExperienceMode = onExperienceMode,
-                onTextSize = onTextSize,
+                subtitle = "Appearance, account, privacy, and advanced setup.",
             )
 
             if (state.isDeletingAccount) {

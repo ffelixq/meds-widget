@@ -259,6 +259,12 @@ internal fun WidgetDoseRowContent(
                 }
             }
         }
+    val canStartCountdown =
+        !completed &&
+            countdownAction != null &&
+            countdown.status == CountdownDisplayStatus.NOT_STARTED
+    val startsTimerInline = source == CheckSource.WIDGET_2X2 && canStartCountdown
+    val showsTrailingTimerAction = canStartCountdown && !startsTimerInline
     val accessibilityLabel = widgetAccessibilityLabel(row, countdown, isSkipped)
     Row(
         modifier =
@@ -309,8 +315,20 @@ internal fun WidgetDoseRowContent(
                     maxLines = 1,
                 )
                 Text(
-                    text = widgetStatusText(row, countdown, isSkipped),
-                    modifier = widgetStatusModifier(row, countdown, countdownAction, isSkipped),
+                    text =
+                        if (startsTimerInline) {
+                            "START TIMER"
+                        } else {
+                            widgetStatusText(row, countdown, isSkipped)
+                        },
+                    modifier =
+                        if (startsTimerInline) {
+                            GlanceModifier
+                                .semantics { contentDescription = "Start ${row.label} wait timer" }
+                                .clickable(requireNotNull(countdownAction))
+                        } else {
+                            widgetStatusModifier(row, countdown, countdownAction, isSkipped)
+                        },
                     style =
                         if (row.isTaken || countdown.status == CountdownDisplayStatus.READY) {
                             WidgetTextStyles.countdownReady(spec)
@@ -321,11 +339,7 @@ internal fun WidgetDoseRowContent(
                 )
             }
         }
-        if (
-            !completed &&
-            countdownAction != null &&
-            countdown.status == CountdownDisplayStatus.NOT_STARTED
-        ) {
+        if (showsTrailingTimerAction) {
             Spacer(GlanceModifier.width(4.dp))
             Text(
                 text = "START TIMER",
@@ -334,7 +348,7 @@ internal fun WidgetDoseRowContent(
                         .height(rowHeightDp.dp)
                         .padding(horizontal = 6.dp, vertical = 8.dp)
                         .semantics { contentDescription = "Start ${row.label} wait timer" }
-                        .clickable(countdownAction),
+                        .clickable(requireNotNull(countdownAction)),
                 style = WidgetTextStyles.supporting(spec),
                 maxLines = 1,
             )
