@@ -73,7 +73,7 @@ internal fun PatientMoreScreen(
                     onClick = onOpenSettings,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
                 ) {
-                    Text("Accessibility and account settings")
+                    Text("Account and app settings")
                 }
             }
         }
