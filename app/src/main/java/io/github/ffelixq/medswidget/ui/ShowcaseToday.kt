@@ -80,8 +80,14 @@ internal fun ShowcaseTodayScreen(
         item { ShowcaseProgressCard(state) }
         item {
             when {
-                state.isLoading -> ShowcaseLoadingCard("Loading your medicines…")
-                state.medicines.isEmpty() -> ShowcaseEmptyToday(onAdd)
+                state.isLoading -> {
+                    ShowcaseLoadingCard("Loading your medicines…")
+                }
+
+                state.medicines.isEmpty() -> {
+                    ShowcaseEmptyToday(onAdd)
+                }
+
                 nextDose != null -> {
                     ShowcaseHeroDoseCard(
                         row = nextDose,
@@ -91,7 +97,10 @@ internal fun ShowcaseTodayScreen(
                         onOpenDose = { onOpenDose(nextDose) },
                     )
                 }
-                state.rows.isNotEmpty() -> ShowcaseAllDoneCard()
+
+                state.rows.isNotEmpty() -> {
+                    ShowcaseAllDoneCard()
+                }
             }
         }
         if (state.rows.isNotEmpty()) {
@@ -165,6 +174,7 @@ private fun ShowcaseProgressCard(state: MainUiState) {
             state.hasPendingWrites -> {
                 Text("Syncing changes…", color = MaterialTheme.colorScheme.primary)
             }
+
             state.isCached -> {
                 Text(
                     "Showing saved offline data",
@@ -284,6 +294,7 @@ private fun ShowcaseHeroCountdown(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+
         CountdownDisplayStatus.READY -> {
             Text(
                 "You can take it now",
@@ -292,13 +303,17 @@ private fun ShowcaseHeroCountdown(
                 fontWeight = FontWeight.Bold,
             )
         }
+
         CountdownDisplayStatus.NOT_STARTED -> {
             Text(
                 "Wait timer: ${CountdownLogic.formatDuration(row.countdownMinutes ?: 1)}",
                 style = MaterialTheme.typography.titleMedium,
             )
         }
-        else -> Text("Not recorded yet", style = MaterialTheme.typography.titleMedium)
+
+        else -> {
+            Text("Not recorded yet", style = MaterialTheme.typography.titleMedium)
+        }
     }
 }
 
@@ -354,10 +369,14 @@ private fun ShowcaseDoseListRow(
             )
         }
         when {
-            row.isTaken || row.isSkipped -> Unit
+            row.isTaken || row.isSkipped -> {
+                Unit
+            }
+
             countdown.status == CountdownDisplayStatus.NOT_STARTED -> {
                 TextButton(onClick = onStartCountdown) { Text("Start timer") }
             }
+
             countdown.status != CountdownDisplayStatus.RUNNING &&
                 countdown.status != CountdownDisplayStatus.READY -> {
                 TextButton(onClick = onTake) { Text("I took it") }
@@ -383,6 +402,7 @@ private fun ShowcaseStatusDot(row: DoseRow) {
             row.isTaken -> {
                 Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White)
             }
+
             row.isSkipped -> {
                 Text(
                     "–",
@@ -390,7 +410,10 @@ private fun ShowcaseStatusDot(row: DoseRow) {
                     fontWeight = FontWeight.Bold,
                 )
             }
-            else -> Text("○", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+
+            else -> {
+                Text("○", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
