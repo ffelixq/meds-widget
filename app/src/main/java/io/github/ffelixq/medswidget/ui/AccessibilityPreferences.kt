@@ -27,7 +27,9 @@ data class AccessibilityPreferencesState(
     val textSize: AppTextSize = AppTextSize.SYSTEM,
 )
 
-class AccessibilityPreferences(context: Context) {
+class AccessibilityPreferences(
+    context: Context,
+) {
     private val preferences =
         context.applicationContext.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
     private val mutableState = MutableStateFlow(readState())
