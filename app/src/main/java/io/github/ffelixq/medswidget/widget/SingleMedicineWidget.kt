@@ -290,6 +290,7 @@ internal fun WidgetDoseRowContent(
                 )
                 Text(
                     text = widgetStatusText(row, countdown),
+                    modifier = widgetStatusModifier(row, countdown, countdownAction),
                     style =
                         if (row.isTaken || countdown.status == CountdownDisplayStatus.READY) {
                             WidgetTextStyles.countdownReady(spec)
@@ -320,6 +321,26 @@ internal fun WidgetDoseRowContent(
         }
     }
 }
+
+private fun widgetStatusModifier(
+    row: WidgetDoseRow,
+    countdown: CountdownDisplay,
+    countdownAction: androidx.glance.action.Action?,
+): GlanceModifier =
+    if (
+        !row.isTaken &&
+        countdownAction != null &&
+        (
+            countdown.status == CountdownDisplayStatus.RUNNING ||
+                countdown.status == CountdownDisplayStatus.READY
+        )
+    ) {
+        GlanceModifier
+            .semantics { contentDescription = "Open ${row.label} wait timer details" }
+            .clickable(countdownAction)
+    } else {
+        GlanceModifier
+    }
 
 private fun widgetStatusText(
     row: WidgetDoseRow,
