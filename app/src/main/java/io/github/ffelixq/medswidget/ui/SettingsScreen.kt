@@ -300,6 +300,7 @@ fun SettingsScreen(
                         )
                         Text("Settings are saved on this device and waiting to synchronise.")
                     }
+
                     state.isCached -> {
                         AppleStatusPill(
                             text = "Cached settings",
@@ -353,7 +354,10 @@ fun SettingsScreen(
     }
 }
 
-private fun parseResetMinutes(hour: String, minute: String): Int? {
+private fun parseResetMinutes(
+    hour: String,
+    minute: String,
+): Int? {
     val hours = hour.toIntOrNull() ?: return null
     val minutes = minute.toIntOrNull() ?: return null
     return if (hours in 0..23 && minutes in 0..59) hours * 60 + minutes else null
