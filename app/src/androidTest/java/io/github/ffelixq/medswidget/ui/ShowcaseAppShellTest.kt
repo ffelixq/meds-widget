@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -27,8 +28,8 @@ class ShowcaseAppShellTest {
 
         composeRule.onNodeWithText("More").performClick()
 
-        composeRule.onNodeWithText("Widget Studio").assertIsDisplayed()
-        composeRule.onNodeWithText("Widget previews").assertIsDisplayed()
+        composeRule.onNodeWithText("Widget Studio").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -52,7 +53,7 @@ class ShowcaseAppShellTest {
         composeRule.onAllNodesWithText("Medicines").assertCountEquals(0)
 
         composeRule.onNodeWithText("More").performClick()
-        composeRule.onNodeWithText("Open caregiver tools").assertIsDisplayed()
+        composeRule.onNodeWithText("Open caregiver tools").performScrollTo().assertIsDisplayed()
         composeRule.onAllNodesWithText("Widget Studio").assertCountEquals(0)
     }
 
@@ -65,7 +66,7 @@ class ShowcaseAppShellTest {
         )
 
         composeRule.onNodeWithText("More").performClick()
-        composeRule.onNodeWithText("Open caregiver tools").performClick()
+        composeRule.onNodeWithText("Open caregiver tools").performScrollTo().performClick()
 
         assertEquals(ExperienceMode.CAREGIVER, selectedMode)
     }
