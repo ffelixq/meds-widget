@@ -2,12 +2,15 @@ package io.github.ffelixq.medswidget.ui
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -27,9 +30,11 @@ class ShowcaseAppShellTest {
         composeRule.onAllNodesWithText("Widget previews").assertCountEquals(0)
 
         composeRule.onNodeWithText("More").performClick()
+        scrollTo("Widget Studio")
 
-        composeRule.onNodeWithText("Widget Studio").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Widget Studio").assertIsDisplayed()
+        scrollTo("Widget previews")
+        composeRule.onNodeWithText("Widget previews").assertIsDisplayed()
     }
 
     @Test
@@ -53,7 +58,8 @@ class ShowcaseAppShellTest {
         composeRule.onAllNodesWithText("Medicines").assertCountEquals(0)
 
         composeRule.onNodeWithText("More").performClick()
-        composeRule.onNodeWithText("Open caregiver tools").performScrollTo().assertIsDisplayed()
+        scrollTo("Open caregiver tools")
+        composeRule.onNodeWithText("Open caregiver tools").assertIsDisplayed()
         composeRule.onAllNodesWithText("Widget Studio").assertCountEquals(0)
     }
 
@@ -66,7 +72,8 @@ class ShowcaseAppShellTest {
         )
 
         composeRule.onNodeWithText("More").performClick()
-        composeRule.onNodeWithText("Open caregiver tools").performScrollTo().performClick()
+        scrollTo("Open caregiver tools")
+        composeRule.onNodeWithText("Open caregiver tools").performClick()
 
         assertEquals(ExperienceMode.CAREGIVER, selectedMode)
     }
@@ -80,6 +87,10 @@ class ShowcaseAppShellTest {
         composeRule.onNodeWithText("In 15 minutes").assertIsDisplayed()
         composeRule.onNodeWithText("In 30 minutes").assertIsDisplayed()
         composeRule.onNodeWithText("In 1 hour").assertIsDisplayed()
+    }
+
+    private fun scrollTo(text: String) {
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(text))
     }
 
     private fun setContent(
