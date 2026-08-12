@@ -49,7 +49,8 @@ internal fun PatientMoreScreen(
                 AppleSectionHeader(
                     title = "Need to change medicines?",
                     supportingText =
-                        "Switch to Caregiver mode before changing schedules, reminders, widgets, or account settings.",
+                        "Switch to Caregiver mode before changing schedules, reminders, " +
+                            "widgets, or account settings.",
                 )
                 OutlinedButton(
                     onClick = { onExperienceMode(ExperienceMode.CAREGIVER) },
@@ -64,7 +65,8 @@ internal fun PatientMoreScreen(
                 AppleSectionHeader(title = "Help")
                 Text(
                     "On Today, find the next medicine and press “I TOOK IT” after you take it. " +
-                        "Use “Remind me later” if you want another reminder. The app does not tell you to change a dose.",
+                        "Use “Remind me later” if you want another reminder. " +
+                        "The app does not tell you to change a dose.",
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 OutlinedButton(
