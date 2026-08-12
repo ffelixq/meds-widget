@@ -326,21 +326,18 @@ private fun widgetStatusModifier(
     row: WidgetDoseRow,
     countdown: CountdownDisplay,
     countdownAction: androidx.glance.action.Action?,
-): GlanceModifier =
-    if (
-        !row.isTaken &&
-        countdownAction != null &&
-        (
-            countdown.status == CountdownDisplayStatus.RUNNING ||
-                countdown.status == CountdownDisplayStatus.READY
-        )
-    ) {
+): GlanceModifier {
+    val opensTimerDetails =
+        countdown.status == CountdownDisplayStatus.RUNNING ||
+            countdown.status == CountdownDisplayStatus.READY
+    return if (!row.isTaken && countdownAction != null && opensTimerDetails) {
         GlanceModifier
             .semantics { contentDescription = "Open ${row.label} wait timer details" }
             .clickable(countdownAction)
     } else {
         GlanceModifier
     }
+}
 
 private fun widgetStatusText(
     row: WidgetDoseRow,
