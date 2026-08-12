@@ -29,6 +29,7 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.ffelixq.medswidget.AppGraph
 import io.github.ffelixq.medswidget.MedsApplication
+import io.github.ffelixq.medswidget.sync.SnoozeReminderScheduler
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
 import io.github.ffelixq.medswidget.util.MedicationCsvExporter
 import kotlinx.coroutines.flow.first
@@ -39,6 +40,8 @@ import java.time.LocalDate
 class MainActivity : ComponentActivity() {
     private val graph: AppGraph by lazy { MedsApplication.graph(this) }
     private val credentialManager: CredentialManager by lazy { CredentialManager.create(this) }
+    private val accessibilityPreferences by lazy { AccessibilityPreferences(this) }
+    private val snoozeReminderScheduler by lazy { SnoozeReminderScheduler(this) }
 
     private val authViewModel by viewModels<AuthViewModel> {
         CreatorFactory { AuthViewModel(graph.repositories.auth) }
@@ -66,6 +69,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val authState by authViewModel.state.collectAsStateWithLifecycle()
             val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
+            val accessibilityState by accessibilityPreferences.state.collectAsStateWithLifecycle()
             LaunchedEffect(authState.session?.uid) {
                 if (authState.session == null) {
                     runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
@@ -87,7 +91,10 @@ class MainActivity : ComponentActivity() {
                     finish()
                 }
             }
-            MedsWidgetTheme(settingsState.settings.themePreference) {
+            MedsWidgetTheme(
+                preference = settingsState.settings.themePreference,
+                textSize = accessibilityState.textSize,
+            ) {
                 if (settingsState.isDeletingAccount) {
                     AccountDeletionProgressScreen()
                 } else if (authState.session == null) {
@@ -114,9 +121,22 @@ class MainActivity : ComponentActivity() {
                     AppNavigation(
                         mainState = mainState,
                         settingsState = settingsState,
+                        accessibilityState = accessibilityState,
                         mainViewModel = mainViewModel,
                         historyViewModel = historyViewModel,
                         settingsViewModel = settingsViewModel,
+                        onExperienceMode = accessibilityPreferences::setExperienceMode,
+                        onTextSize = accessibilityPreferences::setTextSize,
+                        onRemindLater = { row, minutes ->
+                            graph.repositories.auth.session.value?.uid?.let { uid ->
+                                snoozeReminderScheduler.schedule(
+                                    uid = uid,
+                                    medicineId = row.medicineId,
+                                    slot = row.slot,
+                                    delayMinutes = minutes,
+                                )
+                            }
+                        },
                         onExport = ::shareCsvExport,
                         onDeleteGoogle = {
                             requestGoogleCredential(
@@ -230,14 +250,18 @@ private object Routes {
     const val EDIT = "medicine/{medicineId}"
 }
 
-@Suppress("FunctionNaming")
+@Suppress("FunctionNaming", "LongParameterList")
 @androidx.compose.runtime.Composable
 private fun AppNavigation(
     mainState: MainUiState,
     settingsState: SettingsUiState,
+    accessibilityState: AccessibilityPreferencesState,
     mainViewModel: MainViewModel,
     historyViewModel: HistoryViewModel,
     settingsViewModel: SettingsViewModel,
+    onExperienceMode: (ExperienceMode) -> Unit,
+    onTextSize: (AppTextSize) -> Unit,
+    onRemindLater: (io.github.ffelixq.medswidget.domain.DoseRow, Int) -> Unit,
     onExport: () -> Unit,
     onDeleteGoogle: () -> Unit,
 ) {
@@ -248,12 +272,16 @@ private fun AppNavigation(
             ShowcaseAppShell(
                 mainState = mainState,
                 historyState = historyState,
+                accessibilityState = accessibilityState,
                 onCheck = mainViewModel::check,
                 onUndo = mainViewModel::undo,
                 onSkip = mainViewModel::skip,
                 onStartCountdown = mainViewModel::startCountdown,
                 onCancelCountdown = mainViewModel::cancelCountdown,
                 onRestartCountdown = mainViewModel::restartCountdown,
+                onRemindLater = onRemindLater,
+                onExperienceMode = onExperienceMode,
+                onTextSize = onTextSize,
                 onRefill = mainViewModel::refillSupply,
                 onAdd = { navigation.navigate(Routes.ADD) },
                 onEdit = { navigation.navigate("medicine/${it.id}") },
@@ -268,9 +296,12 @@ private fun AppNavigation(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 state = settingsState,
+                accessibilityState = accessibilityState,
                 onBack = navigation::popBackStack,
                 onResetTime = settingsViewModel::updateResetTime,
                 onTheme = settingsViewModel::updateTheme,
+                onExperienceMode = onExperienceMode,
+                onTextSize = onTextSize,
                 onDisplayName = settingsViewModel::updateDisplayName,
                 onSignOut = settingsViewModel::signOut,
                 onDeletePasswordAccount = { settingsViewModel.deleteAccount(it) },
