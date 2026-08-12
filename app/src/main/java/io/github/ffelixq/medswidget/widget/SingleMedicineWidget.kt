@@ -259,6 +259,11 @@ internal fun WidgetDoseRowContent(
                 }
             }
         }
+    val startsTimerInline =
+        source == CheckSource.WIDGET_2X2 &&
+            !completed &&
+            countdownAction != null &&
+            countdown.status == CountdownDisplayStatus.NOT_STARTED
     val accessibilityLabel = widgetAccessibilityLabel(row, countdown, isSkipped)
     Row(
         modifier =
@@ -309,8 +314,20 @@ internal fun WidgetDoseRowContent(
                     maxLines = 1,
                 )
                 Text(
-                    text = widgetStatusText(row, countdown, isSkipped),
-                    modifier = widgetStatusModifier(row, countdown, countdownAction, isSkipped),
+                    text =
+                        if (startsTimerInline) {
+                            "START TIMER"
+                        } else {
+                            widgetStatusText(row, countdown, isSkipped)
+                        },
+                    modifier =
+                        if (startsTimerInline) {
+                            GlanceModifier
+                                .semantics { contentDescription = "Start ${row.label} wait timer" }
+                                .clickable(requireNotNull(countdownAction))
+                        } else {
+                            widgetStatusModifier(row, countdown, countdownAction, isSkipped)
+                        },
                     style =
                         if (row.isTaken || countdown.status == CountdownDisplayStatus.READY) {
                             WidgetTextStyles.countdownReady(spec)
@@ -322,6 +339,7 @@ internal fun WidgetDoseRowContent(
             }
         }
         if (
+            !startsTimerInline &&
             !completed &&
             countdownAction != null &&
             countdown.status == CountdownDisplayStatus.NOT_STARTED
