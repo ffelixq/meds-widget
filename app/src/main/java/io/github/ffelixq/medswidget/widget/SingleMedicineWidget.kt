@@ -37,13 +37,12 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import io.github.ffelixq.medswidget.MedsApplication
-import io.github.ffelixq.medswidget.R
 import io.github.ffelixq.medswidget.domain.CheckSource
+import io.github.ffelixq.medswidget.domain.CountdownDisplay
 import io.github.ffelixq.medswidget.domain.CountdownDisplayStatus
 import io.github.ffelixq.medswidget.domain.CountdownLogic
 import io.github.ffelixq.medswidget.domain.DisplayTransform
 import io.github.ffelixq.medswidget.ui.MainActivity
-import io.github.ffelixq.medswidget.util.TimeFormatting
 import kotlinx.coroutines.launch
 import java.time.Instant
 
@@ -57,10 +56,17 @@ class SingleMedicineWidget : GlanceAppWidget() {
         val graph = MedsApplication.graph(context)
         graph.prepareTemporalStateForWidgetRender()
         val snapshot = graph.snapshotStore.read()
+        val skippedDoseKeys = graph.skippedWidgetDoseKeys(snapshot)
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         val configuration = graph.configurationStore.get(appWidgetId)
         provideContent {
-            SingleMedicineWidgetContent(snapshot, configuration, appWidgetId, LocalSize.current)
+            SingleMedicineWidgetContent(
+                snapshot = snapshot,
+                configuration = configuration,
+                appWidgetId = appWidgetId,
+                availableSize = LocalSize.current,
+                skippedDoseKeys = skippedDoseKeys,
+            )
         }
     }
 }
@@ -73,6 +79,7 @@ internal fun SingleMedicineWidgetContent(
     configuration: SingleWidgetConfiguration?,
     appWidgetId: Int?,
     availableSize: DpSize = DpSize(180.dp, 130.dp),
+    skippedDoseKeys: Set<String> = emptySet(),
 ) {
     val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.SINGLE)
     Column(
@@ -158,6 +165,7 @@ internal fun SingleMedicineWidgetContent(
                         row = row,
                         source = CheckSource.WIDGET_2X2,
                         appWidgetId = appWidgetId,
+                        isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
                         spec = spec,
                         rowHeightDp = availableRowHeight,
                     )
@@ -194,7 +202,7 @@ internal fun WidgetHeader(
     }
 }
 
-@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod")
+@Suppress("FunctionNaming", "LongMethod", "CyclomaticComplexMethod", "LongParameterList")
 @Composable
 @androidx.glance.GlanceComposable
 internal fun WidgetDoseRowContent(
@@ -202,29 +210,12 @@ internal fun WidgetDoseRowContent(
     source: CheckSource,
     appWidgetId: Int? = null,
     showMedicineName: Boolean = false,
+    isSkipped: Boolean = false,
     spec: WidgetLayoutSpec = WidgetLayoutSpec.forSize(DpSize(180.dp, 130.dp), WidgetKind.SINGLE),
     rowHeightDp: Int = spec.rowHeightDp,
     now: Instant = Instant.now(),
 ) {
     val context = LocalContext.current
-    val completionTime =
-        row.checkedAt?.let {
-            TimeFormatting.compact(
-                context = context,
-                instant = it,
-                timezoneId = row.checkedTimezone,
-            )
-        }
-    val accessibilityLabel =
-        context.getString(
-            if (row.isTaken) {
-                R.string.widget_dose_taken_description
-            } else {
-                R.string.widget_dose_not_taken_description
-            },
-            row.medicineName,
-            row.label,
-        )
     val parameters =
         if (appWidgetId == null) {
             actionParametersOf(
@@ -240,29 +231,35 @@ internal fun WidgetDoseRowContent(
                 WidgetActionParameters.APP_WIDGET_ID to appWidgetId,
             )
         }
+    val completed = row.isTaken || isSkipped
     val action =
-        if (row.isTaken) {
+        if (completed) {
             actionStartActivity(Intent(context, MainActivity::class.java))
         } else {
             actionRunCallback<CheckDoseAction>(parameters)
         }
     val countdown = CountdownLogic.display(row.countdownMinutes, row.countdown, now)
     val countdownAction =
-        when (countdown.status) {
-            CountdownDisplayStatus.NOT_STARTED -> {
-                actionRunCallback<StartCountdownAction>(parameters)
-            }
+        if (isSkipped) {
+            null
+        } else {
+            when (countdown.status) {
+                CountdownDisplayStatus.NOT_STARTED -> {
+                    actionRunCallback<StartCountdownAction>(parameters)
+                }
 
-            CountdownDisplayStatus.RUNNING,
-            CountdownDisplayStatus.READY,
-            -> {
-                actionStartActivity(Intent(context, MainActivity::class.java))
-            }
+                CountdownDisplayStatus.RUNNING,
+                CountdownDisplayStatus.READY,
+                -> {
+                    actionStartActivity(Intent(context, MainActivity::class.java))
+                }
 
-            else -> {
-                null
+                else -> {
+                    null
+                }
             }
         }
+    val accessibilityLabel = widgetAccessibilityLabel(row, countdown, isSkipped)
     Row(
         modifier =
             GlanceModifier
@@ -280,7 +277,12 @@ internal fun WidgetDoseRowContent(
             verticalAlignment = androidx.glance.layout.Alignment.CenterVertically,
         ) {
             Text(
-                text = if (row.isTaken) "✓" else "○",
+                text =
+                    when {
+                        row.isTaken -> "✓"
+                        isSkipped -> "–"
+                        else -> "○"
+                    },
                 style = WidgetTextStyles.check(spec),
                 maxLines = 1,
             )
@@ -306,42 +308,115 @@ internal fun WidgetDoseRowContent(
                     style = WidgetTextStyles.body(spec),
                     maxLines = 1,
                 )
-            }
-            completionTime?.let {
-                Spacer(GlanceModifier.width(4.dp))
                 Text(
-                    text = it,
-                    style = WidgetTextStyles.supporting(spec),
+                    text = widgetStatusText(row, countdown, isSkipped),
+                    modifier = widgetStatusModifier(row, countdown, countdownAction, isSkipped),
+                    style =
+                        if (row.isTaken || countdown.status == CountdownDisplayStatus.READY) {
+                            WidgetTextStyles.countdownReady(spec)
+                        } else {
+                            WidgetTextStyles.supporting(spec)
+                        },
                     maxLines = 1,
                 )
             }
         }
-        if (!row.isTaken && countdownAction != null && countdown.text != null) {
+        if (
+            !completed &&
+            countdownAction != null &&
+            countdown.status == CountdownDisplayStatus.NOT_STARTED
+        ) {
             Spacer(GlanceModifier.width(4.dp))
             Text(
-                text = countdown.text,
+                text = "START TIMER",
                 modifier =
                     GlanceModifier
                         .height(rowHeightDp.dp)
                         .padding(horizontal = 6.dp, vertical = 8.dp)
-                        .semantics {
-                            contentDescription =
-                                if (countdown.status == CountdownDisplayStatus.NOT_STARTED) {
-                                    "Start ${row.label} countdown"
-                                } else {
-                                    "${row.label} countdown ${countdown.text}"
-                                }
-                        }.clickable(countdownAction),
-                style =
-                    if (countdown.status == CountdownDisplayStatus.READY) {
-                        WidgetTextStyles.countdownReady(spec)
-                    } else {
-                        WidgetTextStyles.supporting(spec)
-                    },
+                        .semantics { contentDescription = "Start ${row.label} wait timer" }
+                        .clickable(countdownAction),
+                style = WidgetTextStyles.supporting(spec),
                 maxLines = 1,
             )
         }
     }
+}
+
+private fun widgetStatusModifier(
+    row: WidgetDoseRow,
+    countdown: CountdownDisplay,
+    countdownAction: androidx.glance.action.Action?,
+    isSkipped: Boolean,
+): GlanceModifier {
+    val completed = row.isTaken || isSkipped
+    val opensTimerDetails =
+        countdown.status == CountdownDisplayStatus.RUNNING ||
+            countdown.status == CountdownDisplayStatus.READY
+    val canOpenTimerDetails = !completed && countdownAction != null
+    return if (canOpenTimerDetails && opensTimerDetails) {
+        GlanceModifier
+            .semantics { contentDescription = "Open ${row.label} wait timer details" }
+            .clickable(requireNotNull(countdownAction))
+    } else {
+        GlanceModifier
+    }
+}
+
+private fun widgetStatusText(
+    row: WidgetDoseRow,
+    countdown: CountdownDisplay,
+    isSkipped: Boolean,
+): String =
+    when {
+        row.isTaken -> {
+            "TAKEN"
+        }
+
+        isSkipped -> {
+            "NOT TAKEN"
+        }
+
+        countdown.status == CountdownDisplayStatus.READY -> {
+            "TAKE NOW"
+        }
+
+        countdown.status == CountdownDisplayStatus.RUNNING -> {
+            "WAIT ${countdown.text.orEmpty()}"
+        }
+
+        else -> {
+            "NOT RECORDED"
+        }
+    }
+
+private fun widgetAccessibilityLabel(
+    row: WidgetDoseRow,
+    countdown: CountdownDisplay,
+    isSkipped: Boolean,
+): String {
+    val status =
+        when {
+            row.isTaken -> {
+                "taken; open the app for details"
+            }
+
+            isSkipped -> {
+                "not taken; open the app to change this record"
+            }
+
+            countdown.status == CountdownDisplayStatus.READY -> {
+                "you can take it now; tap to mark as taken"
+            }
+
+            countdown.status == CountdownDisplayStatus.RUNNING -> {
+                "wait ${countdown.text.orEmpty()}; tap to mark as taken if you already took it"
+            }
+
+            else -> {
+                "not recorded as taken; tap to mark as taken"
+            }
+        }
+    return "${row.medicineName}, ${row.label}, $status"
 }
 
 internal object WidgetTextStyles {

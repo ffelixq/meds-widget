@@ -15,11 +15,9 @@ import androidx.glance.testing.unit.hasContentDescriptionEqualTo
 import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
 import androidx.test.core.app.ApplicationProvider
-import io.github.ffelixq.medswidget.R
 import io.github.ffelixq.medswidget.domain.DisplayTransform
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.ui.MainActivity
-import io.github.ffelixq.medswidget.util.TimeFormatting
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -97,16 +95,7 @@ class AllMedicinesWidgetGlanceTest {
             onNode(hasText("After lunch")).assertExists()
             onNode(hasText("Before bed")).assertExists()
             onNode(hasText("Sleep")).assertExists()
-            val checked = contentSnapshot().rows.first()
-            onNode(
-                hasTextEqualTo(
-                    TimeFormatting.compact(
-                        context,
-                        requireNotNull(checked.checkedAt),
-                        checked.checkedTimezone,
-                    ),
-                ),
-            ).assertExists()
+            onNode(hasTextEqualTo("TAKEN")).assertExists()
         }
 
     @Test
@@ -137,15 +126,11 @@ class AllMedicinesWidgetGlanceTest {
                     WidgetActionParameters.SLOT to row.slot.wireValue,
                     WidgetActionParameters.SOURCE to "widget_4x2",
                 )
-            onNode(hasTextEqualTo("Start 1h 30m"))
+            onNode(hasTextEqualTo("START TIMER"))
                 .assertHasRunCallbackClickAction<StartCountdownAction>(parameters)
             onNode(
                 hasContentDescriptionEqualTo(
-                    context.getString(
-                        R.string.widget_dose_not_taken_description,
-                        row.medicineName,
-                        row.label,
-                    ),
+                    "${row.medicineName}, ${row.label}, not recorded as taken; tap to mark as taken",
                 ),
             ).assertHasRunCallbackClickAction<CheckDoseAction>(parameters)
         }
@@ -192,23 +177,11 @@ class AllMedicinesWidgetGlanceTest {
             provideComposable { AllMedicinesWidgetContent(contentSnapshot()) }
 
             val checkedDescription =
-                context.getString(
-                    R.string.widget_dose_taken_description,
-                    "Medicine A",
-                    "After lunch",
-                )
+                "Medicine A, After lunch, taken; open the app for details"
             val uncheckedDescription =
-                context.getString(
-                    R.string.widget_dose_not_taken_description,
-                    "Medicine A",
-                    "Before bed",
-                )
+                "Medicine A, Before bed, not recorded as taken; tap to mark as taken"
             val secondMedicineDescription =
-                context.getString(
-                    R.string.widget_dose_not_taken_description,
-                    "Medicine B",
-                    "Sleep",
-                )
+                "Medicine B, Sleep, not recorded as taken; tap to mark as taken"
             onNode(hasContentDescriptionEqualTo(checkedDescription))
                 .assertHasStartActivityClickAction(Intent(context, MainActivity::class.java))
             onNode(hasContentDescriptionEqualTo(uncheckedDescription))
@@ -249,7 +222,7 @@ class AllMedicinesWidgetGlanceTest {
         }
 
     @Test
-    fun `long dose label cannot hide completion time in all-medicines rows`() =
+    fun `long dose label cannot hide accessible taken state in all-medicines rows`() =
         runGlanceAppWidgetUnitTest {
             setContext(context)
             val checked =
@@ -261,15 +234,7 @@ class AllMedicinesWidgetGlanceTest {
             }
 
             onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 34))).assertExists()
-            onNode(
-                hasTextEqualTo(
-                    TimeFormatting.compact(
-                        context,
-                        requireNotNull(checked.checkedAt),
-                        checked.checkedTimezone,
-                    ),
-                ),
-            ).assertExists()
+            onNode(hasTextEqualTo("TAKEN")).assertExists()
         }
 
     @Test

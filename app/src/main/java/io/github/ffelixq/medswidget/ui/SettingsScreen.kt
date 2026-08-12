@@ -72,14 +72,8 @@ internal fun AccountDeletionProgressScreen() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(40.dp),
-                        strokeWidth = 3.dp,
-                    )
-                    Text(
-                        "Deleting account…",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(40.dp), strokeWidth = 3.dp)
+                    Text("Deleting account…", style = MaterialTheme.typography.titleLarge)
                     Text(
                         "Keep this screen open while local and cloud data are cleared.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -96,9 +90,12 @@ internal fun AccountDeletionProgressScreen() {
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
+    accessibilityState: AccessibilityPreferencesState,
     onBack: () -> Unit,
     onResetTime: (Int) -> Unit,
     onTheme: (ThemePreference) -> Unit,
+    onExperienceMode: (ExperienceMode) -> Unit,
+    onTextSize: (AppTextSize) -> Unit,
     onDisplayName: (String) -> Unit,
     onSignOut: () -> Unit,
     onDeletePasswordAccount: (String?) -> Unit,
@@ -117,8 +114,7 @@ fun SettingsScreen(
     val controlsEnabled = !state.isDeletingAccount
 
     BackHandler(enabled = state.isDeletingAccount) {
-        // Account deletion has already started. Keep this destination active
-        // until MainActivity installs the fresh post-deletion application graph.
+        // Keep this destination active until MainActivity installs the fresh post-deletion graph.
     }
 
     Scaffold(
@@ -127,10 +123,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = {},
                 navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        enabled = controlsEnabled,
-                    ) {
+                    IconButton(onClick = onBack, enabled = controlsEnabled) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -152,7 +145,13 @@ fun SettingsScreen(
         ) {
             AppleLargeTitle(
                 title = "Settings",
-                subtitle = "Personalise the app without changing how your medication history is recorded.",
+                subtitle = "Accessibility, appearance, account, privacy, and advanced setup.",
+            )
+
+            AccessibilityControlsCard(
+                state = accessibilityState,
+                onExperienceMode = onExperienceMode,
+                onTextSize = onTextSize,
             )
 
             if (state.isDeletingAccount) {
@@ -204,9 +203,7 @@ fun SettingsScreen(
                 }
                 Button(
                     enabled = controlsEnabled,
-                    onClick = {
-                        parseResetMinutes(hour, minute)?.let(onResetTime)
-                    },
+                    onClick = { parseResetMinutes(hour, minute)?.let(onResetTime) },
                 ) { Text("Save reset time") }
                 Text(
                     "Current timezone: ${state.timezoneId}",
@@ -248,10 +245,7 @@ fun SettingsScreen(
             }
 
             AppleCard {
-                AppleSectionHeader(
-                    title = "Account",
-                    supportingText = state.accountEmail,
-                )
+                AppleSectionHeader(title = "Account", supportingText = state.accountEmail)
                 OutlinedTextField(
                     value = displayName,
                     onValueChange = { displayName = it.take(80) },
@@ -260,10 +254,7 @@ fun SettingsScreen(
                     singleLine = true,
                     enabled = controlsEnabled,
                 )
-                Button(
-                    onClick = { onDisplayName(displayName) },
-                    enabled = controlsEnabled,
-                ) {
+                Button(onClick = { onDisplayName(displayName) }, enabled = controlsEnabled) {
                     Text("Save display name")
                 }
                 OutlinedButton(
@@ -307,10 +298,7 @@ fun SettingsScreen(
                             containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                             contentColor = MaterialTheme.colorScheme.primary,
                         )
-                        Text(
-                            "Settings are saved on this device and waiting to synchronise.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        Text("Settings are saved on this device and waiting to synchronise.")
                     }
 
                     state.isCached -> {
@@ -319,10 +307,7 @@ fun SettingsScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            "Showing locally cached settings.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                        Text("Showing locally cached settings.")
                     }
                 }
                 state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
@@ -375,9 +360,5 @@ private fun parseResetMinutes(
 ): Int? {
     val hours = hour.toIntOrNull() ?: return null
     val minutes = minute.toIntOrNull() ?: return null
-    return if (hours in 0..23 && minutes in 0..59) {
-        hours * 60 + minutes
-    } else {
-        null
-    }
+    return if (hours in 0..23 && minutes in 0..59) hours * 60 + minutes else null
 }

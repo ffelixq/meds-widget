@@ -47,9 +47,9 @@ class SettingsScreenTest {
             onTheme = { theme = it },
         )
 
-        composeRule.onNodeWithTag("reset_hour").performTextReplacement("6")
-        composeRule.onNodeWithTag("reset_minute").performTextReplacement("45")
-        composeRule.onNodeWithText("Save reset time").performClick()
+        composeRule.onNodeWithTag("reset_hour").performScrollTo().performTextReplacement("6")
+        composeRule.onNodeWithTag("reset_minute").performScrollTo().performTextReplacement("45")
+        composeRule.onNodeWithText("Save reset time").performScrollTo().performClick()
         composeRule.onNodeWithText("Dark").performScrollTo().performClick()
 
         assertEquals(405, resetMinutes)
@@ -67,11 +67,13 @@ class SettingsScreenTest {
 
         val system = composeRule.onNodeWithTag("theme_system")
         system
+            .performScrollTo()
             .assertIsSelected()
             .assertHasClickAction()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
         composeRule
             .onNodeWithTag("theme_dark")
+            .performScrollTo()
             .assertIsNotSelected()
             .assertHasClickAction()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
@@ -196,12 +198,12 @@ class SettingsScreenTest {
             onDeletePassword = { passwordDeleteCount += 1 },
         )
 
-        composeRule.onNodeWithTag("account_deletion_progress").assertIsDisplayed()
-        composeRule.onNodeWithText("Deleting account…").assertIsDisplayed()
+        composeRule.onNodeWithTag("account_deletion_progress").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Deleting account…").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back").assertIsNotEnabled()
         composeRule.onNodeWithText("Sign out").performScrollTo().assertIsNotEnabled()
         composeRule.onNodeWithText("Delete account").performScrollTo().assertIsNotEnabled()
-        composeRule.onNodeWithText("Save reset time").assertIsNotEnabled()
+        composeRule.onNodeWithText("Save reset time").performScrollTo().assertIsNotEnabled()
 
         assertEquals(0, backCount)
         assertEquals(0, signOutCount)
@@ -241,8 +243,8 @@ class SettingsScreenTest {
                 )
             }
         }
-        composeRule.onNodeWithTag("reset_hour").performTextReplacement("5")
-        composeRule.onNodeWithTag("reset_minute").performTextReplacement("30")
+        composeRule.onNodeWithTag("reset_hour").performScrollTo().performTextReplacement("5")
+        composeRule.onNodeWithTag("reset_minute").performScrollTo().performTextReplacement("30")
         composeRule
             .onNodeWithTag("settings_display_name")
             .performScrollTo()
@@ -251,9 +253,12 @@ class SettingsScreenTest {
 
         restorationTester.emulateSavedInstanceStateRestore()
 
-        composeRule.onNodeWithTag("reset_hour").assertTextContains("5")
-        composeRule.onNodeWithTag("reset_minute").assertTextContains("30")
-        composeRule.onNodeWithTag("settings_display_name").assertTextContains("Restored Person")
+        composeRule.onNodeWithTag("reset_hour").performScrollTo().assertTextContains("5")
+        composeRule.onNodeWithTag("reset_minute").performScrollTo().assertTextContains("30")
+        composeRule
+            .onNodeWithTag("settings_display_name")
+            .performScrollTo()
+            .assertTextContains("Restored Person")
     }
 
     private fun setSettingsContent(

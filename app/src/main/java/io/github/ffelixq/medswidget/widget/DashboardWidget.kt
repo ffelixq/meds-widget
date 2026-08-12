@@ -41,14 +41,20 @@ class DashboardWidget : GlanceAppWidget() {
         val graph = MedsApplication.graph(context)
         graph.prepareTemporalStateForWidgetRender()
         val snapshot = graph.snapshotStore.read()
-        provideContent { DashboardWidgetContent(snapshot) }
+        val skippedDoseKeys = graph.skippedWidgetDoseKeys(snapshot)
+        provideContent {
+            DashboardWidgetContent(snapshot, skippedDoseKeys)
+        }
     }
 }
 
 @Suppress("FunctionNaming")
 @Composable
 @androidx.glance.GlanceComposable
-internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
+internal fun DashboardWidgetContent(
+    snapshot: WidgetSnapshot,
+    skippedDoseKeys: Set<String> = emptySet(),
+) {
     val context = androidx.glance.LocalContext.current
     val size = LocalSize.current
     val spec = WidgetLayoutSpec.forSize(DpSize(size.width, size.height), WidgetKind.ALL)
@@ -121,6 +127,7 @@ internal fun DashboardWidgetContent(snapshot: WidgetSnapshot) {
                             row = row,
                             source = CheckSource.WIDGET_4X4,
                             showMedicineName = true,
+                            isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
                             spec = spec,
                         )
                     }
