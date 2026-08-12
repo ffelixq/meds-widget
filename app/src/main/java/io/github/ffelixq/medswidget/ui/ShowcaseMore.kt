@@ -34,7 +34,10 @@ import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 @Composable
 internal fun ShowcaseMoreScreen(
     state: MainUiState,
+    accessibilityState: AccessibilityPreferencesState,
     contentPadding: PaddingValues,
+    onExperienceMode: (ExperienceMode) -> Unit,
+    onTextSize: (AppTextSize) -> Unit,
     onOpenSettings: () -> Unit,
     onCheckPreview: (DoseRow) -> Unit,
     onStartCountdownPreview: (DoseRow) -> Unit,
@@ -47,7 +50,14 @@ internal fun ShowcaseMoreScreen(
         item {
             AppleLargeTitle(
                 title = "More",
-                subtitle = "Widgets, appearance, privacy, account, and data tools.",
+                subtitle = "Accessibility, widgets, appearance, privacy, account, and data tools.",
+            )
+        }
+        item {
+            AccessibilityControlsCard(
+                state = accessibilityState,
+                onExperienceMode = onExperienceMode,
+                onTextSize = onTextSize,
             )
         }
         item {
@@ -68,7 +78,7 @@ internal fun ShowcaseMoreScreen(
             AppleSectionHeader(
                 title = "Widget Studio",
                 supportingText =
-                    "The widget preview moved here so Today can stay focused on taking medicine.",
+                    "Widget previews live here so Today can stay focused on taking medicine.",
             )
         }
         if (state.rows.isEmpty()) {
@@ -93,8 +103,8 @@ internal fun ShowcaseMoreScreen(
                     supportingText = "Clear actions, calm hierarchy, and explicit privacy.",
                 )
                 Text(
-                    "Your home-screen widgets still use the same tested Glance callbacks, " +
-                        "cloud sync, countdowns, and audit history as before.",
+                    "Your home-screen widgets use the same tested Glance callbacks, cloud sync, " +
+                        "countdowns, and audit history as the rest of the app.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -120,7 +130,7 @@ private fun ShowcaseMoreLink(
             Box(
                 modifier =
                     Modifier
-                        .size(42.dp)
+                        .size(48.dp)
                         .background(
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                             CircleShape,
@@ -137,7 +147,7 @@ private fun ShowcaseMoreLink(
                 Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(
                     subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
