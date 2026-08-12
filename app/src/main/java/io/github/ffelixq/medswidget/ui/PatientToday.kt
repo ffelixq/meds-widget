@@ -61,8 +61,14 @@ internal fun PatientTodayScreen(
             )
         }
         when {
-            state.isLoading -> item { PatientMessageCard("Loading your medicines…") }
-            state.medicines.isEmpty() -> item { PatientMessageCard("No medicines have been set up yet.") }
+            state.isLoading -> {
+                item { PatientMessageCard("Loading your medicines…") }
+            }
+
+            state.medicines.isEmpty() -> {
+                item { PatientMessageCard("No medicines have been set up yet.") }
+            }
+
             nextDose != null -> {
                 item {
                     PatientNextMedicineCard(
@@ -75,7 +81,10 @@ internal fun PatientTodayScreen(
                     )
                 }
             }
-            state.rows.isNotEmpty() -> item { PatientMessageCard("✓ All medicines are recorded for today.") }
+
+            state.rows.isNotEmpty() -> {
+                item { PatientMessageCard("✓ All medicines are recorded for today.") }
+            }
         }
         if (state.rows.isNotEmpty()) {
             item {
