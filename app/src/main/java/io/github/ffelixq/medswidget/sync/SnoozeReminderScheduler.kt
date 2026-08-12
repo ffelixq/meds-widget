@@ -8,7 +8,9 @@ import androidx.work.workDataOf
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import java.util.concurrent.TimeUnit
 
-class SnoozeReminderScheduler(context: Context) {
+class SnoozeReminderScheduler(
+    context: Context,
+) {
     private val workManager = WorkManager.getInstance(context.applicationContext)
 
     fun schedule(
