@@ -5,6 +5,11 @@ import io.github.ffelixq.medswidget.domain.DoseSlot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
+internal data class WidgetDosePresentation(
+    val isSkipped: Boolean = false,
+    val rowHeightDp: Int? = null,
+)
+
 internal fun widgetDoseKey(
     medicineId: String,
     slot: DoseSlot,
