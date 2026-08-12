@@ -13,14 +13,12 @@ import androidx.glance.testing.unit.hasContentDescriptionEqualTo
 import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
 import androidx.test.core.app.ApplicationProvider
-import io.github.ffelixq.medswidget.R
 import io.github.ffelixq.medswidget.domain.CheckSource
 import io.github.ffelixq.medswidget.domain.CountdownState
 import io.github.ffelixq.medswidget.domain.CountdownStatus
 import io.github.ffelixq.medswidget.domain.DisplayTransform
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.ui.MainActivity
-import io.github.ffelixq.medswidget.util.TimeFormatting
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -177,15 +175,11 @@ class SingleMedicineWidgetGlanceTest {
                     WidgetActionParameters.SOURCE to "widget_2x2",
                     WidgetActionParameters.APP_WIDGET_ID to 41,
                 )
-            onNode(hasTextEqualTo("Start 2h"))
+            onNode(hasTextEqualTo("START TIMER"))
                 .assertHasRunCallbackClickAction<StartCountdownAction>(parameters)
             onNode(
                 hasContentDescriptionEqualTo(
-                    context.getString(
-                        R.string.widget_dose_not_taken_description,
-                        "Medicine A",
-                        "Before bed",
-                    ),
+                    "Medicine A, Before bed, not recorded as taken; tap to mark as taken",
                 ),
             ).assertHasRunCallbackClickAction<CheckDoseAction>(parameters)
         }
@@ -219,7 +213,7 @@ class SingleMedicineWidgetGlanceTest {
                     now = Instant.parse("2026-07-29T05:30:00Z"),
                 )
             }
-            onNode(hasTextEqualTo("1h 30m"))
+            onNode(hasTextEqualTo("WAIT 1h 30m"))
                 .assertHasStartActivityClickAction(Intent(context, MainActivity::class.java))
         }
     }
@@ -238,11 +232,7 @@ class SingleMedicineWidgetGlanceTest {
 
             onNode(
                 hasContentDescriptionEqualTo(
-                    context.getString(
-                        R.string.widget_dose_not_taken_description,
-                        "Medicine A",
-                        "After lunch",
-                    ),
+                    "Medicine A, After lunch, not recorded as taken; tap to mark as taken",
                 ),
             ).assertHasRunCallbackClickAction<CheckDoseAction>(
                 actionParametersOf(
@@ -265,11 +255,7 @@ class SingleMedicineWidgetGlanceTest {
 
             onNode(
                 hasContentDescriptionEqualTo(
-                    context.getString(
-                        R.string.widget_dose_not_taken_description,
-                        "Medicine B",
-                        "Sleep",
-                    ),
+                    "Medicine B, Sleep, not recorded as taken; tap to mark as taken",
                 ),
             ).assertHasRunCallbackClickAction<CheckDoseAction>(
                 actionParametersOf(
@@ -338,17 +324,9 @@ class SingleMedicineWidgetGlanceTest {
             }
 
             val checkedDescription =
-                context.getString(
-                    R.string.widget_dose_taken_description,
-                    "Medicine A",
-                    "After lunch",
-                )
+                "Medicine A, After lunch, taken; open the app for details"
             val uncheckedDescription =
-                context.getString(
-                    R.string.widget_dose_not_taken_description,
-                    "Medicine A",
-                    "Before bed",
-                )
+                "Medicine A, Before bed, not recorded as taken; tap to mark as taken"
             onNode(hasContentDescriptionEqualTo(checkedDescription))
                 .assertHasStartActivityClickAction(Intent(context, MainActivity::class.java))
             onNode(hasContentDescriptionEqualTo(uncheckedDescription))
@@ -360,19 +338,11 @@ class SingleMedicineWidgetGlanceTest {
                         WidgetActionParameters.APP_WIDGET_ID to 41,
                     ),
                 )
-            onNode(
-                hasTextEqualTo(
-                    TimeFormatting.compact(
-                        context,
-                        requireNotNull(checked.checkedAt),
-                        checked.checkedTimezone,
-                    ),
-                ),
-            ).assertExists()
+            onNode(hasTextEqualTo("TAKEN")).assertExists()
         }
 
     @Test
-    fun `long dose label cannot hide a recorded completion time`() =
+    fun `long dose label cannot hide accessible taken state`() =
         runGlanceAppWidgetUnitTest {
             setContext(context)
             val checked =
@@ -391,15 +361,7 @@ class SingleMedicineWidgetGlanceTest {
             }
 
             onNode(hasTextEqualTo(DisplayTransform.truncate(checked.label, 34))).assertExists()
-            onNode(
-                hasTextEqualTo(
-                    TimeFormatting.compact(
-                        context,
-                        requireNotNull(checked.checkedAt),
-                        checked.checkedTimezone,
-                    ),
-                ),
-            ).assertExists()
+            onNode(hasTextEqualTo("TAKEN")).assertExists()
         }
 
     @Test
