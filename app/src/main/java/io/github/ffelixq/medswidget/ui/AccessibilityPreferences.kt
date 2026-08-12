@@ -2,6 +2,7 @@ package io.github.ffelixq.medswidget.ui
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,11 +45,11 @@ class AccessibilityPreferences(
     }
 
     fun setExperienceMode(mode: ExperienceMode) {
-        preferences.edit().putString(KEY_MODE, mode.name).apply()
+        preferences.edit { putString(KEY_MODE, mode.name) }
     }
 
     fun setTextSize(size: AppTextSize) {
-        preferences.edit().putString(KEY_TEXT_SIZE, size.name).apply()
+        preferences.edit { putString(KEY_TEXT_SIZE, size.name) }
     }
 
     private fun readState(): AccessibilityPreferencesState =
