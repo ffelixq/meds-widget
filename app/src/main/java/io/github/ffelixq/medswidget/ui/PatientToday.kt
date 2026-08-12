@@ -111,7 +111,7 @@ private fun PatientNextMedicineCard(
     onStartCountdown: () -> Unit,
 ) {
     val countdown = showcaseCountdown(row)
-    val status = patientStatusText(row, medicine)
+    val status = patientStatusText(row, medicine, countdown.status, countdown.text)
     Surface(
         modifier =
             Modifier
@@ -200,7 +200,8 @@ private fun PatientDoseRow(
     medicine: Medicine?,
     onClick: () -> Unit,
 ) {
-    val status = patientStatusText(row, medicine)
+    val countdown = showcaseCountdown(row)
+    val status = patientStatusText(row, medicine, countdown.status, countdown.text)
     Row(
         modifier =
             Modifier
@@ -269,24 +270,29 @@ private fun patientStatusColor(row: DoseRow) =
 private fun patientStatusText(
     row: DoseRow,
     medicine: Medicine?,
+    countdownStatus: CountdownDisplayStatus,
+    countdownText: String?,
 ): String {
-    if (row.isTaken) return "Taken"
-    if (row.isSkipped) return "Not taking this dose"
-    val countdown = showcaseCountdown(row)
-    if (countdown.status == CountdownDisplayStatus.READY) return "You can take it now"
-    if (countdown.status == CountdownDisplayStatus.RUNNING) return "Wait ${countdown.text.orEmpty()}"
     val reminderMinutes = medicine?.reminderMinutes(row.slot)
-    if (reminderMinutes != null) {
-        val now = LocalTime.now()
-        val nowMinutes = now.hour * 60 + now.minute
-        val reminderTime = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
-        return if (nowMinutes >= reminderMinutes) {
-            "Not recorded yet"
-        } else {
-            "Later at ${reminderTime.format(DateTimeFormatter.ofPattern("h:mm a"))}"
-        }
+    return when {
+        row.isTaken -> "Taken"
+        row.isSkipped -> "Not taking this dose"
+        countdownStatus == CountdownDisplayStatus.READY -> "You can take it now"
+        countdownStatus == CountdownDisplayStatus.RUNNING -> "Wait ${countdownText.orEmpty()}"
+        reminderMinutes != null -> patientReminderStatus(reminderMinutes)
+        else -> "Not recorded yet"
     }
-    return "Not recorded yet"
+}
+
+private fun patientReminderStatus(reminderMinutes: Int): String {
+    val now = LocalTime.now()
+    val nowMinutes = now.hour * 60 + now.minute
+    val reminderTime = LocalTime.of(reminderMinutes / 60, reminderMinutes % 60)
+    return if (nowMinutes >= reminderMinutes) {
+        "Not recorded yet"
+    } else {
+        "Later at ${reminderTime.format(DateTimeFormatter.ofPattern("h:mm a"))}"
+    }
 }
 
 private fun patientDoseAmount(medicine: Medicine?): String? {
