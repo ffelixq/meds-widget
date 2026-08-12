@@ -42,8 +42,13 @@ class AllMedicinesWidget : GlanceAppWidget() {
         val graph = MedsApplication.graph(context)
         graph.prepareTemporalStateForWidgetRender()
         val snapshot = graph.snapshotStore.read()
+        val skippedDoseKeys = graph.skippedWidgetDoseKeys(snapshot)
         provideContent {
-            AllMedicinesWidgetContent(snapshot, LocalSize.current)
+            AllMedicinesWidgetContent(
+                snapshot = snapshot,
+                availableSize = LocalSize.current,
+                skippedDoseKeys = skippedDoseKeys,
+            )
         }
     }
 }
@@ -54,6 +59,7 @@ class AllMedicinesWidget : GlanceAppWidget() {
 internal fun AllMedicinesWidgetContent(
     snapshot: WidgetSnapshot,
     availableSize: DpSize = DpSize(320.dp, 150.dp),
+    skippedDoseKeys: Set<String> = emptySet(),
 ) {
     val context = LocalContext.current
     val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.ALL)
@@ -131,11 +137,12 @@ internal fun AllMedicinesWidgetContent(
                         itemId = { row ->
                             "${row.medicineId}_${row.slot.wireValue}".hashCode().toLong()
                         },
-                    ) {
+                    ) { row ->
                         WidgetDoseRowContent(
-                            row = it,
+                            row = row,
                             source = CheckSource.WIDGET_4X2,
                             showMedicineName = true,
+                            isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
                             spec = spec,
                         )
                     }
