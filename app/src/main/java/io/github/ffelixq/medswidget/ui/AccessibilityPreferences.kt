@@ -45,10 +45,14 @@ class AccessibilityPreferences(
     }
 
     fun setExperienceMode(mode: ExperienceMode) {
+        if (mutableState.value.experienceMode == mode) return
+        mutableState.value = mutableState.value.copy(experienceMode = mode)
         preferences.edit { putString(KEY_MODE, mode.name) }
     }
 
     fun setTextSize(size: AppTextSize) {
+        if (mutableState.value.textSize == size) return
+        mutableState.value = mutableState.value.copy(textSize = size)
         preferences.edit { putString(KEY_TEXT_SIZE, size.name) }
     }
 
