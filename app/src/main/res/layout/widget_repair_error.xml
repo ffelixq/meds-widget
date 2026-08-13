@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F2F2F7"
+    android:background="@color/widget_repair_background"
     android:gravity="center_vertical"
     android:orientation="vertical"
     android:padding="16dp">
@@ -11,8 +11,8 @@
         android:id="@+id/widget_repair_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Meds Widget"
-        android:textColor="#111114"
+        android:text="@string/widget_repair_default_title"
+        android:textColor="@color/widget_repair_foreground"
         android:textSize="18sp"
         android:textStyle="bold" />
 
@@ -20,8 +20,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="The launcher could not refresh this widget. Your medicine data is still in the app."
-        android:textColor="#3A3A3C"
+        android:text="@string/widget_repair_message"
+        android:textColor="@color/widget_repair_supporting"
         android:textSize="14sp" />
 
     <Button
@@ -29,6 +29,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:text="Repair widget" />
+        android:text="@string/widget_repair_button" />
 
 </LinearLayout>
