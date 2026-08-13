@@ -139,9 +139,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         },
-                        onOpenWidgetSetup = {
-                            startActivity(Intent(this@MainActivity, WidgetSetupActivity::class.java))
-                        },
+                        onOpenWidgetSetup = ::openWidgetSetup,
                         onExport = ::shareCsvExport,
                         onDeleteGoogle = {
                             requestGoogleCredential(
@@ -158,6 +156,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         mainViewModel.refreshTemporalState()
+    }
+
+    private fun openWidgetSetup() {
+        startActivity(Intent(this, WidgetSetupActivity::class.java))
     }
 
     private fun shareCsvExport() {
