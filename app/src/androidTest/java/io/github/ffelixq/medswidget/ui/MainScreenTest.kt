@@ -140,7 +140,7 @@ class MainScreenTest {
     }
 
     @Test
-    fun livePreviewsCheckWithPreviewSourceAndShowBothWidgetLayouts() {
+    fun livePreviewsCheckWithPreviewSourceAndShowAllWidgetLayouts() {
         val medicine = testMedicine()
         val rows =
             listOf(
@@ -168,7 +168,8 @@ class MainScreenTest {
         composeRule.onNodeWithText("Widget previews").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("2×2 · Medicine A").assertIsDisplayed()
         composeRule.onAllNodesWithText("○")[0].performClick()
-        composeRule.onNodeWithText("4×2 · 0/2").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("4×2 · All medicines").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("4×4 · Today dashboard").performScrollTo().assertIsDisplayed()
 
         assertEquals(
             listOf(rows.first() to CheckSource.APP_PREVIEW),
