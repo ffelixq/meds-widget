@@ -18,6 +18,7 @@ import io.github.ffelixq.medswidget.domain.DoseAction
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.domain.DoseSlot
 import io.github.ffelixq.medswidget.domain.Medicine
+import io.github.ffelixq.medswidget.security.SensitiveDataCipher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -143,6 +144,7 @@ data class WidgetSnapshot(
 private val Context.widgetSnapshotDataStore by preferencesDataStore("widget_snapshot")
 private val SNAPSHOT = stringPreferencesKey("snapshot_json")
 private val SIGNED_IN = booleanPreferencesKey("signed_in")
+private val WIDGET_SNAPSHOT_CIPHER = SensitiveDataCipher("widget_snapshot")
 
 @Suppress("TooManyFunctions")
 class WidgetSnapshotStore(
@@ -150,7 +152,9 @@ class WidgetSnapshotStore(
 ) {
     val flow: Flow<WidgetSnapshot> =
         context.widgetSnapshotDataStore.data.map { preferences ->
-            preferences[SNAPSHOT]?.let(WidgetSnapshotCodec::decode)
+            preferences[SNAPSHOT]
+                ?.let(WIDGET_SNAPSHOT_CIPHER::decryptOrPlaintext)
+                ?.let(WidgetSnapshotCodec::decode)
                 ?: WidgetSnapshot(isLoading = true)
         }
 
@@ -655,11 +659,12 @@ private fun WidgetSnapshot.canOptimisticallyCheck(
 
 private fun Preferences.snapshot(): WidgetSnapshot =
     this[SNAPSHOT]
+        ?.let(WIDGET_SNAPSHOT_CIPHER::decryptOrPlaintext)
         ?.let(WidgetSnapshotCodec::decode)
         ?: WidgetSnapshot(isLoading = true)
 
 private fun MutablePreferences.store(snapshot: WidgetSnapshot) {
-    this[SNAPSHOT] = WidgetSnapshotCodec.encode(snapshot)
+    this[SNAPSHOT] = WIDGET_SNAPSHOT_CIPHER.encrypt(WidgetSnapshotCodec.encode(snapshot))
     this[SIGNED_IN] = snapshot.signedIn
 }
 

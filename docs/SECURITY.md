@@ -1,563 +1,145 @@
 # Security and privacy
 
-## Countdown security
+Meds Widget stores medication schedules, dose status/history, countdown state, supply information, and account/profile data. Treat that information as sensitive health data even though the app is a tracking utility and does not provide medical advice.
 
-Countdown state/events remain under `users/{uid}`. Rules require authenticated,
-path, and payload owners to match; accept only supported slots/sources/actions,
-1–1,440 minute durations, strict field sets, timestamp types, and exact
-`targetAt = startedAt + duration`. Events are immutable and state transitions
-must be paired with their event in one batch.
-
-Widget starts use an account-bound optimistic snapshot, then validate
-authoritative Firebase Auth, slot eligibility, configuration, and cached
-ownership before writing. Parameters contain identifiers, never credentials.
-Sign-out/account switch clears countdown widget content. Diagnostics expose
-safe reason codes only—not names, emails, full UIDs, history, or tokens.
+This document describes the production security boundary for v2.3.0. It is a defense-in-depth design, not a claim that a mobile application can be made impossible to compromise.
 
 ## Security boundary
 
-Meds Widget is a mobile client that talks directly to Firebase Authentication
-and Cloud Firestore. Its security boundary is:
+Meds Widget is an Android client using Firebase Authentication and Cloud Firestore.
 
-- Firebase Authentication establishes `request.auth.uid`;
-- every private document is under `users/{uid}`;
-- Firestore Security Rules bind `{uid}` and `ownerUid` to the authenticated
-  UID; and
-- strict schemas and atomic state/event validation constrain client writes.
+- Firebase Authentication establishes the current UID.
+- Private cloud documents live under `users/{uid}`.
+- Firestore rules require the authenticated UID, UID path, and `ownerUid` payload to match.
+- Unknown paths fall through to a recursive default deny.
+- Strict schemas, bounded values, deterministic IDs, non-updatable event records, and atomic state/event validation constrain writes.
+- Widget actions independently re-check the live Firebase UID, cached owner, enabled slot, and widget configuration before a repository write.
 
-The Firebase API key in `google-services.json` identifies the Firebase project.
-It is not a password and cannot replace Authentication or Security Rules.
-Mobile binaries can be inspected, so no authorization decision relies on
-keeping that key or a document path secret.
+The Firebase API key identifies the project; it is not used as an authorization secret. No Admin SDK/service-account credential or Android signing key is shipped in the APK.
 
-There is no privileged backend in V1. The Android app never uses Admin SDK
-credentials, and CI credentials are for deployment only.
+## Authentication protections
 
-## Private data
+Supported sign-in providers are Email/Password and Google through Android Credential Manager.
 
-Cloud data includes:
+- Passwords are handled by Firebase Authentication and are never written to Firestore, DataStore, logs, source control, or app exports.
+- Sign-in errors intentionally do not distinguish an unknown email from a wrong password.
+- Password-reset requests do not reveal whether the email exists.
+- Account deletion requires recent reauthentication and waits for already-dispatched Firestore writes before destructive cleanup.
+- Sign-out clears app-managed account caches and Credential Manager state.
 
-- Firebase UID, account display name, and authentication-provider metadata;
-- medicine names and enabled/custom slot labels;
-- reset time, timezone, and theme;
-- checked/undo occurrence timestamps and timezone IDs;
-- the source surface of each check; and
-- medicine/label snapshots retained in history.
+Firebase project-level email-enumeration protection should remain enabled. Client-side generic errors are additional defense in depth rather than a substitute for the server-side setting.
 
-No dosage, prescription, diagnosis, interaction, location, contact, camera,
-microphone, photo, SMS, phone, notification, advertising, analytics, or payment
-data is collected.
+## Cloud data isolation
 
-Medicine names and status are intentionally displayed by widgets on the
-unlocked home screen. Anyone who can see the screen may see them. The app's
-Settings screen and README state this explicitly.
+`firestore.rules` enforces:
 
-## Firestore rules
+- authenticated owner-only access;
+- no listing of other users;
+- exact allowed document fields and bounded values;
+- valid slot/source/action enums;
+- audit-event updates are denied; owner-authorized event deletion remains available for account-data cleanup;
+- deterministic state/event relationships;
+- atomic paired state/event transitions using post-write validation; and
+- recursive default deny for unknown collections.
 
-`firestore.rules` uses rules language version 2 and ends with a recursive
-default deny. It does not contain a development grant such as:
+The Firebase emulator rule suite covers unauthenticated denial, cross-user denial, schema validation, transition constraints, collection-query isolation, countdown invariants, skip/taken history, supply/refill behavior, and owner-only deletion.
 
-```text
-allow read, write: if true
-```
+## Sensitive Android surfaces
 
-### Path isolation
+Every Activity capable of showing medication/account information applies shared `SensitiveWindowProtection`:
 
-- Unauthenticated reads and writes are denied.
-- A signed-in user can access only `users/{theirUid}` and its known
-  subcollections.
-- Listing `users` is denied.
-- Collection-group access is denied.
-- Unknown top-level and nested collections fall through to default deny.
-- Every document's `ownerUid` must match its UID path.
+- `FLAG_SECURE` blocks screenshots/screen recording and insecure secondary displays;
+- recents screenshots are disabled on supported Android versions;
+- third-party overlay windows are hidden on supported Android versions; and
+- obscured touches are rejected to reduce tapjacking risk.
 
-### Schema validation
+The CI Android-security guard requires these controls to remain attached to every health-data Activity.
 
-Rules require exact key sets and reject unknown fields. Bounds are:
+## Android component exposure
 
-| Field | Bound / accepted values |
-| --- | --- |
-| medicine name | 1–100 characters |
-| slot label | 1–60 characters |
-| display name | 1–80 characters |
-| timezone ID | 1–100 characters |
-| identifier | 1–128 letters/digits/underscore/hyphen |
-| reset minutes | `0..1439` |
-| schema version | `1` |
-| slot | `afternoon`, `night` |
-| source | `app`, `app_preview`, `widget_2x2`, `widget_4x2` |
-| theme | `system`, `light`, `dark` |
+The manifest deliberately minimizes exported components.
 
-Medicine rules require at least one enabled slot and preserve ID, owner, and
-creation time on update.
+- `MainActivity` is exported because it is the launcher.
+- `SingleWidgetConfigurationActivity` is exported because the Android widget host must start it; it validates that the provided app-widget ID belongs to `SingleMedicineWidgetReceiver` before showing medicine choices.
+- App receivers are non-exported.
+- The FileProvider is non-exported and grants only temporary URI access.
+- FileProvider paths are limited to `cacheDir/exports`; root, files, external, and external-cache paths are not exposed.
+- Cleartext network traffic is disabled.
+- Android backups/data transfer are disabled for app data.
+- The app does not request package-install, all-files, or overlay-creation privileges.
 
-### Dose state and audit invariants
+## Local health-data cache
 
-- State IDs must exactly equal
-  `<logicalDay>_<medicineId>_<slot>`.
-- A state create starts taken with no undo time.
-- A state update can only be an allowed check/undo transition.
-- Each state write must be atomically paired with the event named by
-  `lastActionId`.
-- Each event must be atomically paired with its related state.
-- Paired payloads must agree on owner, logical day, medicine, snapshots, slot,
-  action time, source, and IDs.
-- Undo is accepted only from `app`.
-- Event updates are always denied.
-- Event delete is owner-only and exists solely for account deletion.
-- `updatedAt`/`syncedAt` use `request.time` server timestamps.
+The widget needs an app-managed account snapshot for offline rendering and optimistic actions. In v2.3.0 that snapshot is encrypted before it is persisted.
 
-Rules use `getAfter()` to inspect the post-batch pair. A client cannot create a
-checkbox state without its audit event or forge an event unrelated to the
-current state.
+- Encryption uses AES-256-GCM through a non-exportable Android Keystore key.
+- A random IV is generated by the cipher for every encryption operation.
+- The cache namespace is authenticated as associated data.
+- Existing v2.2.1 plaintext snapshots are accepted only as a migration input; the next write stores the encrypted `enc:v1:` envelope.
+- An unreadable/corrupt encrypted cache fails closed to a loading/empty snapshot and can be rebuilt from authenticated Firestore.
 
-## Rule validation
+Firestore Android SDK disk persistence remains enabled because the application supports offline operation and queued writes. App-level encryption does not transparently re-encrypt Firestore's internal cache. Android sandboxing, Firebase UID-scoped access, backups being disabled, and device-level encryption remain part of that boundary.
 
-Run:
+## CSV export security
 
-```bash
-./scripts/check-firestore-rules.sh
-npm test --prefix firebase-tests
-```
+CSV export is an explicit user action and therefore intentionally allows data to leave the app when the user chooses a destination.
 
-The shell guard requires UID ownership, `ownerUid`, immutable events, and
-default deny, and rejects unconditional/authentication-only broad grants. The
-emulator suite covers anonymous denial, owner access, cross-user denial,
-payload/schema bounds, deterministic IDs, supported sources, atomic pairing,
-check/undo transitions, event immutability, collection query isolation, and
-owner-only account deletion.
+Before sharing:
 
-The guard is defense in depth, not a substitute for emulator tests or manual
-review. Rules are OR-composed if multiple matches grant access, so adding a
-broad matching rule can defeat a narrower one:
-<https://firebase.google.com/docs/rules>.
+- CSV cells are escaped and spreadsheet-formula prefixes are neutralized;
+- the file is created only in the app-private cache export directory;
+- filenames contain a random UUID rather than health data; and
+- FileProvider grants temporary read access to the chosen target.
 
-## Authentication
+After sharing, a WorkManager task deletes the managed export after a short delay. Stale managed exports are also removed on later cleanup. Cleanup validates both the filename pattern and canonical parent directory so a crafted worker input cannot traverse outside the export directory.
 
-Supported providers are only:
+## Notifications and widgets
 
-- Email/Password; and
-- Google through Android Credential Manager.
+Medication reminders use private lock-screen visibility and a generic public notification version. They are marked local-only so detailed reminders are not automatically bridged to companion devices. WorkManager reminder input uses identifiers rather than medicine names/custom labels.
 
-Password reset is delegated to Firebase Authentication. Passwords never pass to
-Firestore, DataStore, logs, GitHub, or documentation. Account deletion requires
-a recent login:
+Home-screen widgets intentionally display medication information on an unlocked launcher. This is a product-level visibility tradeoff, not a secret storage surface. Users can use widget nicknames/privacy choices where available if they do not want the full medicine name displayed.
 
-- password accounts reauthenticate with the entered current password; and
-- Google accounts request a new Google ID credential through Credential
-  Manager.
-
-Friendly error messages avoid displaying stack traces or tokens. The
-application clears Credential Manager state when signed out.
-During account deletion, `MainActivity` renders a blocking progress surface
-before its authentication branch. A transient null session therefore cannot
-expose sign-in, sign-out, navigation, or account actions before the old graph is
-replaced.
-After reauthentication, deletion waits for every Firestore task already
-dispatched for that UID. A timeout leaves cloud data and Authentication intact,
-shows a reconnect/synchronisation error, and reopens the mutation gate.
-Once Authentication deletion succeeds, local teardown and graph replacement
-run in a non-cancellable context; the Activity is responsible only for
-restarting its task.
-
-Provider configuration and registered debug/release SHA fingerprints are
-required for Google sign-in. The current integration follows
-<https://firebase.google.com/docs/auth/android/google-signin>.
-
-## Local storage and account isolation
-
-### Widget snapshot
-
-Preferences DataStore contains an account-scoped display snapshot. Every widget
-render/action checks `ownerUid` against the current session. Sign-out replaces
-it with signed-out content; post-Authentication deletion cleanup attempts the
-same transition before graph restart.
-The live Firebase UID is compared synchronously before each render/action, so a
-process interrupted between authentication removal and asynchronous cleanup
-cannot render the previous account's cached medicine names.
-Optimistic row changes, pending action correlations, outcome resolution, day
-rollover, and clearing are committed through atomic DataStore edits. Each
-home-screen check persists a random action ID; only a completion carrying the
-same UID/action ID may retain or roll back that row.
-
-### Widget configuration
-
-Each single-widget app-widget ID stores both owner UID and medicine ID. A
-configuration for another account renders a choose/reconfigure state and cannot
-submit an action for the new account. Account deletion attempts to clear all
-configurations; owner matching keeps a retained mapping inert if best-effort
-cleanup fails. Removing one widget deletes only that widget's mapping.
-
-### Settings
-
-Reset time, timezone, display name, and theme are locally cached with an
-internal `owner_uid` partition key. Activating a different UID clears the old
-preferences first. The prior account's cloud listener is cancelled through
-`collectLatest`/`awaitClose`, and its persistence callback checks the active UID
-again before writing. Process-lifecycle stop/start events also cancel and
-recreate all settings/medicine/dose Firestore listeners so the backgrounded app
-does not retain live subscriptions. Settings are cleared on sign-out and are a
-best-effort cleanup step after Authentication deletion.
-
-### Firestore persistence
-
-Firestore's Android disk persistence remains enabled by default for useful
-offline operation. Security Rules and UID-scoped queries prevent a subsequently
-signed-in account from reading another UID's cached documents through the app.
-Normal sign-out clears app-managed account caches but does not clear
-Firestore's SDK persistence. Successful account deletion goes further: it
-attempts to clear all app DataStores and widget content, terminate the current
-Firestore instance, and call `clearPersistence()`, then rebuilds `AppGraph` and
-restarts the activity task. Once Authentication deletion succeeds, each local
-cleanup is best effort so one failure cannot return the user to an unusable old
-graph. The SDK call logically removes its persisted cache; it is not a
-secure-overwrite primitive and does not guarantee physical storage blocks are
-unrecoverable on a rooted or compromised device. On a shared/high-risk device,
-clear Android app storage after sign-out or account deletion.
-
-No password, Firebase token, service-account key, signing key, or tester list is
-stored in DataStore.
-
-Android backups are disabled (`allowBackup=false`), which reduces unintended
-transfer of cached account/widget data.
-
-## Android permissions
-
-The final merged package has exactly six permission declarations:
-
-```text
-android.permission.INTERNET
-android.permission.ACCESS_NETWORK_STATE
-android.permission.RECEIVE_BOOT_COMPLETED
-com.google.android.providers.gsf.permission.READ_GSERVICES
-android.permission.WAKE_LOCK
-io.github.ffelixq.medswidget.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
-```
-
-The first three are app-declared. Google Play services contributes
-`READ_GSERVICES`, WorkManager contributes `WAKE_LOCK`, and AndroidX generates
-the app-specific signature permission to protect dynamically registered,
-non-exported receivers. None is a dangerous runtime permission.
-
-Manifest-merge removal directives strip inherited biometric, fingerprint, and
-foreground-service permissions plus WorkManager's unused
-`SystemForegroundService`. No notification or exact-alarm permission is
-requested. The boot receiver is not direct-boot aware and receives only the
-declared boot/date/time/timezone events. Widget receivers are not exported. The
-single-widget configuration activity is exported only because the Android
-widget host must launch it for `ACTION_APPWIDGET_CONFIGURE`; API-28-and-newer
-provider metadata separately declares the single widget reconfigurable.
-
-## Widget action validation
-
-Widget taps are untrusted inputs. `CheckDoseAction` validates:
-
-- the parameter parses to a supported medicine ID, slot, and widget source;
-- source is `widget_2x2` or `widget_4x2`;
-- the logical day is recomputed first;
-- a Firebase session exists;
-- snapshot owner equals session owner;
-- a 2×2 action's app-widget ID maps to the same owner/medicine;
-- the medicine is present in the active local snapshot; and
-- the slot remains enabled.
-
-An already checked row is wired to open the app and cannot call undo. The
-repository policy and Firestore rules independently reject widget undo.
-The graph-wide account operation gate rejects widget repository mutations after
-deletion starts. A valid check stores the same random action ID in the atomic
-local optimistic transition and Firestore batch. Repository callbacks resolve
-only the matching persisted action: success removes its correlation and clears
-`Syncing` when no pending work remains; failure rolls back the row, stores a
-safe cached error, and refreshes widgets. This callback path remains active
-while foreground Firestore listeners are paused.
+Widget taps are untrusted input. Callback handlers validate the supported action source, current Firebase UID, cached owner, medicine/slot eligibility, and the 2x2 widget configuration before writing. Widget undo is not exposed. `CheckDoseAction` and `StartCountdownAction` remain separate callback classes, and the signed minified APK is runtime-checked so R8 cannot silently break reflective Glance callback construction.
 
 ## Logging and error handling
 
-Production code must not log:
+Production code must not log medication names/labels, email addresses, display names, dose history, Firebase tokens, passwords, deployment credentials, or signing material. User-visible errors avoid raw Firebase exceptions and secrets.
 
-- medicine names or labels;
-- email addresses or display names;
-- dose state/history;
-- Firebase ID/access/refresh tokens;
-- passwords;
-- service-account material; or
-- signing secrets.
+## Repository and CI security
 
-Release builds use R8 shrinking. There is no analytics or monitoring SDK. User
-errors are intentionally generic where raw Firebase details could leak
-implementation/account information. Asynchronous medicine and dose write
-rejections are fed back into repository state so the UI can show those safe
-errors; dose failures also undo the rejected optimistic in-memory transition.
-UID- and operation-scoped failure tracking prevents a late result from a prior
-account or unrelated write from clearing or surfacing another operation's
-error.
-CI sanitizes both successful and failed App Distribution command output: it
-removes the signed binary-download line and replaces any remaining URLs before
-writing them to the public Actions log.
+The repository blocks tracked credential/signing/tester/build artifacts. CI includes:
 
-## Repository secret controls
+- full-history Gitleaks scanning;
+- Gradle wrapper validation;
+- dependency review;
+- formatting, Detekt, Android Lint, unit/widget/Compose tests, and debug/release builds;
+- Android emulator instrumentation;
+- Firestore emulator security tests;
+- CodeQL for Java/Kotlin;
+- explicit Android security-invariant checks; and
+- runtime verification of minified Glance callback classes.
 
-`.gitignore` excludes:
+Third-party GitHub Actions are pinned to full commit SHAs. Dependabot tracks Gradle, npm, and GitHub Actions dependencies.
 
-- `google-services.json`;
-- service-account JSON and generated GitHub auth files;
-- `*.jks`, `*.keystore`, `*.p12`, `*.pkcs12`, and `keystore.properties`;
-- `.env*` except an explicit example;
-- `local.properties`;
-- private tester lists;
-- Firebase/emulator state; and
-- build outputs.
+`main` is protected by a no-bypass ruleset and production deployment runs only after all required checks succeed. Deployment uses GitHub OIDC Workload Identity Federation and a least-privilege Google service account. The workflow validates the Firebase project/application identity and Android release keystore, builds the signed APK/AAB, records checksums/signing identity, re-runs the minified callback verifier, deploys Firestore rules/indexes, distributes only the signed APK to the configured Firebase tester group, and cleans up materialized credentials.
 
-Run:
+## App Check status
 
-```bash
-./scripts/check-forbidden-files.sh
-git status --short
-git diff --cached --check
-git ls-files
-```
+Firebase App Check is a recommended next backend-abuse layer but is **not yet enforced** for this app.
 
-The tracked-file guard fails if known credential, signing, tester, generated,
-emulator, or build files are committed. Gitleaks scans complete Git history in
-CI. A clean current tree does not repair a secret already present in history;
-rotate it and remove it according to incident-response procedures.
+The app is currently distributed outside Google Play through Firebase App Distribution. Enabling the Play Integrity provider requires Firebase/Google Play console registration and outside-Play-compatible App Check settings before client enforcement is introduced. Enforcement should be rolled out by registering the release signing SHA-256, configuring the outside-Play integrity policy, shipping the App Check-enabled client, monitoring request metrics, and only then enabling enforcement for Firestore/Authentication.
 
-## CI isolation
+Do not claim App Check protection until those server-side steps have been completed and verified.
 
-The workflow defaults to `contents: read`. Only:
+## Residual risk
 
-- CodeQL receives `security-events: write`; and
-- the `main` deployment job receives `id-token: write`.
+No client-only design can guarantee secrecy on a rooted, malware-controlled, or physically compromised unlocked device. A hostile process with sufficient device privileges can observe data while the legitimate app is using it even if encryption keys themselves are non-exportable.
 
-Pull-request jobs do not reference deployment secrets and never deploy.
-Deployment:
+Other intentional/residual exposure includes:
 
-- runs only for a push to `main`;
-- depends on every validation/security job succeeding;
-- uses the protected `production` environment;
-- validates required variables/secrets before materializing files;
-- confirms `google-services.json` matches the Firebase project ID, Firebase
-  Android app ID, Android application ID, and required web OAuth client;
-- verifies the release keystore alias before building;
-- verifies APK signatures and records SHA-256 hashes;
-- obtains WIF/ADC only after the release build and Firebase CLI installation;
-- deploys only Firestore rules/indexes;
-- refreshes ADC immediately before App Distribution because the GitHub OIDC
-  subject credential is short-lived;
-- distributes only the signed APK to `owners`; and
-- deletes materialized config/keystore files in an `always()` cleanup step.
+- medication information shown by home-screen widgets on an unlocked device;
+- data the user explicitly exports/shares;
+- Firebase SDK offline persistence required for the app's offline behavior; and
+- backend abuse resistance that can be improved further by completing App Check deployment.
 
-The Google configuration, release-signing values, and two WIF deploy values
-exist only as secrets in the main-restricted GitHub environment `production`;
-no repository-level secret duplicates are used. The environment has no
-service-account JSON fallback secret. Pull-request jobs cannot read that
-environment. Only the non-sensitive Firebase project ID, Firebase Android app
-ID, and Android application ID are repository variables.
-
-All third-party actions are pinned to full commit SHAs with their release
-version in a comment. Dependabot tracks Gradle, npm, and GitHub Actions.
-
-Active ruleset `20019671` (`Protect main`) has no bypass actors. It requires a
-pull request with squash merging, all seven named CI checks, an up-to-date
-branch, resolved conversations, and linear history, and blocks deletion and
-force pushes. This keeps production credentials behind both the main-only
-environment and validated repository history.
-
-## Google deployment identity
-
-Workload Identity Federation is active and exchanges a GitHub OIDC identity for
-short-lived credentials:
-<https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines>.
-
-The live provider configuration is:
-
-```text
-project number       648847295725
-pool                 meds-widget-github
-provider             meds-widget-main
-provider state       ACTIVE
-repository ID        1315914252
-repository owner ID  167162073
-allowed ref          refs/heads/main
-```
-
-The provider condition binds the immutable GitHub repository and owner IDs,
-plus the exact `main` ref; repository names alone are not the trust boundary.
-The protected `production` environment contains both
-`GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`, with no
-`FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON`.
-
-The WIF path depends on these enabled identity APIs:
-
-```text
-iam.googleapis.com
-iamcredentials.googleapis.com
-sts.googleapis.com
-```
-
-They are prerequisites in Google's
-[deployment-pipeline WIF guide](https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines).
-Billing was disabled before and after they were enabled. Google documents IAM
-API use as free in [IAM pricing](https://cloud.google.com/iam/pricing); no
-billing role or linked billing account was introduced.
-
-The deployment service account has exactly these four project roles:
-
-```text
-roles/firebaserules.admin
-roles/datastore.indexAdmin
-roles/firebaseappdistro.admin
-roles/serviceusage.serviceUsageConsumer
-```
-
-This live role set is used to:
-
-- create/release Firebase Security Rules rulesets;
-- manage the one tracked composite Firestore index and any reviewed future
-  index changes;
-- upload App Distribution releases to the existing `owners` group;
-- call already-enabled project APIs as the service consumer.
-
-The external WIF principal separately receives
-`roles/iam.workloadIdentityUser` on that service account so it may impersonate
-the account; that is a service-account policy binding, not a fifth project
-role. The deployment account has no `roles/firebase.viewer` and no Firestore
-document read/write role. Do not grant Owner, Editor, Cloud Functions, Storage,
-or billing permissions. Add permissions only in response to an observed denied
-operation. Firebase documents rules permissions at
-<https://firebase.google.com/docs/projects/iam/permissions>, Firestore index
-administration at
-<https://cloud.google.com/firestore/docs/security/iam>, and App Distribution
-roles at
-<https://firebase.google.com/docs/projects/iam/roles-predefined-product>.
-
-The workflow still supports one dedicated service-account JSON as an emergency
-fallback if federation later becomes unavailable. It is not provisioned in the
-current environment. If activated, it must have the same least privileges, be
-stored only as
-`FIREBASE_DEPLOY_SERVICE_ACCOUNT_JSON`, and be rotated after suspected exposure
-or at the project's maintenance interval. A personal Firebase CLI token is
-forbidden.
-
-[Main CI run 30514348334, attempt
-2](https://github.com/ffelixq/meds-widget/actions/runs/30514348334/attempts/2)
-proved the WIF/Application Default Credentials path at commit
-`956a1f26c58adfeb19c46e1306536ba9fa68f46b`; the JSON fallback was skipped.
-Afterward, the temporary user-managed deployment key was deleted and the
-service account was verified to have zero user-managed keys. A future fallback
-key must be removed again after WIF recovery.
-
-## Release signing
-
-The release keystore is the Android update identity. It is:
-
-- generated locally with strong random store/key passwords;
-- ignored by Git;
-- backed up in a secure, access-controlled location;
-- base64-encoded into a secret on the main-restricted GitHub environment
-  `production` without printing it;
-- materialized in `$RUNNER_TEMP` with restrictive process defaults; and
-- removed at job completion.
-
-CI secrets:
-
-```text
-ANDROID_RELEASE_KEYSTORE_BASE64
-ANDROID_RELEASE_KEYSTORE_PASSWORD
-ANDROID_RELEASE_KEY_ALIAS
-ANDROID_RELEASE_KEY_PASSWORD
-```
-
-Losing the keystore prevents future APKs from updating existing installations
-under the same signing identity. Exposing it requires rotating distribution to
-a new application identity/install base; merely changing the password after a
-copy escaped does not revoke that copied key.
-
-## Account deletion risk
-
-V1 client deletion enumerates and deletes settings, medicines, dose states, and
-dose events before deleting Authentication. `AccountOperationGate` marks
-deletion first, waits for an admitted mutation, and then excludes new
-medicine/dose/settings/widget mutations until failure or graph replacement. The
-operation is owner-authorized but:
-
-- requires a network and recent authentication; each collection query uses
-  `Source.SERVER`, so cached emptiness is never treated as a completed cloud
-  deletion;
-- is not one transaction across all documents/Auth;
-- can be interrupted between 400-document batches;
-- may be stopped by quota exhaustion; and
-- cannot discover a future unlisted subcollection.
-
-Users can retry while their auth account remains. A partial deletion followed
-by successful Auth deletion may require project-owner cleanup. This limitation
-is accepted to avoid Cloud Functions and paid infrastructure. A failure before
-Authentication deletion reopens the mutation gate for retry. After successful
-cloud/Auth deletion, the client attempts each app-managed DataStore clear,
-signed-out widget refresh, Firestore termination, and persistence clear
-independently, then rebuilds `AppGraph` and restarts `MainActivity` even if a
-local cleanup attempt failed. Authentication deletion cannot be rolled back.
-
-## Offline and multi-device risk
-
-An in-process mutex and deterministic state ID handle rapid repeat taps on one
-device. Firestore batched writes remain atomic and queue offline. They are not a
-distributed lock: simultaneous offline devices can submit competing actions
-when reconnecting, and Firestore applies last-write-wins to the state document.
-Immutable random-ID events may retain more than one attempt.
-
-Meds Widget is a personal tracker, not a safety-critical medication
-administration system. Users must not rely on it for medical decisions.
-
-## Quota and service failure
-
-Spark has finite Firestore quota. The application never upgrades or attaches
-billing. On temporary/network/quota failure:
-
-- cached rows/widgets remain usable where data already exists;
-- pending writes are indicated;
-- failed refreshes return friendly errors;
-- widgets render cached/signed-out/reconfiguration states; and
-- no infinite polling loop is started.
-
-A local optimistic widget check carries a persisted action correlation. A
-matching server success clears its pending entry and `Syncing` when none remain;
-a matching failure rolls the row back and shows the widget's safe `Cached` state
-even when foreground listeners are paused. Medicine and dose write rejections
-surface a friendly in-app error. Cloud state is authoritative after
-synchronization.
-
-## Known security limitations
-
-- No Firebase App Check attestation is configured in V1.
-- Normal sign-out does not invoke Firestore `clearPersistence()`.
-- Account deletion invokes `clearPersistence()`, but logical cache deletion is
-  not a guarantee of secure physical overwrite.
-- Client-side account deletion can be partial.
-- Local post-Authentication cleanup is best effort; clearing Android app data is
-  the additional owner-controlled purge if a cleanup action failed.
-- Multi-device offline actions are not globally serialized.
-- Home-screen widget contents are deliberately visible while the device is
-  unlocked.
-- A rooted/compromised device can bypass normal app sandbox assumptions.
-- Email verification is not required by V1.
-- The most recent 500 events are rendered; older Firestore audit documents are
-  not visible in the V1 history screen.
-
-These limitations must remain visible in release documentation and must not be
-described as regulatory or medical-device guarantees.
-
-## Response to suspected secret exposure
-
-- Stop deployment and identify the exact material and exposure window.
-- For a service-account key, disable/delete that key and create a replacement
-  only if the fallback is still required.
-- For WIF, tighten/disable the provider or IAM binding and inspect audit logs.
-- For the release keystore, treat the Android update identity as compromised;
-  removing a GitHub secret is not sufficient.
-- For `google-services.json`, inspect Firebase usage and rules; rotate the API
-  key only when justified, then distribute a new config.
-- Rotate affected GitHub secrets and remove exposed history using an approved
-  repository-history procedure.
-- Rerun Gitleaks, forbidden-file checks, rule tests, and a deployment dry review.
-- Record the incident without copying the secret into an issue or report.
+Security reviews should therefore be repeated when authentication, storage, sharing, widget actions, notifications, new Firebase products, or exported Android components change.

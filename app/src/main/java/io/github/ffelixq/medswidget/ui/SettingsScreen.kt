@@ -32,6 +32,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -110,7 +111,7 @@ fun SettingsScreen(
     }
     var displayName by rememberSaveable(state.settings.displayName) { mutableStateOf(state.settings.displayName) }
     var deleteDialog by rememberSaveable { mutableStateOf(false) }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     val controlsEnabled = !state.isDeletingAccount
 
     BackHandler(enabled = state.isDeletingAccount) {
@@ -259,7 +260,10 @@ fun SettingsScreen(
                     Text("Sign out")
                 }
                 TextButton(
-                    onClick = { deleteDialog = true },
+                    onClick = {
+                        password = ""
+                        deleteDialog = true
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = controlsEnabled,
                 ) {
@@ -313,7 +317,10 @@ fun SettingsScreen(
     if (deleteDialog && !state.isDeletingAccount) {
         val passwordProvider = "password" in state.providers
         AlertDialog(
-            onDismissRequest = { deleteDialog = false },
+            onDismissRequest = {
+                password = ""
+                deleteDialog = false
+            },
             title = { Text("Permanently delete account?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -338,12 +345,25 @@ fun SettingsScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        val reauthenticationPassword = password
+                        password = ""
                         deleteDialog = false
-                        if (passwordProvider) onDeletePasswordAccount(password) else onDeleteGoogleAccount()
+                        if (passwordProvider) {
+                            onDeletePasswordAccount(reauthenticationPassword)
+                        } else {
+                            onDeleteGoogleAccount()
+                        }
                     },
                 ) { Text("Delete account") }
             },
-            dismissButton = { TextButton(onClick = { deleteDialog = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        password = ""
+                        deleteDialog = false
+                    },
+                ) { Text("Cancel") }
+            },
         )
     }
 }

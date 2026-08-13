@@ -3,7 +3,6 @@ package io.github.ffelixq.medswidget.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import io.github.ffelixq.medswidget.MedsApplication
+import io.github.ffelixq.medswidget.security.SensitiveWindowProtection
 import io.github.ffelixq.medswidget.ui.MainActivity
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
 import kotlinx.coroutines.launch
@@ -44,7 +44,7 @@ class SingleWidgetConfigurationActivity : ComponentActivity() {
     @Suppress("LongMethod")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        protectSensitiveWindow()
+        SensitiveWindowProtection.apply(this)
         setResult(RESULT_CANCELED)
         appWidgetId =
             intent
@@ -150,16 +150,6 @@ class SingleWidgetConfigurationActivity : ComponentActivity() {
                 }
             }
         }
-    }
-
-    private fun protectSensitiveWindow() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            setRecentsScreenshotEnabled(false)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            window.setHideOverlayWindows(true)
-        }
-        window.decorView.filterTouchesWhenObscured = true
     }
 }
 

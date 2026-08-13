@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,7 +51,7 @@ fun AuthScreen(
 ) {
     var mode by rememberSaveable { mutableStateOf(AuthMode.SIGN_IN) }
     var email by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var displayName by rememberSaveable { mutableStateOf("") }
     var localError by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -208,13 +209,19 @@ fun AuthScreen(
         when (mode) {
             AuthMode.SIGN_IN -> {
                 TextButton(
-                    onClick = { mode = AuthMode.SIGN_UP },
+                    onClick = {
+                        password = ""
+                        mode = AuthMode.SIGN_UP
+                    },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 ) {
                     Text("Create an email account")
                 }
                 TextButton(
-                    onClick = { mode = AuthMode.RESET },
+                    onClick = {
+                        password = ""
+                        mode = AuthMode.RESET
+                    },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 ) {
                     Text("Forgot password?")
@@ -223,7 +230,10 @@ fun AuthScreen(
 
             AuthMode.SIGN_UP, AuthMode.RESET -> {
                 TextButton(
-                    onClick = { mode = AuthMode.SIGN_IN },
+                    onClick = {
+                        password = ""
+                        mode = AuthMode.SIGN_IN
+                    },
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                 ) {
                     Text("Back to sign in")

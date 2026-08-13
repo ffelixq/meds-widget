@@ -135,7 +135,7 @@ class AuthScreenTest {
     }
 
     @Test
-    fun registrationFormSurvivesSavedStateRestoration() {
+    fun registrationRestoresNonSensitiveFieldsButClearsPassword() {
         val restorationTester = StateRestorationTester(composeRule)
         restorationTester.setContent {
             UiTestTheme {
@@ -157,8 +157,12 @@ class AuthScreenTest {
 
         composeRule.onNodeWithText("Create account").assertIsDisplayed()
         composeRule.onNodeWithTag("email").assertTextContains("restore@example.com")
-        composeRule.onNodeWithTag("password").assertTextContains("secret1")
         composeRule.onNodeWithTag("display_name").assertTextContains("Restored Person")
+        composeRule.onNodeWithTag("auth_submit").performClick()
+        composeRule
+            .onNodeWithText("Password must contain at least 6 characters.")
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
