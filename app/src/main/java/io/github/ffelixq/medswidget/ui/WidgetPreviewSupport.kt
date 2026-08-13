@@ -45,6 +45,8 @@ internal fun WidgetPreviews(
     val rows = state.rows.filter { it.medicineId == firstMedicine.id }
     val singleSpec = WidgetLayoutSpec.forSize(DpSize(190.dp, 145.dp), WidgetKind.SINGLE)
     val allSpec = WidgetLayoutSpec.forSize(DpSize(320.dp, 160.dp), WidgetKind.ALL)
+    val dashboardSpec = WidgetLayoutSpec.forSize(DpSize(320.dp, 300.dp), WidgetKind.ALL)
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Widget previews", style = MaterialTheme.typography.titleLarge)
         Text(
@@ -52,48 +54,112 @@ internal fun WidgetPreviews(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        AppleCard {
-            Text(
-                "2×2 · ${firstMedicine.widgetDisplayName()}",
-                fontSize = singleSpec.titleSp.sp,
-                fontWeight = FontWeight.SemiBold,
+        SingleMedicinePreviewCard(
+            medicineName = firstMedicine.widgetDisplayName(),
+            rows = rows,
+            spec = singleSpec,
+            onCheck = onCheck,
+            onStartCountdown = onStartCountdown,
+        )
+        MultiMedicinePreviewCard(
+            title = "4×2 · All medicines",
+            progress = state.progress.compactDisplay,
+            state = state,
+            rowLimit = 4,
+            spec = allSpec,
+            onCheck = onCheck,
+            onStartCountdown = onStartCountdown,
+        )
+        MultiMedicinePreviewCard(
+            title = "4×4 · Today dashboard",
+            progress = state.progress.compactDisplay,
+            state = state,
+            rowLimit = 8,
+            spec = dashboardSpec,
+            onCheck = onCheck,
+            onStartCountdown = onStartCountdown,
+        )
+    }
+}
+
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun SingleMedicinePreviewCard(
+    medicineName: String,
+    rows: List<DoseRow>,
+    spec: WidgetLayoutSpec,
+    onCheck: (DoseRow) -> Unit,
+    onStartCountdown: (DoseRow) -> Unit,
+) {
+    AppleCard {
+        Text(
+            "2×2 · $medicineName",
+            fontSize = spec.titleSp.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        rows.forEach { row ->
+            PreviewRow(
+                row = row,
+                spec = spec,
+                onCheck = { onCheck(row) },
+                onStartCountdown = { onStartCountdown(row) },
             )
-            rows.forEach { row ->
-                PreviewRow(
-                    row = row,
-                    spec = singleSpec,
-                    onCheck = { onCheck(row) },
-                    onStartCountdown = { onStartCountdown(row) },
-                )
-            }
-        }
-        AppleCard {
-            Text(
-                "4×2 · ${state.progress.compactDisplay}",
-                fontSize = allSpec.titleSp.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            state.rows.take(4).forEach { row ->
-                val displayName =
-                    state.medicines
-                        .firstOrNull { it.id == row.medicineId }
-                        ?.widgetDisplayName()
-                        ?: "Medicine"
-                Text(
-                    displayName,
-                    fontSize = allSpec.supportingSp.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                PreviewRow(
-                    row = row,
-                    spec = allSpec,
-                    onCheck = { onCheck(row) },
-                    onStartCountdown = { onStartCountdown(row) },
-                )
-            }
         }
     }
 }
+
+@Suppress("FunctionNaming", "LongParameterList")
+@Composable
+private fun MultiMedicinePreviewCard(
+    title: String,
+    progress: String,
+    state: MainUiState,
+    rowLimit: Int,
+    spec: WidgetLayoutSpec,
+    onCheck: (DoseRow) -> Unit,
+    onStartCountdown: (DoseRow) -> Unit,
+) {
+    AppleCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                modifier = Modifier.weight(1f),
+                fontSize = spec.titleSp.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                progress,
+                fontSize = spec.supportingSp.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        state.rows.take(rowLimit).forEach { row ->
+            Text(
+                medicineDisplayName(state, row),
+                fontSize = spec.supportingSp.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PreviewRow(
+                row = row,
+                spec = spec,
+                onCheck = { onCheck(row) },
+                onStartCountdown = { onStartCountdown(row) },
+            )
+        }
+    }
+}
+
+private fun medicineDisplayName(
+    state: MainUiState,
+    row: DoseRow,
+): String =
+    state.medicines
+        .firstOrNull { it.id == row.medicineId }
+        ?.widgetDisplayName()
+        ?: "Medicine"
 
 @Suppress("FunctionNaming")
 @Composable
