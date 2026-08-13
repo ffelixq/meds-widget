@@ -9,6 +9,7 @@ export_paths="app/src/main/res/xml/export_file_paths.xml"
 reminder_source="app/src/main/java/io/github/ffelixq/medswidget/sync/MedicineReminderScheduler.kt"
 main_activity="app/src/main/java/io/github/ffelixq/medswidget/ui/MainActivity.kt"
 widget_config_activity="app/src/main/java/io/github/ffelixq/medswidget/widget/SingleWidgetConfigurationActivity.kt"
+automatic_widget_config_activity="app/src/main/java/io/github/ffelixq/medswidget/widget/AutomaticWidgetConfigurationActivity.kt"
 auth_screen="app/src/main/java/io/github/ffelixq/medswidget/ui/AuthScreen.kt"
 settings_screen="app/src/main/java/io/github/ffelixq/medswidget/ui/SettingsScreen.kt"
 sensitive_window_source="app/src/main/java/io/github/ffelixq/medswidget/security/SensitiveWindowProtection.kt"
@@ -50,12 +51,14 @@ reject_literal "$manifest" 'android.permission.REQUEST_INSTALL_PACKAGES' 'the ap
 reject_literal "$manifest" 'android.permission.MANAGE_EXTERNAL_STORAGE' 'the app must not request all-files access'
 
 exported_true_count="$(grep -Fc 'android:exported="true"' "$manifest")"
-[[ "$exported_true_count" == "2" ]] || fail "only launcher MainActivity and widget configuration may be exported"
+[[ "$exported_true_count" == "3" ]] || fail "only launcher MainActivity and the two widget configuration activities may be exported"
 
 main_activity_block="$(sed -n '/android:name=".ui.MainActivity"/,/<\/activity>/p' "$manifest")"
 [[ "$main_activity_block" == *'android:exported="true"'* ]] || fail "MainActivity must remain the explicit exported launcher"
 config_activity_block="$(sed -n '/android:name=".widget.SingleWidgetConfigurationActivity"/,/<\/activity>/p' "$manifest")"
-[[ "$config_activity_block" == *'android:exported="true"'* ]] || fail "widget configuration must remain explicitly exported for the host"
+[[ "$config_activity_block" == *'android:exported="true"'* ]] || fail "single widget configuration must remain explicitly exported for the host"
+automatic_config_activity_block="$(sed -n '/android:name=".widget.AutomaticWidgetConfigurationActivity"/,/<\/activity>/p' "$manifest")"
+[[ "$automatic_config_activity_block" == *'android:exported="true"'* ]] || fail "automatic widget repair must remain explicitly exported for the host"
 receiver_blocks="$(sed -n '/<receiver/,/<\/receiver>/p' "$manifest")"
 [[ "$receiver_blocks" != *'android:exported="true"'* ]] || fail "app receivers must not be exported"
 provider_block="$(sed -n '/android:name="androidx.core.content.FileProvider"/,/<\/provider>/p' "$manifest")"
@@ -80,7 +83,7 @@ require_literal "$reminder_source" '.setLocalOnly(true)' 'medicine reminders mus
 reject_literal "$reminder_source" 'KEY_MEDICINE_NAME' 'WorkManager input must not persist medicine names'
 reject_literal "$reminder_source" 'KEY_LABEL' 'WorkManager input must not persist custom medicine labels'
 
-for activity_source in "$main_activity" "$widget_config_activity"; do
+for activity_source in "$main_activity" "$widget_config_activity" "$automatic_widget_config_activity"; do
   require_literal "$activity_source" 'SensitiveWindowProtection.apply(this)' 'every health activity must apply shared sensitive-window protection'
 done
 require_literal "$sensitive_window_source" 'WindowManager.LayoutParams.FLAG_SECURE' 'health activities must block screenshots, recording, and insecure displays'

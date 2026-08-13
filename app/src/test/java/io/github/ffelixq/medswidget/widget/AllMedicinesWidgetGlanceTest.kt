@@ -9,8 +9,6 @@ import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.testing.unit.assertHasRunCallbackClickAction
 import androidx.glance.appwidget.testing.unit.assertHasStartActivityClickAction
 import androidx.glance.appwidget.testing.unit.runGlanceAppWidgetUnitTest
-import androidx.glance.testing.GlanceNodeMatcher
-import androidx.glance.testing.unit.MappedNode
 import androidx.glance.testing.unit.hasContentDescriptionEqualTo
 import androidx.glance.testing.unit.hasText
 import androidx.glance.testing.unit.hasTextEqualTo
@@ -136,7 +134,7 @@ class AllMedicinesWidgetGlanceTest {
         }
 
     @Test
-    fun `all-medicines content uses a lazy column and retains every row`() =
+    fun `all medicines bounds rows and exposes overflow without a launcher collection`() =
         runGlanceAppWidgetUnitTest {
             setContext(context)
             val manyRows =
@@ -152,22 +150,22 @@ class AllMedicinesWidgetGlanceTest {
                 }
             provideComposable {
                 AllMedicinesWidgetContent(
-                    WidgetSnapshot(
-                        ownerUid = "user-a",
-                        signedIn = true,
-                        logicalDay = LocalDate.of(2026, 7, 29),
-                        rows = manyRows,
-                    ),
+                    snapshot =
+                        WidgetSnapshot(
+                            ownerUid = "user-a",
+                            signedIn = true,
+                            logicalDay = LocalDate.of(2026, 7, 29),
+                            rows = manyRows,
+                        ),
+                    availableSize = DpSize(320.dp, 150.dp),
                 )
             }
 
-            onNode(
-                GlanceNodeMatcher<MappedNode>("is a LazyColumn") {
-                    it.value.emittable.javaClass.simpleName == "EmittableLazyColumn"
-                },
-            ).assertExists()
-            onAllNodes(hasTextEqualTo("○")).assertCountEquals(12)
-            onNode(hasTextEqualTo("Dose 12")).assertExists()
+            onAllNodes(hasTextEqualTo("○")).assertCountEquals(2)
+            onNode(hasTextEqualTo("Dose 1")).assertExists()
+            onNode(hasTextEqualTo("Dose 2")).assertExists()
+            onNode(hasTextEqualTo("Dose 3")).assertDoesNotExist()
+            onNode(hasTextEqualTo("+10 more · Open app")).assertExists()
         }
 
     @Test

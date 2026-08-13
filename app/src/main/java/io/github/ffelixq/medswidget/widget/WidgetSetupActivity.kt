@@ -1,5 +1,6 @@
 package io.github.ffelixq.medswidget.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -358,7 +359,15 @@ private fun requestPinWidget(
             ).show()
         return
     }
-    if (!manager.requestPinAppWidget(ComponentName(context, receiver), null, null)) {
+    val successCallback =
+        PendingIntent.getBroadcast(
+            context,
+            receiver.name.hashCode(),
+            Intent(context, WidgetPinSuccessReceiver::class.java)
+                .setAction(WIDGET_PINNED_ACTION),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    if (!manager.requestPinAppWidget(ComponentName(context, receiver), null, successCallback)) {
         Toast
             .makeText(
                 context,
@@ -367,3 +376,5 @@ private fun requestPinWidget(
             ).show()
     }
 }
+
+private const val WIDGET_PINNED_ACTION = "io.github.ffelixq.medswidget.WIDGET_PINNED"
