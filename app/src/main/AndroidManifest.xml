@@ -45,6 +45,11 @@
         </provider>
 
         <activity
+            android:name=".widget.WidgetSetupActivity"
+            android:exported="false"
+            android:theme="@style/Theme.MedsWidget" />
+
+        <activity
             android:name=".widget.SingleWidgetConfigurationActivity"
             android:exported="true"
             android:theme="@style/Theme.MedsWidget">

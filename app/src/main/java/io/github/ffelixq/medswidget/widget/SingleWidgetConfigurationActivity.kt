@@ -21,6 +21,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,13 +70,26 @@ class SingleWidgetConfigurationActivity : ComponentActivity() {
                     initialValue = WidgetSnapshot(isLoading = true),
                 )
                 var selectedId by remember { mutableStateOf<String?>(null) }
+                var selectionLoaded by remember { mutableStateOf(false) }
+
+                LaunchedEffect(appWidgetId) {
+                    selectedId = graph.configurationStore.get(appWidgetId)?.medicineId
+                    selectionLoaded = true
+                }
+
                 Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("Choose one medicine", style = MaterialTheme.typography.headlineSmall)
+                    Text("Configure 2×2 widget", style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        "Choose the medicine this widget should show. You can change it later from the " +
+                            "Widget setup page inside Meds Widget.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     when {
-                        snapshot.isLoading -> {
+                        snapshot.isLoading || !selectionLoaded -> {
                             Text("Loading medicines…")
                         }
 

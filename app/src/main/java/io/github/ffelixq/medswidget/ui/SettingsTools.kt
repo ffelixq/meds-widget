@@ -1,8 +1,7 @@
 package io.github.ffelixq.medswidget.ui
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,9 +29,7 @@ import androidx.core.content.ContextCompat
 import io.github.ffelixq.medswidget.ui.design.AppleCard
 import io.github.ffelixq.medswidget.ui.design.AppleSectionHeader
 import io.github.ffelixq.medswidget.ui.design.AppleStatusPill
-import io.github.ffelixq.medswidget.widget.AllMedicinesWidgetReceiver
-import io.github.ffelixq.medswidget.widget.DashboardWidgetReceiver
-import io.github.ffelixq.medswidget.widget.SingleMedicineWidgetReceiver
+import io.github.ffelixq.medswidget.widget.WidgetSetupActivity
 
 private const val NOTIFICATION_PERMISSION = "android.permission.POST_NOTIFICATIONS"
 
@@ -142,25 +139,15 @@ private fun WidgetToolsCard(context: Context) {
         AppleSectionHeader(
             title = "Home-screen widgets",
             supportingText =
-                "Pin a widget directly, or add it later from your launcher's widget picker.",
+                "Configure existing 2×2 widgets and add any widget size from one place inside Meds Widget.",
         )
         OutlinedButton(
-            onClick = { requestPin(context, SingleMedicineWidgetReceiver::class.java) },
+            onClick = {
+                context.startActivity(Intent(context, WidgetSetupActivity::class.java))
+            },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Add 2×2 medicine widget")
-        }
-        OutlinedButton(
-            onClick = { requestPin(context, AllMedicinesWidgetReceiver::class.java) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add 4×2 all-medicines widget")
-        }
-        OutlinedButton(
-            onClick = { requestPin(context, DashboardWidgetReceiver::class.java) },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add 4×4 dashboard widget")
+            Text("Configure widgets")
         }
     }
 }
@@ -222,12 +209,3 @@ private fun notificationsAllowed(context: Context): Boolean =
                 ContextCompat.checkSelfPermission(context, NOTIFICATION_PERMISSION) ==
                 PackageManager.PERMISSION_GRANTED
         )
-
-private fun requestPin(
-    context: Context,
-    receiver: Class<*>,
-) {
-    val manager = AppWidgetManager.getInstance(context)
-    if (!manager.isRequestPinAppWidgetSupported) return
-    manager.requestPinAppWidget(ComponentName(context, receiver), null, null)
-}
