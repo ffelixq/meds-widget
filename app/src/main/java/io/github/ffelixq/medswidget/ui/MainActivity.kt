@@ -33,6 +33,7 @@ import io.github.ffelixq.medswidget.sync.SnoozeReminderScheduler
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
 import io.github.ffelixq.medswidget.util.MedicationCsvExporter
 import io.github.ffelixq.medswidget.util.SensitiveExportCleanup
+import io.github.ffelixq.medswidget.widget.WidgetSetupActivity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -137,6 +138,9 @@ class MainActivity : ComponentActivity() {
                                     delayMinutes = minutes,
                                 )
                             }
+                        },
+                        onOpenWidgetSetup = {
+                            startActivity(Intent(this@MainActivity, WidgetSetupActivity::class.java))
                         },
                         onExport = ::shareCsvExport,
                         onDeleteGoogle = {
@@ -247,6 +251,7 @@ private fun AppNavigation(
     onExperienceMode: (ExperienceMode) -> Unit,
     onTextSize: (AppTextSize) -> Unit,
     onRemindLater: (io.github.ffelixq.medswidget.domain.DoseRow, Int) -> Unit,
+    onOpenWidgetSetup: () -> Unit,
     onExport: () -> Unit,
     onDeleteGoogle: () -> Unit,
 ) {
@@ -272,6 +277,7 @@ private fun AppNavigation(
                 onEdit = { navigation.navigate("medicine/${it.id}") },
                 onOpenDetailedHistory = { navigation.navigate(Routes.HISTORY) },
                 onOpenSettings = { navigation.navigate(Routes.SETTINGS) },
+                onOpenWidgetSetup = onOpenWidgetSetup,
             )
         }
         composable(Routes.HISTORY) {
