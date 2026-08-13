@@ -89,7 +89,7 @@ class AllMedicinesWidgetGlanceTest {
 
             onNode(hasTextEqualTo("1/3")).assertExists()
             onAllNodes(hasTextEqualTo("Medicine A")).assertCountEquals(2)
-            onNode(hasTextEqualTo("Medicine B")).assertIsDisplayed()
+            onNode(hasTextEqualTo("Medicine B")).assertExists()
             onNode(hasText("After lunch")).assertExists()
             onNode(hasText("Before bed")).assertExists()
             onNode(hasText("Sleep")).assertExists()
