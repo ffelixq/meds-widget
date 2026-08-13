@@ -2,4 +2,7 @@
     <color name="accent">#007AFF</color>
     <color name="accent_dark">#0A84FF</color>
     <color name="launcher_background">#007AFF</color>
+    <color name="widget_repair_background">#F2F2F7</color>
+    <color name="widget_repair_foreground">#111114</color>
+    <color name="widget_repair_supporting">#3A3A3C</color>
 </resources>
