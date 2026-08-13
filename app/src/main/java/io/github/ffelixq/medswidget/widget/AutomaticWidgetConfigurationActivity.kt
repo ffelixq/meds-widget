@@ -86,7 +86,7 @@ class AutomaticWidgetConfigurationActivity : ComponentActivity() {
                     snapshot = snapshot,
                     onRepair = {
                         lifecycleScope.launch {
-                            graph.refreshWidgetSnapshotForBackgroundRender(force = true)
+                            graph.prepareTemporalStateForWidgetRender()
                             val glanceId =
                                 runCatching {
                                     GlanceAppWidgetManager(this@AutomaticWidgetConfigurationActivity)
