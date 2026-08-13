@@ -59,6 +59,15 @@
         </activity>
 
         <activity
+            android:name=".widget.AutomaticWidgetConfigurationActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MedsWidget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
