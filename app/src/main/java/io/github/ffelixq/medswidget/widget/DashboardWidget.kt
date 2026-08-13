@@ -14,8 +14,6 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Column
@@ -43,8 +41,21 @@ class DashboardWidget : GlanceAppWidget() {
         val snapshot = graph.snapshotStore.read()
         val skippedDoseKeys = graph.skippedWidgetDoseKeys(snapshot)
         provideContent {
-            DashboardWidgetContent(snapshot, skippedDoseKeys)
+            DashboardWidgetContent(
+                snapshot = snapshot,
+                skippedDoseKeys = skippedDoseKeys,
+                availableSize = LocalSize.current,
+            )
         }
+    }
+
+    override fun onCompositionError(
+        context: Context,
+        glanceId: GlanceId,
+        appWidgetId: Int,
+        throwable: Throwable,
+    ) {
+        showAutomaticWidgetRepairFallback(context, appWidgetId, "Meds Widget · Today dashboard")
     }
 }
 
@@ -54,10 +65,10 @@ class DashboardWidget : GlanceAppWidget() {
 internal fun DashboardWidgetContent(
     snapshot: WidgetSnapshot,
     skippedDoseKeys: Set<String> = emptySet(),
+    availableSize: DpSize = DpSize(320.dp, 300.dp),
 ) {
     val context = androidx.glance.LocalContext.current
-    val size = LocalSize.current
-    val spec = WidgetLayoutSpec.forSize(DpSize(size.width, size.height), WidgetKind.ALL)
+    val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.ALL)
     Column(
         modifier =
             GlanceModifier
@@ -116,21 +127,27 @@ internal fun DashboardWidgetContent(
             }
 
             else -> {
-                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                    items(
-                        snapshot.rows,
-                        itemId = { row ->
-                            "${row.medicineId}_${row.slot.wireValue}".hashCode().toLong()
-                        },
-                    ) { row ->
-                        WidgetDoseRowContent(
-                            row = row,
-                            source = CheckSource.WIDGET_4X4,
-                            showMedicineName = true,
-                            isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
-                            spec = spec,
-                        )
-                    }
+                val rows = automaticWidgetRows(snapshot.rows, availableSize, spec)
+                rows.visible.forEach { row ->
+                    WidgetDoseRowContent(
+                        row = row,
+                        source = CheckSource.WIDGET_4X4,
+                        showMedicineName = true,
+                        isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
+                        spec = spec,
+                        rowHeightDp = rows.rowHeightDp,
+                    )
+                }
+                if (rows.hiddenCount > 0) {
+                    Text(
+                        text = "+${rows.hiddenCount} more · Open app",
+                        modifier =
+                            GlanceModifier
+                                .fillMaxWidth()
+                                .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+                        style = WidgetTextStyles.supporting(spec),
+                        maxLines = 1,
+                    )
                 }
             }
         }
