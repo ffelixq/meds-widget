@@ -53,6 +53,7 @@ fun ShowcaseAppShell(
     onEdit: (Medicine) -> Unit,
     onOpenDetailedHistory: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWidgetSetup: () -> Unit,
 ) {
     var selectedTabName by rememberSaveable { mutableStateOf(ShowcaseTab.TODAY.name) }
     var selectedDoseId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -136,6 +137,7 @@ fun ShowcaseAppShell(
                 onEdit = onEdit,
                 onOpenDetailedHistory = onOpenDetailedHistory,
                 onOpenSettings = onOpenSettings,
+                onOpenWidgetSetup = onOpenWidgetSetup,
                 onExperienceMode = onExperienceMode,
                 onTextSize = onTextSize,
             )
@@ -210,6 +212,7 @@ private fun ShowcaseTabContent(
     onEdit: (Medicine) -> Unit,
     onOpenDetailedHistory: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWidgetSetup: () -> Unit,
     onExperienceMode: (ExperienceMode) -> Unit,
     onTextSize: (AppTextSize) -> Unit,
 ) {
@@ -281,6 +284,7 @@ private fun ShowcaseTabContent(
                     onExperienceMode = onExperienceMode,
                     onTextSize = onTextSize,
                     onOpenSettings = onOpenSettings,
+                    onOpenWidgetSetup = onOpenWidgetSetup,
                     onCheckPreview = { onCheck(it, CheckSource.APP_PREVIEW) },
                     onStartCountdownPreview = { onStartCountdown(it, CheckSource.APP_PREVIEW) },
                 )
