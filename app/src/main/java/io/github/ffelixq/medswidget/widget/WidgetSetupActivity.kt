@@ -77,7 +77,9 @@ internal fun WidgetSetupScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var refreshKey by remember { mutableIntStateOf(0) }
-    var configurations by remember { mutableStateOf<Map<Int, SingleWidgetConfiguration>>(emptyMap()) }
+    var configurations by remember {
+        mutableStateOf<Map<Int, SingleWidgetConfiguration>>(emptyMap())
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -211,9 +213,18 @@ private fun SingleMedicineSetupCard(
             )
 
             when {
-                snapshot.isLoading -> Text("Loading medicines…")
-                !snapshot.signedIn -> Text("Sign in before configuring a medicine widget.")
-                snapshot.medicines.isEmpty() -> Text("Add a medicine before configuring a 2×2 widget.")
+                snapshot.isLoading -> {
+                    Text("Loading medicines…")
+                }
+
+                !snapshot.signedIn -> {
+                    Text("Sign in before configuring a medicine widget.")
+                }
+
+                snapshot.medicines.isEmpty() -> {
+                    Text("Add a medicine before configuring a 2×2 widget.")
+                }
+
                 widgetIds.isEmpty() -> {
                     Text(
                         "No 2×2 widgets are currently detected on the home screen.",
@@ -336,18 +347,20 @@ private fun requestPinWidget(
 ) {
     val manager = AppWidgetManager.getInstance(context)
     if (!manager.isRequestPinAppWidgetSupported) {
-        Toast.makeText(
-            context,
-            "Your launcher does not support adding widgets from inside the app.",
-            Toast.LENGTH_LONG,
-        ).show()
+        Toast
+            .makeText(
+                context,
+                "Your launcher does not support adding widgets from inside the app.",
+                Toast.LENGTH_LONG,
+            ).show()
         return
     }
     if (!manager.requestPinAppWidget(ComponentName(context, receiver), null, null)) {
-        Toast.makeText(
-            context,
-            "Open your home-screen widget picker to add this widget.",
-            Toast.LENGTH_LONG,
-        ).show()
+        Toast
+            .makeText(
+                context,
+                "Open your home-screen widget picker to add this widget.",
+                Toast.LENGTH_LONG,
+            ).show()
     }
 }
