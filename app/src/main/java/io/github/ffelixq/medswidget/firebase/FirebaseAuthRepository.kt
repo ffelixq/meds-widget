@@ -68,8 +68,16 @@ class FirebaseAuthRepository(
     }
 
     override suspend fun sendPasswordReset(email: String) {
-        firebaseCall {
+        try {
             auth.sendPasswordResetEmail(email.trim()).await()
+        } catch (error: FirebaseAuthException) {
+            if (error.errorCode == "ERROR_USER_NOT_FOUND") return
+            throw AuthFriendlyException(FirebaseErrorMessages.forAuthCode(error.errorCode), error)
+        } catch (error: FirebaseException) {
+            throw AuthFriendlyException(
+                "Authentication could not be completed. Check your connection and try again.",
+                error,
+            )
         }
     }
 
@@ -145,16 +153,40 @@ private fun FirebaseUser.toSession(): AuthSession =
     )
 
 object FirebaseErrorMessages {
+    private const val GENERIC_SIGN_IN_ERROR = "The email or password is incorrect."
+
     fun forAuthCode(code: String): String =
         when (code) {
-            "ERROR_INVALID_EMAIL" -> "Enter a valid email address."
-            "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL" -> "The email or password is incorrect."
-            "ERROR_USER_NOT_FOUND" -> "No account was found for that email."
-            "ERROR_EMAIL_ALREADY_IN_USE" -> "An account already uses that email."
-            "ERROR_WEAK_PASSWORD" -> "Use a password with at least 6 characters."
-            "ERROR_TOO_MANY_REQUESTS" -> "Too many attempts. Wait a little before trying again."
-            "ERROR_NETWORK_REQUEST_FAILED" -> "You appear to be offline. Reconnect and try again."
-            "ERROR_REQUIRES_RECENT_LOGIN" -> "For security, sign in again before continuing."
-            else -> "Authentication could not be completed. Try again."
+            "ERROR_INVALID_EMAIL" -> {
+                "Enter a valid email address."
+            }
+
+            "ERROR_WRONG_PASSWORD", "ERROR_INVALID_CREDENTIAL", "ERROR_USER_NOT_FOUND" -> {
+                GENERIC_SIGN_IN_ERROR
+            }
+
+            "ERROR_EMAIL_ALREADY_IN_USE" -> {
+                "Account creation could not be completed. Check your details or try signing in."
+            }
+
+            "ERROR_WEAK_PASSWORD" -> {
+                "Use a password with at least 6 characters."
+            }
+
+            "ERROR_TOO_MANY_REQUESTS" -> {
+                "Too many attempts. Wait a little before trying again."
+            }
+
+            "ERROR_NETWORK_REQUEST_FAILED" -> {
+                "You appear to be offline. Reconnect and try again."
+            }
+
+            "ERROR_REQUIRES_RECENT_LOGIN" -> {
+                "For security, sign in again before continuing."
+            }
+
+            else -> {
+                "Authentication could not be completed. Try again."
+            }
         }
 }

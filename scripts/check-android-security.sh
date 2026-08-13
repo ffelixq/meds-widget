@@ -9,6 +9,12 @@ export_paths="app/src/main/res/xml/export_file_paths.xml"
 reminder_source="app/src/main/java/io/github/ffelixq/medswidget/sync/MedicineReminderScheduler.kt"
 main_activity="app/src/main/java/io/github/ffelixq/medswidget/ui/MainActivity.kt"
 widget_config_activity="app/src/main/java/io/github/ffelixq/medswidget/widget/SingleWidgetConfigurationActivity.kt"
+auth_screen="app/src/main/java/io/github/ffelixq/medswidget/ui/AuthScreen.kt"
+settings_screen="app/src/main/java/io/github/ffelixq/medswidget/ui/SettingsScreen.kt"
+sensitive_window_source="app/src/main/java/io/github/ffelixq/medswidget/security/SensitiveWindowProtection.kt"
+sensitive_export_source="app/src/main/java/io/github/ffelixq/medswidget/util/SensitiveExportCleanup.kt"
+widget_snapshot_source="app/src/main/java/io/github/ffelixq/medswidget/widget/WidgetSnapshot.kt"
+sensitive_cipher_source="app/src/main/java/io/github/ffelixq/medswidget/security/SensitiveDataCipher.kt"
 
 fail() {
   echo "error: Android security invariant failed: $1" >&2
@@ -75,9 +81,28 @@ reject_literal "$reminder_source" 'KEY_MEDICINE_NAME' 'WorkManager input must no
 reject_literal "$reminder_source" 'KEY_LABEL' 'WorkManager input must not persist custom medicine labels'
 
 for activity_source in "$main_activity" "$widget_config_activity"; do
-  require_literal "$activity_source" 'setRecentsScreenshotEnabled(false)' 'health activities must suppress recents thumbnails on supported Android versions'
-  require_literal "$activity_source" 'window.setHideOverlayWindows(true)' 'health activities must block third-party overlays on supported Android versions'
-  require_literal "$activity_source" 'filterTouchesWhenObscured = true' 'health activities must reject obscured touches'
+  require_literal "$activity_source" 'SensitiveWindowProtection.apply(this)' 'every health activity must apply shared sensitive-window protection'
+done
+require_literal "$sensitive_window_source" 'WindowManager.LayoutParams.FLAG_SECURE' 'health activities must block screenshots, recording, and insecure displays'
+require_literal "$sensitive_window_source" 'setRecentsScreenshotEnabled(false)' 'health activities must suppress recents thumbnails on supported Android versions'
+require_literal "$sensitive_window_source" 'window.setHideOverlayWindows(true)' 'health activities must block third-party overlays on supported Android versions'
+require_literal "$sensitive_window_source" 'filterTouchesWhenObscured = true' 'health activities must reject obscured touches'
+
+require_literal "$main_activity" 'SensitiveExportCleanup.scheduleDeletion' 'shared health-data exports must be scheduled for deletion'
+require_literal "$sensitive_export_source" 'UUID.randomUUID()' 'health-data exports must use unpredictable filenames'
+require_literal "$sensitive_export_source" 'canonicalFile.parentFile == directory.canonicalFile' 'export cleanup must reject paths outside its private directory'
+require_literal "$sensitive_export_source" 'setInitialDelay(CLEANUP_DELAY_MINUTES, TimeUnit.MINUTES)' 'shared health-data exports must expire after a short delay'
+
+require_literal "$widget_snapshot_source" 'SensitiveDataCipher("widget_snapshot")' 'app-managed widget health cache must use the sensitive-data cipher'
+require_literal "$widget_snapshot_source" 'WIDGET_SNAPSHOT_CIPHER.encrypt(WidgetSnapshotCodec.encode(snapshot))' 'widget health cache writes must be encrypted at rest'
+require_literal "$sensitive_cipher_source" 'AndroidKeyStore' 'local health-cache keys must stay in Android Keystore'
+require_literal "$sensitive_cipher_source" 'AES/GCM/NoPadding' 'local health-cache encryption must remain authenticated AES-GCM'
+require_literal "$sensitive_cipher_source" 'KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT' 'health-cache key must be scoped to encryption/decryption'
+require_literal "$sensitive_cipher_source" 'setRandomizedEncryptionRequired(true)' 'health-cache encryption must require randomized encryption'
+
+for credential_screen in "$auth_screen" "$settings_screen"; do
+  reject_literal "$credential_screen" 'var password by rememberSaveable' 'passwords must never be serialized into Compose saved-instance state'
+  require_literal "$credential_screen" 'var password by remember { mutableStateOf("") }' 'passwords must remain memory-only Compose state'
 done
 
 echo "Android security invariants passed."

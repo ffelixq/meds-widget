@@ -2,7 +2,6 @@ package io.github.ffelixq.medswidget.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,12 +28,13 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import io.github.ffelixq.medswidget.AppGraph
 import io.github.ffelixq.medswidget.MedsApplication
+import io.github.ffelixq.medswidget.security.SensitiveWindowProtection
 import io.github.ffelixq.medswidget.sync.SnoozeReminderScheduler
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
 import io.github.ffelixq.medswidget.util.MedicationCsvExporter
+import io.github.ffelixq.medswidget.util.SensitiveExportCleanup
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.File
 import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
@@ -65,7 +65,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        protectSensitiveWindow()
+        SensitiveWindowProtection.apply(this)
+        SensitiveExportCleanup.cleanupStale(this)
         setContent {
             val authState by authViewModel.state.collectAsStateWithLifecycle()
             val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
@@ -155,19 +156,6 @@ class MainActivity : ComponentActivity() {
         mainViewModel.refreshTemporalState()
     }
 
-    /**
-     * Keep passive system surfaces from exposing health data while preserving deliberate screenshots.
-     */
-    private fun protectSensitiveWindow() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            setRecentsScreenshotEnabled(false)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            window.setHideOverlayWindows(true)
-        }
-        window.decorView.filterTouchesWhenObscured = true
-    }
-
     private fun shareCsvExport() {
         val uid =
             graph.repositories.auth.session.value
@@ -183,11 +171,7 @@ class MainActivity : ComponentActivity() {
                     .observeHistory(uid)
                     .first()
                     .value
-            val directory = File(cacheDir, "exports").apply { mkdirs() }
-            directory.listFiles()?.forEach { previous ->
-                if (previous.isFile) runCatching { previous.delete() }
-            }
-            val file = File(directory, "meds-widget-${LocalDate.now()}.csv")
+            val file = SensitiveExportCleanup.createExportFile(this@MainActivity, LocalDate.now())
             file.writeText(MedicationCsvExporter.export(medicines, history))
             val uri =
                 FileProvider.getUriForFile(
@@ -201,6 +185,7 @@ class MainActivity : ComponentActivity() {
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
+            SensitiveExportCleanup.scheduleDeletion(this@MainActivity, file)
             startActivity(Intent.createChooser(shareIntent, "Export Meds Widget data"))
         }
     }

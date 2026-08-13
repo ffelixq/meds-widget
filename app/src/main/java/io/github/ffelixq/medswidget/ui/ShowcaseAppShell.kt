@@ -1,5 +1,6 @@
 package io.github.ffelixq.medswidget.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
@@ -70,6 +71,10 @@ fun ShowcaseAppShell(
         if (patientMode && selectedTab == ShowcaseTab.MEDICINES) {
             selectedTabName = ShowcaseTab.TODAY.name
         }
+    }
+
+    BackHandler(enabled = selectedDose != null) {
+        selectedDoseId = null
     }
 
     val recordTaken: (DoseRow, CheckSource) -> Unit = { row, source ->
