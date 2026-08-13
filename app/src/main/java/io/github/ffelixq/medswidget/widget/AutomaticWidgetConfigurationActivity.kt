@@ -47,7 +47,9 @@ internal fun automaticWidgetKind(
             AutomaticWidgetKind.DASHBOARD
         }
 
-        else -> null
+        else -> {
+            null
+        }
     }
 
 class AutomaticWidgetConfigurationActivity : ComponentActivity() {
