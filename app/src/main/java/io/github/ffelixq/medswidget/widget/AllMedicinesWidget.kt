@@ -15,8 +15,6 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Column
@@ -50,6 +48,15 @@ class AllMedicinesWidget : GlanceAppWidget() {
                 skippedDoseKeys = skippedDoseKeys,
             )
         }
+    }
+
+    override fun onCompositionError(
+        context: Context,
+        glanceId: GlanceId,
+        appWidgetId: Int,
+        throwable: Throwable,
+    ) {
+        showAutomaticWidgetRepairFallback(context, appWidgetId, "Meds Widget · All medicines")
     }
 }
 
@@ -131,21 +138,27 @@ internal fun AllMedicinesWidgetContent(
             }
 
             else -> {
-                LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
-                    items(
-                        snapshot.rows,
-                        itemId = { row ->
-                            "${row.medicineId}_${row.slot.wireValue}".hashCode().toLong()
-                        },
-                    ) { row ->
-                        WidgetDoseRowContent(
-                            row = row,
-                            source = CheckSource.WIDGET_4X2,
-                            showMedicineName = true,
-                            isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
-                            spec = spec,
-                        )
-                    }
+                val rows = automaticWidgetRows(snapshot.rows, availableSize, spec)
+                rows.visible.forEach { row ->
+                    WidgetDoseRowContent(
+                        row = row,
+                        source = CheckSource.WIDGET_4X2,
+                        showMedicineName = true,
+                        isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
+                        spec = spec,
+                        rowHeightDp = rows.rowHeightDp,
+                    )
+                }
+                if (rows.hiddenCount > 0) {
+                    Text(
+                        text = "+${rows.hiddenCount} more · Open app",
+                        modifier =
+                            GlanceModifier
+                                .fillMaxWidth()
+                                .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+                        style = WidgetTextStyles.supporting(spec),
+                        maxLines = 1,
+                    )
                 }
             }
         }
