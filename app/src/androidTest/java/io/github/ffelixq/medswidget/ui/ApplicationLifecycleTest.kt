@@ -10,6 +10,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.github.ffelixq.medswidget.MedsApplication
 import io.github.ffelixq.medswidget.widget.SingleWidgetConfigurationActivity
+import io.github.ffelixq.medswidget.widget.WidgetSetupActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,6 +33,19 @@ class ApplicationLifecycleTest {
 
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
             assertMainContentAttached(scenario)
+        }
+    }
+
+    @Test
+    fun widgetSetupActivityStartsInsideTheApp() {
+        ActivityScenario.launch(WidgetSetupActivity::class.java).use { scenario ->
+            assertEquals(Lifecycle.State.RESUMED, scenario.state)
+            scenario.onActivity { activity ->
+                val content = activity.findViewById<ViewGroup>(android.R.id.content)
+                assertTrue(content.isAttachedToWindow)
+                assertTrue(content.isShown)
+                assertTrue(content.childCount > 0)
+            }
         }
     }
 
