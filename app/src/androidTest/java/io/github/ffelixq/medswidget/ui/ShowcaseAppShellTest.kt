@@ -7,11 +7,13 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -34,6 +36,22 @@ class ShowcaseAppShellTest {
         composeRule.onNodeWithText("Widget Studio").assertIsDisplayed()
         scrollTo("Widget previews")
         composeRule.onNodeWithText("Widget previews").assertIsDisplayed()
+        scrollTo("4×4 · Today dashboard")
+        composeRule.onNodeWithText("4×4 · Today dashboard").assertIsDisplayed()
+    }
+
+    @Test
+    fun widgetSetupCardOpensWidgetManager() {
+        var opened = false
+        setContent(onOpenWidgetSetup = { opened = true })
+
+        composeRule.onNodeWithText("More").performClick()
+        scrollTo("Manage home-screen widgets")
+        composeRule.onNodeWithTag("widget_setup_card").performClick()
+
+        composeRule.runOnIdle {
+            assertTrue(opened)
+        }
     }
 
     @Test
@@ -95,6 +113,7 @@ class ShowcaseAppShellTest {
     private fun setContent(
         mode: ExperienceMode = ExperienceMode.CAREGIVER,
         onExperienceMode: (ExperienceMode) -> Unit = {},
+        onOpenWidgetSetup: () -> Unit = {},
     ) {
         composeRule.setContent {
             UiTestTheme {
@@ -116,6 +135,7 @@ class ShowcaseAppShellTest {
                     onEdit = {},
                     onOpenDetailedHistory = {},
                     onOpenSettings = {},
+                    onOpenWidgetSetup = onOpenWidgetSetup,
                 )
             }
         }

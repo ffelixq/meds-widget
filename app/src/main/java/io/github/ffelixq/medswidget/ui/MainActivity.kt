@@ -33,6 +33,7 @@ import io.github.ffelixq.medswidget.sync.SnoozeReminderScheduler
 import io.github.ffelixq.medswidget.ui.theme.MedsWidgetTheme
 import io.github.ffelixq.medswidget.util.MedicationCsvExporter
 import io.github.ffelixq.medswidget.util.SensitiveExportCleanup
+import io.github.ffelixq.medswidget.widget.WidgetSetupActivity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -138,6 +139,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         },
+                        onOpenWidgetSetup = ::openWidgetSetup,
                         onExport = ::shareCsvExport,
                         onDeleteGoogle = {
                             requestGoogleCredential(
@@ -154,6 +156,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         mainViewModel.refreshTemporalState()
+    }
+
+    private fun openWidgetSetup() {
+        startActivity(Intent(this, WidgetSetupActivity::class.java))
     }
 
     private fun shareCsvExport() {
@@ -247,6 +253,7 @@ private fun AppNavigation(
     onExperienceMode: (ExperienceMode) -> Unit,
     onTextSize: (AppTextSize) -> Unit,
     onRemindLater: (io.github.ffelixq.medswidget.domain.DoseRow, Int) -> Unit,
+    onOpenWidgetSetup: () -> Unit,
     onExport: () -> Unit,
     onDeleteGoogle: () -> Unit,
 ) {
@@ -272,6 +279,7 @@ private fun AppNavigation(
                 onEdit = { navigation.navigate("medicine/${it.id}") },
                 onOpenDetailedHistory = { navigation.navigate(Routes.HISTORY) },
                 onOpenSettings = { navigation.navigate(Routes.SETTINGS) },
+                onOpenWidgetSetup = onOpenWidgetSetup,
             )
         }
         composable(Routes.HISTORY) {

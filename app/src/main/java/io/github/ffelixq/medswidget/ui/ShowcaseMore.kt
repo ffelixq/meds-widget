@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.ffelixq.medswidget.domain.DoseRow
 import io.github.ffelixq.medswidget.ui.design.AppleCard
@@ -39,6 +40,7 @@ internal fun ShowcaseMoreScreen(
     onExperienceMode: (ExperienceMode) -> Unit,
     onTextSize: (AppTextSize) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenWidgetSetup: () -> Unit,
     onCheckPreview: (DoseRow) -> Unit,
     onStartCountdownPreview: (DoseRow) -> Unit,
 ) {
@@ -71,7 +73,7 @@ internal fun ShowcaseMoreScreen(
             AppleSectionHeader(
                 title = "Widget Studio",
                 supportingText =
-                    "Widget previews live here so Today can stay focused on taking medicine.",
+                    "Preview every widget and manage the real home-screen widgets from this page.",
             )
         }
         if (state.rows.isEmpty()) {
@@ -90,20 +92,41 @@ internal fun ShowcaseMoreScreen(
             }
         }
         item {
-            AppleCard {
-                AppleSectionHeader(
-                    title = "Meds Widget",
-                    supportingText = "Clear actions, calm hierarchy, and explicit privacy.",
+            WidgetSetupLink(onClick = onOpenWidgetSetup)
+        }
+        item { Spacer(Modifier.height(8.dp)) }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun WidgetSetupLink(onClick: () -> Unit) {
+    ApplePressableCard(
+        onClick = onClick,
+        modifier = Modifier.testTag("widget_setup_card"),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Manage home-screen widgets",
+                    style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    "Your home-screen widgets use the same tested Glance callbacks, cloud sync, " +
-                        "countdowns, and audit history as the rest of the app.",
+                    "Add 2×2, 4×2, or 4×4 widgets and change which medicine each 2×2 widget tracks.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Icon(
+                Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        item { Spacer(Modifier.height(8.dp)) }
     }
 }
 
