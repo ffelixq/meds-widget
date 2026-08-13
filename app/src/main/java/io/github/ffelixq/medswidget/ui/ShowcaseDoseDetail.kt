@@ -13,11 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -67,8 +68,31 @@ internal fun ShowcaseDoseDetailScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            IconButton(onClick = onBack, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier =
+                        Modifier
+                            .size(52.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.size(30.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "Back",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
         item { ShowcaseDetailHeader(row, countdown) }
