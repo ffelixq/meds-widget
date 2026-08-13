@@ -68,7 +68,6 @@ internal fun AllMedicinesWidgetContent(
     availableSize: DpSize = DpSize(320.dp, 150.dp),
     skippedDoseKeys: Set<String> = emptySet(),
 ) {
-    val context = LocalContext.current
     val spec = WidgetLayoutSpec.forSize(availableSize, WidgetKind.ALL)
     Column(
         modifier =
@@ -78,88 +77,117 @@ internal fun AllMedicinesWidgetContent(
                 .cornerRadius(22.dp)
                 .padding(spec.outerPaddingDp.dp),
     ) {
-        val progress = CompletionProgress(snapshot.rows.count(WidgetDoseRow::isTaken), snapshot.rows.size)
-        val status =
-            if (snapshot.isLoading) {
-                snapshot.compactStatus().orEmpty()
-            } else {
-                listOfNotNull(progress.compactDisplay, snapshot.compactStatus()).joinToString(" · ")
-            }
-        Row(
-            modifier =
-                GlanceModifier
-                    .fillMaxWidth()
-                    .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
-        ) {
+        AllMedicinesWidgetHeader(snapshot = snapshot, spec = spec)
+        Spacer(GlanceModifier.height(2.dp))
+        AllMedicinesWidgetBody(
+            snapshot = snapshot,
+            availableSize = availableSize,
+            skippedDoseKeys = skippedDoseKeys,
+            spec = spec,
+        )
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+@androidx.glance.GlanceComposable
+private fun AllMedicinesWidgetHeader(
+    snapshot: WidgetSnapshot,
+    spec: WidgetLayoutSpec,
+) {
+    val context = LocalContext.current
+    val progress = CompletionProgress(snapshot.rows.count(WidgetDoseRow::isTaken), snapshot.rows.size)
+    val status =
+        if (snapshot.isLoading) {
+            snapshot.compactStatus().orEmpty()
+        } else {
+            listOfNotNull(progress.compactDisplay, snapshot.compactStatus()).joinToString(" · ")
+        }
+    Row(
+        modifier =
+            GlanceModifier
+                .fillMaxWidth()
+                .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+    ) {
+        Text(
+            text = "Today’s medicines",
+            style = WidgetTextStyles.title(spec),
+            modifier = GlanceModifier.defaultWeight(),
+            maxLines = 1,
+        )
+        Text(
+            text = status,
+            style = WidgetTextStyles.supporting(spec),
+            maxLines = 1,
+        )
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+@androidx.glance.GlanceComposable
+private fun AllMedicinesWidgetBody(
+    snapshot: WidgetSnapshot,
+    availableSize: DpSize,
+    skippedDoseKeys: Set<String>,
+    spec: WidgetLayoutSpec,
+) {
+    val context = LocalContext.current
+    when {
+        snapshot.isLoading -> {
             Text(
-                text = "Today’s medicines",
-                style = WidgetTextStyles.title(spec),
-                modifier = GlanceModifier.defaultWeight(),
-                maxLines = 1,
-            )
-            Text(
-                text = status,
-                style = WidgetTextStyles.supporting(spec),
-                maxLines = 1,
+                text = "Loading medicines…",
+                style = WidgetTextStyles.body(spec),
+                maxLines = 2,
             )
         }
-        Spacer(GlanceModifier.height(2.dp))
-        when {
-            snapshot.isLoading -> {
-                Text(
-                    text = "Loading medicines…",
-                    style = WidgetTextStyles.body(spec),
-                    maxLines = 2,
+
+        !snapshot.signedIn -> {
+            Text(
+                text = "Open the app to sign in",
+                modifier =
+                    GlanceModifier.clickable(
+                        actionStartActivity(Intent(context, MainActivity::class.java)),
+                    ),
+                style = WidgetTextStyles.body(spec),
+                maxLines = 2,
+            )
+        }
+
+        snapshot.rows.isEmpty() -> {
+            Text(
+                text = "No active medicines. Add one in the app.",
+                modifier =
+                    GlanceModifier.clickable(
+                        actionStartActivity(Intent(context, MainActivity::class.java)),
+                    ),
+                style = WidgetTextStyles.body(spec),
+                maxLines = 2,
+            )
+        }
+
+        else -> {
+            val rows = automaticWidgetRows(snapshot.rows, availableSize, spec)
+            rows.visible.forEach { row ->
+                WidgetDoseRowContent(
+                    row = row,
+                    source = CheckSource.WIDGET_4X2,
+                    showMedicineName = true,
+                    isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
+                    spec = spec,
+                    rowHeightDp = rows.rowHeightDp,
                 )
             }
-
-            !snapshot.signedIn -> {
+            if (rows.hiddenCount > 0) {
                 Text(
-                    text = "Open the app to sign in",
+                    text = "+${rows.hiddenCount} more · Open app",
                     modifier =
-                        GlanceModifier.clickable(
-                            actionStartActivity(Intent(context, MainActivity::class.java)),
-                        ),
-                    style = WidgetTextStyles.body(spec),
-                    maxLines = 2,
+                        GlanceModifier
+                            .fillMaxWidth()
+                            .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+                    style = WidgetTextStyles.supporting(spec),
+                    maxLines = 1,
                 )
-            }
-
-            snapshot.rows.isEmpty() -> {
-                Text(
-                    text = "No active medicines. Add one in the app.",
-                    modifier =
-                        GlanceModifier.clickable(
-                            actionStartActivity(Intent(context, MainActivity::class.java)),
-                        ),
-                    style = WidgetTextStyles.body(spec),
-                    maxLines = 2,
-                )
-            }
-
-            else -> {
-                val rows = automaticWidgetRows(snapshot.rows, availableSize, spec)
-                rows.visible.forEach { row ->
-                    WidgetDoseRowContent(
-                        row = row,
-                        source = CheckSource.WIDGET_4X2,
-                        showMedicineName = true,
-                        isSkipped = widgetDoseKey(row.medicineId, row.slot) in skippedDoseKeys,
-                        spec = spec,
-                        rowHeightDp = rows.rowHeightDp,
-                    )
-                }
-                if (rows.hiddenCount > 0) {
-                    Text(
-                        text = "+${rows.hiddenCount} more · Open app",
-                        modifier =
-                            GlanceModifier
-                                .fillMaxWidth()
-                                .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
-                        style = WidgetTextStyles.supporting(spec),
-                        maxLines = 1,
-                    )
-                }
             }
         }
     }
