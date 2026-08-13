@@ -5,9 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import io.github.ffelixq.medswidget.MedsApplication
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class WidgetPinSuccessReceiver : BroadcastReceiver() {
@@ -21,14 +18,14 @@ class WidgetPinSuccessReceiver : BroadcastReceiver() {
                 AppWidgetManager.INVALID_APPWIDGET_ID,
             )
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
-        val result = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+        val pendingResult = goAsync()
+        val graph = MedsApplication.graph(context)
+        graph.applicationScope.launch {
             try {
-                val graph = MedsApplication.graph(context)
                 graph.prepareTemporalStateForWidgetRender()
                 graph.widgetUpdater.updateAll()
             } finally {
-                result.finish()
+                pendingResult.finish()
             }
         }
     }
