@@ -113,6 +113,10 @@
         </receiver>
 
         <receiver
+            android:name=".widget.WidgetPinSuccessReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".sync.SystemTimeChangeReceiver"
             android:directBootAware="false"
             android:exported="false">
