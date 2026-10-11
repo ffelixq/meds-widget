@@ -6,7 +6,7 @@ buildscript {
     dependencies {
         // AGP 9 has built-in Kotlin; this upgrades its embedded compiler to the
         // version used by the stable Compose compiler plugin.
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
     }
 }
 
